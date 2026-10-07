@@ -1,6 +1,7 @@
 mod agent_interface;
 mod antigravity_watcher;
 mod db;
+mod delegation_engine;
 mod ledger;
 mod proxy;
 mod registry;
@@ -147,6 +148,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| reqwest::Client::new());
 
     let registry = Arc::new(tokio::sync::RwLock::new(registry::ClusterModelRegistry::new()));
+    let override_store = Arc::new(tokio::sync::RwLock::new(delegation_engine::RouteOverrideStore::new()));
+    let delegation_engine = Arc::new(delegation_engine::AgentDelegationEngine::new(
+        override_store.clone(),
+        registry.clone(),
+        upstream_url.clone(),
+    ));
 
     let proxy_cfg = Arc::new(ProxyConfig {
         upstream_url: upstream_url.clone(),
@@ -155,6 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         identity: identity.clone(),
         client: client.clone(),
         registry: registry.clone(),
+        delegation_engine: delegation_engine.clone(),
     });
 
     let state = AppState {
@@ -174,6 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         security: security_cfg.clone(),
         identity: identity.clone(),
         upstream_url: upstream_url.clone(),
+        override_store: override_store.clone(),
+        delegation_engine: delegation_engine.clone(),
     };
 
     if !is_worker {
@@ -276,10 +286,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/summary", get(get_summary))
         .route("/api/v1/ledger/verify", get(verify_ledger_handler))
         .route("/api/v1/stream", get(sse_handler))
-        // AI Agent Control & MCP Endpoints
+        // AI Agent Control, MCP & Dynamic Delegation Endpoints
         .route("/api/v1/agent/tools", get(agent_interface::get_agent_tools))
         .route("/api/v1/agent/action", post(agent_interface::handle_agent_action).with_state(agent_state.clone()))
-        .route("/api/v1/mcp", post(agent_interface::handle_mcp_rpc).with_state(agent_state))
+        .route("/api/v1/mcp", post(agent_interface::handle_mcp_rpc).with_state(agent_state.clone()))
+        .route("/api/v1/delegate/decide", post(agent_interface::handle_delegate_decide).with_state(agent_state.clone()))
+        .route("/api/v1/delegate/override", post(agent_interface::handle_delegate_override).with_state(agent_state.clone()))
+        .route("/api/v1/delegate/overrides", get(agent_interface::handle_delegate_list_overrides).with_state(agent_state.clone()))
+        .route("/api/v1/delegate/override/:rule_id", axum::routing::delete(agent_interface::handle_delegate_remove_override).with_state(agent_state))
         .layer(CorsLayer::permissive())
         .with_state(state);
 

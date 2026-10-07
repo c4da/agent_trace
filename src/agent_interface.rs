@@ -17,6 +17,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     db::Database,
+    delegation_engine::{AgentDelegationEngine, AgentDelegationRequest, OverrideCriteria, RouteOverrideRule, RouteOverrideStore},
     ledger::NodeIdentity,
     registry::ClusterModelRegistry,
     router::classify_and_route_dynamic,
@@ -32,6 +33,8 @@ pub struct AgentInterfaceState {
     pub security: Arc<ClusterSecurityConfig>,
     pub identity: Arc<NodeIdentity>,
     pub upstream_url: String,
+    pub override_store: Arc<RwLock<RouteOverrideStore>>,
+    pub delegation_engine: Arc<AgentDelegationEngine>,
 }
 
 /// Request payload for an agent executing an action.
@@ -131,6 +134,94 @@ pub async fn get_agent_tools() -> Json<Value> {
                             "type": "string",
                             "description": "Optional model override (e.g. 'auto', 'qwen3.8:27b'). Defaults to 'auto'.",
                             "default": "auto"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "decide_route",
+                "description": "Arbitrates and determines optimal prompt routing across the cluster, taking into account model capabilities, node availability, and active agent override rules.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["prompt"],
+                    "properties": {
+                        "prompt": {
+                            "type": "string",
+                            "description": "The user prompt or instruction to arbitrate and route."
+                        },
+                        "session_id": {
+                            "type": "string",
+                            "description": "Optional session ID to match against session override rules."
+                        },
+                        "agent_id": {
+                            "type": "string",
+                            "description": "Optional agent ID to match against agent override rules."
+                        },
+                        "requested_model": {
+                            "type": "string",
+                            "description": "Optional model requested (e.g. 'auto', 'qwen3.8:27b'). Defaults to 'auto'."
+                        },
+                        "tags": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Optional classification or context tags."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "set_route_override",
+                "description": "Registers an autonomous routing override rule into the gateway so subsequent prompts matching session, agent, or tag criteria are forced to a specific model or node.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["criteria_type", "criteria_value", "target_model", "reason"],
+                    "properties": {
+                        "rule_id": {
+                            "type": "string",
+                            "description": "Optional unique rule ID. Auto-generated if omitted."
+                        },
+                        "criteria_type": {
+                            "type": "string",
+                            "description": "Type of criteria to match: 'session', 'agent', or 'tag'.",
+                            "enum": ["session", "agent", "tag"]
+                        },
+                        "criteria_value": {
+                            "type": "string",
+                            "description": "Value to match (e.g. session ID 'sec-101', agent ID 'hermes-coder', tag 'high_priority')."
+                        },
+                        "target_model": {
+                            "type": "string",
+                            "description": "Target model to force routing to (e.g. 'qwen3.8:27b', 'deepseek-r1:1.5b')."
+                        },
+                        "target_node": {
+                            "type": "string",
+                            "description": "Optional target cluster node ID (e.g. 'PC-1', 'PC-2')."
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Justification for this routing override rule."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "list_route_overrides",
+                "description": "Lists all currently active agent routing overrides in the gateway.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "remove_route_override",
+                "description": "Removes an active routing override rule by its rule ID.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["rule_id"],
+                    "properties": {
+                        "rule_id": {
+                            "type": "string",
+                            "description": "The unique rule ID of the override to remove."
                         }
                     }
                 }
@@ -261,6 +352,87 @@ pub async fn handle_agent_action(
 
             (true, serde_json::to_value(decision).unwrap_or(json!({})), None)
         }
+        "decide_route" => {
+            let prompt = req.parameters.get("prompt").and_then(|v| v.as_str()).unwrap_or("");
+            let session_id = req.parameters.get("session_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let agent_id = req.parameters.get("agent_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let requested_model = req.parameters.get("requested_model").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let tags = req.parameters.get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                .unwrap_or_default();
+
+            let delegation_req = AgentDelegationRequest {
+                prompt: prompt.to_string(),
+                session_id,
+                agent_id,
+                tags,
+                requested_model,
+            };
+
+            let decision = state.delegation_engine.decide(&delegation_req).await;
+            (true, serde_json::to_value(decision).unwrap_or(json!({})), None)
+        }
+        "set_route_override" => {
+            let criteria_type = req.parameters.get("criteria_type").and_then(|v| v.as_str()).unwrap_or("session");
+            let criteria_value = req.parameters.get("criteria_value").and_then(|v| v.as_str()).unwrap_or("");
+            let target_model = req.parameters.get("target_model").and_then(|v| v.as_str()).unwrap_or("");
+            let target_node = req.parameters.get("target_node").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let reason = req.parameters.get("reason").and_then(|v| v.as_str()).unwrap_or("Agent specified route override");
+            let rule_id = req.parameters.get("rule_id").and_then(|v| v.as_str()).unwrap_or("");
+
+            if criteria_value.is_empty() || target_model.is_empty() {
+                (false, json!({}), Some("Both 'criteria_value' and 'target_model' are required".to_string()))
+            } else {
+                let criteria = match criteria_type.to_lowercase().as_str() {
+                    "agent" => OverrideCriteria::Agent(criteria_value.to_string()),
+                    "tag" => OverrideCriteria::Tag(criteria_value.to_string()),
+                    _ => OverrideCriteria::Session(criteria_value.to_string()),
+                };
+
+                let rule = RouteOverrideRule {
+                    rule_id: rule_id.to_string(),
+                    criteria,
+                    target_model: target_model.to_string(),
+                    target_node,
+                    reason: reason.to_string(),
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                };
+
+                let assigned_id = {
+                    let mut store = state.override_store.write().await;
+                    store.set_rule(rule.clone())
+                };
+
+                (
+                    true,
+                    json!({
+                        "applied": true,
+                        "rule_id": assigned_id,
+                        "criteria_type": criteria_type,
+                        "criteria_value": criteria_value,
+                        "target_model": target_model,
+                        "reason": reason
+                    }),
+                    None,
+                )
+            }
+        }
+        "list_route_overrides" => {
+            let store = state.override_store.read().await;
+            let rules = store.list_rules();
+            (true, json!({ "count": rules.len(), "rules": rules }), None)
+        }
+        "remove_route_override" => {
+            let rule_id = req.parameters.get("rule_id").and_then(|v| v.as_str()).unwrap_or("");
+            if rule_id.is_empty() {
+                (false, json!({}), Some("'rule_id' parameter is required".to_string()))
+            } else {
+                let mut store = state.override_store.write().await;
+                let removed = store.remove_rule(rule_id);
+                (true, json!({ "rule_id": rule_id, "removed": removed }), None)
+            }
+        }
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     };
 
@@ -365,3 +537,58 @@ pub async fn handle_mcp_rpc(
         }
     }
 }
+
+/// Direct REST API endpoint for arbitrating a prompt or task routing decision.
+pub async fn handle_delegate_decide(
+    State(state): State<AgentInterfaceState>,
+    headers: HeaderMap,
+    Json(req): Json<AgentDelegationRequest>,
+) -> Result<Json<crate::delegation_engine::AgentDelegationDecision>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let decision = state.delegation_engine.decide(&req).await;
+    Ok(Json(decision))
+}
+
+/// Direct REST API endpoint to create/set a dynamic routing override rule.
+pub async fn handle_delegate_override(
+    State(state): State<AgentInterfaceState>,
+    headers: HeaderMap,
+    Json(rule): Json<RouteOverrideRule>,
+) -> Result<Json<RouteOverrideRule>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut store = state.override_store.write().await;
+    let _ = store.set_rule(rule.clone());
+    Ok(Json(rule))
+}
+
+/// Direct REST API endpoint to list active dynamic routing overrides.
+pub async fn handle_delegate_list_overrides(
+    State(state): State<AgentInterfaceState>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let store = state.override_store.read().await;
+    let rules = store.list_rules();
+    Ok(Json(json!({ "count": rules.len(), "rules": rules })))
+}
+
+/// Direct REST API endpoint to remove a dynamic routing override rule by ID.
+pub async fn handle_delegate_remove_override(
+    State(state): State<AgentInterfaceState>,
+    headers: HeaderMap,
+    axum::extract::Path(rule_id): axum::extract::Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut store = state.override_store.write().await;
+    let removed = store.remove_rule(&rule_id);
+    Ok(Json(json!({ "rule_id": rule_id, "removed": removed })))
+}
+

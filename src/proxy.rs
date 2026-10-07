@@ -19,7 +19,9 @@ pub struct ProxyConfig {
     pub security: Arc<ClusterSecurityConfig>,
     pub identity: Arc<NodeIdentity>,
     pub client: reqwest::Client,
+    #[allow(dead_code)]
     pub registry: Arc<tokio::sync::RwLock<crate::registry::ClusterModelRegistry>>,
+    pub delegation_engine: Arc<crate::delegation_engine::AgentDelegationEngine>,
 }
 
 pub async fn handle_chat_completions(
@@ -44,12 +46,7 @@ pub async fn handle_chat_completions(
         .unwrap_or("")
         .to_string();
 
-    let smart_header = headers.get("x-smart-route")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v == "true" || v == "1")
-        .unwrap_or(false);
-
-    // 1. Dynamic upstream resolution & smart capability-based prompt routing
+    // 1. Dynamic upstream resolution & smart agent-in-the-loop prompt routing
     let (upstream_base, node_id, effective_model, routing_decision) = if let Some(custom) = headers.get("x-upstream-url").and_then(|v| v.to_str().ok()) {
         let nid = headers
             .get("x-node-id")
@@ -58,14 +55,22 @@ pub async fn handle_chat_completions(
             .to_string();
         (custom.trim_end_matches('/').to_string(), nid, model_name.clone(), None)
     } else {
-        let reg_guard = cfg.registry.read().await;
-        let decision = crate::router::classify_and_route_dynamic(
-            &last_prompt,
-            &model_name,
-            smart_header,
-            &*reg_guard,
-            &cfg.upstream_url,
-        );
+        let session_id = headers.get("x-session-id").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+        let agent_id = headers.get("x-agent-id").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+        let tags: Vec<String> = headers.get("x-tags")
+            .and_then(|v| v.to_str().ok())
+            .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+            .unwrap_or_default();
+
+        let req = crate::delegation_engine::AgentDelegationRequest {
+            prompt: last_prompt.clone(),
+            session_id,
+            agent_id,
+            tags,
+            requested_model: Some(model_name.clone()),
+        };
+
+        let decision = cfg.delegation_engine.decide(&req).await;
         (decision.target_upstream.clone(), decision.node_id.clone(), decision.selected_model.clone(), Some(decision))
     };
 
@@ -86,7 +91,7 @@ pub async fn handle_chat_completions(
 
     // Prepare forward body (rewriting model if smart router selected a specific target)
     let forward_body = if let (Some(mut j), Some(ref dec)) = (req_json.clone(), &routing_decision) {
-        if dec.enabled && dec.selected_model != model_name {
+        if dec.selected_model != model_name {
             j["model"] = serde_json::Value::String(effective_model.clone());
             serde_json::to_vec(&j).unwrap_or_else(|_| body.to_vec())
         } else {
@@ -139,6 +144,8 @@ pub async fn handle_chat_completions(
             .unwrap_or("text/event-stream")
             .to_string();
 
+        let bg_eff_model = eff_model.clone();
+        let bg_route_meta = route_meta.clone();
         tokio::spawn(async move {
             let mut ev = TraceEvent {
                 event_id: uuid::Uuid::new_v4().simple().to_string(),
@@ -146,15 +153,15 @@ pub async fn handle_chat_completions(
                 session_id: "active_session".to_string(),
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 event_type: EventType::LlmInference,
-                target: format!("{} [{}]", logged_upstream, eff_model),
+                target: format!("{} [{}]", logged_upstream, bg_eff_model),
                 action_details: serde_json::json!({
                     "status": status.as_u16(),
                     "duration_ms": duration_ms,
-                    "model": eff_model,
+                    "model": bg_eff_model,
                     "requested_model": model_name,
                     "stream": true,
                     "prompt": last_prompt,
-                    "smart_routing": route_meta,
+                    "smart_routing": bg_route_meta,
                 }),
                 diff: None,
                 provenance_sources: vec![],
@@ -172,11 +179,19 @@ pub async fn handle_chat_completions(
         let stream = upstream_res.bytes_stream();
         let body = Body::from_stream(stream);
 
-        Ok(Response::builder()
+        let mut res_builder = Response::builder()
             .status(status)
             .header("content-type", content_type)
-            .body(body)
-            .unwrap())
+            .header("x-routed-model", eff_model);
+
+        if let Some(ref dec) = route_meta {
+            res_builder = res_builder
+                .header("x-routed-intent", format!("{:?}", dec.intent))
+                .header("x-routed-node", &dec.node_id)
+                .header("x-decision-source", format!("{:?}", dec.decision_source));
+        }
+
+        Ok(res_builder.body(body).unwrap())
     } else {
         let resp_bytes = match upstream_res.bytes().await {
             Ok(b) => b,
@@ -240,11 +255,10 @@ pub async fn handle_chat_completions(
             .header("x-routed-model", eff_model);
 
         if let Some(dec) = routing_decision {
-            if dec.enabled {
-                res_builder = res_builder
-                    .header("x-routed-intent", format!("{:?}", dec.intent))
-                    .header("x-routed-node", dec.node_id);
-            }
+            res_builder = res_builder
+                .header("x-routed-intent", format!("{:?}", dec.intent))
+                .header("x-routed-node", dec.node_id)
+                .header("x-decision-source", format!("{:?}", dec.decision_source));
         }
 
         Ok(res_builder

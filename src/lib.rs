@@ -1,6 +1,7 @@
 pub mod agent_interface;
 pub mod antigravity_watcher;
 pub mod db;
+pub mod delegation_engine;
 pub mod ledger;
 pub mod proxy;
 pub mod registry;

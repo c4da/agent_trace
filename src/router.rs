@@ -39,6 +39,45 @@ pub struct RoutingDecision {
     pub fallback_applied: bool,
 }
 
+/// Lexically classifies prompt intent based on semantic indicators and length.
+pub fn classify_intent(prompt: &str) -> RoutingIntent {
+    let prompt_lower = prompt.to_lowercase();
+    let prompt_len = prompt.len();
+
+    if prompt_lower.contains("architect")
+        || prompt_lower.contains("refactor")
+        || prompt_lower.contains("proof")
+        || prompt_lower.contains("physics")
+        || prompt_lower.contains("math")
+        || prompt_lower.contains("algorithm")
+        || prompt_lower.contains("invariant")
+        || prompt_lower.contains("plan")
+        || prompt_len > 1000
+    {
+        RoutingIntent::ComplexReasoning
+    } else if prompt_lower.contains("unit test")
+        || prompt_lower.contains("cargo test")
+        || prompt_lower.contains("boilerplate")
+        || prompt_lower.contains("docstring")
+        || prompt_lower.contains("parser")
+        || prompt_lower.contains("generate")
+        || prompt_lower.contains("scaffold")
+    {
+        RoutingIntent::FastCodeGeneration
+    } else if prompt_lower.contains("verify")
+        || prompt_lower.contains("regex")
+        || prompt_lower.contains("assertion")
+        || prompt_lower.contains("sanity")
+        || prompt_lower.contains("validate")
+        || prompt_lower.contains("lint")
+        || (prompt_len > 0 && prompt_len < 60)
+    {
+        RoutingIntent::SanityVerification
+    } else {
+        RoutingIntent::GeneralExecution
+    }
+}
+
 /// Classifies prompt intent and determines optimal cluster node routing.
 ///
 /// # Arguments
@@ -88,62 +127,13 @@ pub fn classify_and_route(
     }
 
     // --- 2. Lexical Intent Classification ---
-    let prompt_lower = prompt.to_lowercase();
-    let prompt_len = prompt.len();
-
-    let (intent, preferred_model, target_upstream_hint, preferred_node) =
-        if prompt_lower.contains("architect")
-            || prompt_lower.contains("refactor")
-            || prompt_lower.contains("proof")
-            || prompt_lower.contains("physics")
-            || prompt_lower.contains("math")
-            || prompt_lower.contains("algorithm")
-            || prompt_lower.contains("invariant")
-            || prompt_lower.contains("plan")
-            || prompt_len > 1000
-        {
-            (
-                RoutingIntent::ComplexReasoning,
-                "qwen3.8:27b".to_string(),
-                pc1_upstream,
-                "PC-1",
-            )
-        } else if prompt_lower.contains("unit test")
-            || prompt_lower.contains("cargo test")
-            || prompt_lower.contains("boilerplate")
-            || prompt_lower.contains("docstring")
-            || prompt_lower.contains("parser")
-            || prompt_lower.contains("generate")
-            || prompt_lower.contains("scaffold")
-        {
-            (
-                RoutingIntent::FastCodeGeneration,
-                "qwen3:14b".to_string(),
-                pc1_upstream,
-                "PC-1",
-            )
-        } else if prompt_lower.contains("verify")
-            || prompt_lower.contains("regex")
-            || prompt_lower.contains("assertion")
-            || prompt_lower.contains("sanity")
-            || prompt_lower.contains("validate")
-            || prompt_lower.contains("lint")
-            || (prompt_len > 0 && prompt_len < 60)
-        {
-            (
-                RoutingIntent::SanityVerification,
-                "deepseek-r1:1.5b".to_string(),
-                pc2_upstream,
-                "PC-2",
-            )
-        } else {
-            (
-                RoutingIntent::GeneralExecution,
-                "gemma4:latest".to_string(),
-                pc1_upstream,
-                "PC-1",
-            )
-        };
+    let intent = classify_intent(prompt);
+    let (preferred_model, target_upstream_hint, preferred_node) = match intent {
+        RoutingIntent::ComplexReasoning => ("qwen3.8:27b".to_string(), pc1_upstream, "PC-1"),
+        RoutingIntent::FastCodeGeneration => ("qwen3:14b".to_string(), pc1_upstream, "PC-1"),
+        RoutingIntent::SanityVerification => ("deepseek-r1:1.5b".to_string(), pc2_upstream, "PC-2"),
+        RoutingIntent::GeneralExecution => ("gemma4:latest".to_string(), pc1_upstream, "PC-1"),
+    };
 
     // --- 3. Dynamic Availability & Fallback Check ---
     let model_is_available = available_models.is_empty()
@@ -339,41 +329,7 @@ pub fn classify_and_route_dynamic(
     }
 
     // --- 2. Smart Capability Intent Classification ---
-    let prompt_lower = prompt.to_lowercase();
-    let prompt_len = prompt.len();
-
-    let intent = if prompt_lower.contains("architect")
-        || prompt_lower.contains("refactor")
-        || prompt_lower.contains("proof")
-        || prompt_lower.contains("physics")
-        || prompt_lower.contains("math")
-        || prompt_lower.contains("algorithm")
-        || prompt_lower.contains("invariant")
-        || prompt_lower.contains("plan")
-        || prompt_len > 1000
-    {
-        RoutingIntent::ComplexReasoning
-    } else if prompt_lower.contains("unit test")
-        || prompt_lower.contains("cargo test")
-        || prompt_lower.contains("boilerplate")
-        || prompt_lower.contains("docstring")
-        || prompt_lower.contains("parser")
-        || prompt_lower.contains("generate")
-        || prompt_lower.contains("scaffold")
-    {
-        RoutingIntent::FastCodeGeneration
-    } else if prompt_lower.contains("verify")
-        || prompt_lower.contains("regex")
-        || prompt_lower.contains("assertion")
-        || prompt_lower.contains("sanity")
-        || prompt_lower.contains("validate")
-        || prompt_lower.contains("lint")
-        || (prompt_len > 0 && prompt_len < 60)
-    {
-        RoutingIntent::SanityVerification
-    } else {
-        RoutingIntent::GeneralExecution
-    };
+    let intent = classify_intent(prompt);
 
     if let Some(candidate) = registry.find_best_candidate(&intent) {
         RoutingDecision {
