@@ -1,4 +1,7 @@
-use crate::ledger::{compute_event_hash, LedgerVerificationReport, NodeIdentity, GENESIS_PREV_HASH};
+use crate::ledger::{
+    compute_event_hash_v1, compute_event_hash_v2,
+    LedgerVerificationReport, NodeIdentity, GENESIS_PREV_HASH,
+};
 use crate::schema::{ClusterSummary, NodeHeartbeat, TraceEvent, EventType, SecurityVerdict};
 use rusqlite::{params, Connection, Result as SqliteResult};
 use std::sync::{Arc, Mutex};
@@ -63,22 +66,28 @@ impl Database {
     }
 
     pub fn insert_event(&self, event: &mut TraceEvent) -> SqliteResult<()> {
+        self.insert_event_signed(event, None)
+    }
+
+    pub fn insert_event_signed(&self, event: &mut TraceEvent, identity: Option<&NodeIdentity>) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
 
-        // 1. Chaining: attach to latest block hash
+        // 1. Chaining: attach to latest block hash (ALWAYS server-authoritative)
         let mut stmt = conn.prepare("SELECT event_hash FROM events ORDER BY rowid DESC LIMIT 1")?;
         let latest_hash: String = match stmt.query_row([], |r| r.get(0)) {
             Ok(h) => h,
             Err(_) => GENESIS_PREV_HASH.to_string(),
         };
 
-        if event.prev_hash.is_empty() || event.prev_hash == GENESIS_PREV_HASH {
-            event.prev_hash = latest_hash;
-        }
+        event.prev_hash = latest_hash;
 
-        // 2. Compute canonical SHA-256 event hash
-        if event.event_hash.is_empty() {
-            event.event_hash = compute_event_hash(event);
+        // 2. Compute canonical V2 SHA-256 event hash (covers all security fields)
+        event.event_hash = compute_event_hash_v2(event);
+
+        // 3. Attach cryptographic Ed25519 node signature if identity is provided
+        if let Some(id) = identity {
+            event.signature = Some(id.sign_event(&event.event_hash));
+            event.public_key = Some(id.public_key_hex().to_string());
         }
 
         let details_json = serde_json::to_string(&event.action_details).unwrap_or_default();
@@ -263,14 +272,15 @@ impl Database {
                 break;
             }
 
-            // 2. Recompute and check event_hash
-            let computed_hash = compute_event_hash(&ev);
-            if computed_hash != ev.event_hash {
+            // 2. Recompute and check event_hash (supports canonical V2 or legacy V1)
+            let computed_v2 = compute_event_hash_v2(&ev);
+            let matches = (computed_v2 == ev.event_hash) || (compute_event_hash_v1(&ev) == ev.event_hash);
+            if !matches {
                 is_valid = false;
                 broken_block_id = Some(ev.event_id.clone());
                 error_reason = Some(format!(
                     "Tampered event payload at block {}: computed hash {}, recorded hash {}",
-                    ev.event_id, computed_hash, ev.event_hash
+                    ev.event_id, computed_v2, ev.event_hash
                 ));
                 break;
             }
@@ -329,14 +339,17 @@ impl Database {
             (nodes, total_events, total_reads, total_writes, total_commands, security_alerts, blast_radius_score)
         };
 
-        let verification = self.verify_ledger().unwrap_or(LedgerVerificationReport {
-            is_valid: true,
-            total_blocks: 0,
-            genesis_hash: GENESIS_PREV_HASH.to_string(),
-            latest_block_hash: GENESIS_PREV_HASH.to_string(),
-            broken_block_id: None,
-            error_reason: None,
-        });
+        let verification = match self.verify_ledger() {
+            Ok(rep) => rep,
+            Err(e) => LedgerVerificationReport {
+                is_valid: false,
+                total_blocks: 0,
+                genesis_hash: GENESIS_PREV_HASH.to_string(),
+                latest_block_hash: GENESIS_PREV_HASH.to_string(),
+                broken_block_id: None,
+                error_reason: Some(format!("Ledger verification query error: {}", e)),
+            },
+        };
 
         Ok(ClusterSummary {
             total_nodes: nodes.len(),

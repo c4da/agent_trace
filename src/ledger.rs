@@ -25,9 +25,10 @@ pub struct NodeIdentity {
 }
 
 impl NodeIdentity {
-    pub fn load_or_generate(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let p = Path::new(path);
-        let pkcs8_bytes = if p.exists() {
+    pub fn load_or_generate(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
+        let p = path.as_ref();
+        let is_valid_file = p.exists() && fs::metadata(p).map(|m| m.len() > 0).unwrap_or(false);
+        let pkcs8_bytes = if is_valid_file {
             fs::read(p)?
         } else {
             let rng = SystemRandom::new();
@@ -51,6 +52,10 @@ impl NodeIdentity {
         })
     }
 
+    pub fn public_key_hex(&self) -> &str {
+        &self.public_key_hex
+    }
+
     pub fn sign_event(&self, event_hash: &str) -> String {
         let sig = self.key_pair.sign(event_hash.as_bytes());
         hex::encode(sig.as_ref())
@@ -71,7 +76,50 @@ impl NodeIdentity {
     }
 }
 
-pub fn compute_event_hash(event: &TraceEvent) -> String {
+/// Canonical length-prefixed field hashing (V2).
+/// Securely binds EVERY field into the block digest, including event_id, security_verdict,
+/// security_reasons, duration_ms, and provenance_sources.
+pub fn compute_event_hash_v2(event: &TraceEvent) -> String {
+    let mut context = Context::new(&SHA256);
+    context.update(b"AGENTTRACE-V2\n");
+
+    let mut feed_field = |val: &[u8]| {
+        let len = (val.len() as u32).to_be_bytes();
+        context.update(&len);
+        context.update(val);
+    };
+
+    feed_field(event.prev_hash.as_bytes());
+    feed_field(event.event_id.as_bytes());
+    feed_field(event.node_id.as_bytes());
+    feed_field(event.session_id.as_bytes());
+    feed_field(event.timestamp.as_bytes());
+    feed_field(format!("{:?}", event.event_type).as_bytes());
+    feed_field(event.target.as_bytes());
+
+    let details_str = serde_json::to_string(&event.action_details).unwrap_or_default();
+    feed_field(details_str.as_bytes());
+
+    let diff_str = event.diff.as_deref().unwrap_or("");
+    feed_field(diff_str.as_bytes());
+
+    let sources_str = serde_json::to_string(&event.provenance_sources).unwrap_or_default();
+    feed_field(sources_str.as_bytes());
+
+    feed_field(format!("{:?}", event.security_verdict).as_bytes());
+
+    let reasons_str = serde_json::to_string(&event.security_reasons).unwrap_or_default();
+    feed_field(reasons_str.as_bytes());
+
+    let duration_bytes = event.duration_ms.to_bits().to_be_bytes();
+    feed_field(&duration_bytes);
+
+    let digest = context.finish();
+    hex::encode(digest.as_ref())
+}
+
+/// Legacy V1 hash computation (for backwards compatibility with existing historical blocks).
+pub fn compute_event_hash_v1(event: &TraceEvent) -> String {
     let mut context = Context::new(&SHA256);
     context.update(event.prev_hash.as_bytes());
     context.update(b"|");
@@ -93,4 +141,9 @@ pub fn compute_event_hash(event: &TraceEvent) -> String {
     }
     let digest = context.finish();
     hex::encode(digest.as_ref())
+}
+
+/// Default canonical event hash (V2).
+pub fn compute_event_hash(event: &TraceEvent) -> String {
+    compute_event_hash_v2(event)
 }

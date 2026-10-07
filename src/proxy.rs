@@ -5,12 +5,20 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
-use crate::{db::Database, schema::{EventType, SecurityVerdict, TraceEvent}};
+use crate::{
+    db::Database,
+    ledger::NodeIdentity,
+    schema::{EventType, SecurityVerdict, TraceEvent},
+    secrets::ClusterSecurityConfig,
+};
 
 #[derive(Clone)]
 pub struct ProxyConfig {
     pub upstream_url: String,
     pub db: Database,
+    pub security: Arc<ClusterSecurityConfig>,
+    pub identity: Arc<NodeIdentity>,
+    pub client: reqwest::Client,
 }
 
 pub async fn handle_chat_completions(
@@ -32,11 +40,12 @@ pub async fn handle_chat_completions(
         .trim_end_matches('/')
         .to_string();
 
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new());
+    // SSRF Prevention: Enforce upstream allowlist
+    if !cfg.security.is_upstream_allowed(&upstream_base) {
+        eprintln!("[-] [Security Block] Upstream URL not permitted: {}", upstream_base);
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     let upstream = format!("{}/v1/chat/completions", upstream_base);
 
     // Parse request payload to extract prompt, model, and stream mode
@@ -64,9 +73,14 @@ pub async fn handle_chat_completions(
     let t0 = std::time::Instant::now();
 
     // 2. Build upstream request and pass through Authorization header if present
-    let mut req = client.post(&upstream).header("content-type", "application/json");
+    let mut req = cfg.client.post(&upstream).header("content-type", "application/json");
     if let Some(auth) = headers.get("authorization") {
         req = req.header("authorization", auth);
+    } else if let Some(ref worker_key) = cfg.security.worker_hermes_key {
+        // If connecting to PC-2 or hermes and client didn't supply auth, attach configured worker key
+        if upstream_base.contains("192.168.1.102") || upstream_base.contains(":8642") {
+            req = req.header("authorization", format!("Bearer {}", worker_key));
+        }
     }
 
     let upstream_res = match req.body(body.clone()).send().await {
@@ -88,11 +102,19 @@ pub async fn handle_chat_completions(
     let db = cfg.db.clone();
     let nid = node_id.clone();
     let logged_upstream = upstream.clone();
+    let identity = cfg.identity.clone();
 
     if is_stream {
         let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        let content_type = upstream_res
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("text/event-stream")
+            .to_string();
+
         tokio::spawn(async move {
-            let ev = TraceEvent {
+            let mut ev = TraceEvent {
                 event_id: uuid::Uuid::new_v4().simple().to_string(),
                 node_id: nid,
                 session_id: "active_session".to_string(),
@@ -116,8 +138,7 @@ pub async fn handle_chat_completions(
                 signature: None,
                 public_key: None,
             };
-            let mut ev_mut = ev;
-            let _ = db.insert_event(&mut ev_mut);
+            let _ = db.insert_event_signed(&mut ev, Some(&*identity));
         });
 
         let stream = upstream_res.bytes_stream();
@@ -125,7 +146,7 @@ pub async fn handle_chat_completions(
 
         Ok(Response::builder()
             .status(status)
-            .header("content-type", "application/json")
+            .header("content-type", content_type)
             .body(body)
             .unwrap())
     } else {
@@ -153,7 +174,7 @@ pub async fn handle_chat_completions(
         let usage = resp_json.as_ref().and_then(|j| j.get("usage")).cloned();
 
         tokio::spawn(async move {
-            let ev = TraceEvent {
+            let mut ev = TraceEvent {
                 event_id: uuid::Uuid::new_v4().simple().to_string(),
                 node_id: nid,
                 session_id: "active_session".to_string(),
@@ -179,8 +200,7 @@ pub async fn handle_chat_completions(
                 signature: None,
                 public_key: None,
             };
-            let mut ev_mut = ev;
-            let _ = db.insert_event(&mut ev_mut);
+            let _ = db.insert_event_signed(&mut ev, Some(&*identity));
         });
 
         Ok(Response::builder()
@@ -202,16 +222,21 @@ pub async fn handle_models(
         .trim_end_matches('/')
         .to_string();
 
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new());
+    // SSRF Prevention: Enforce upstream allowlist
+    if !cfg.security.is_upstream_allowed(&upstream_base) {
+        eprintln!("[-] [Security Block] Upstream URL not permitted: {}", upstream_base);
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     let upstream = format!("{}/v1/models", upstream_base);
 
-    let mut req = client.get(&upstream);
+    let mut req = cfg.client.get(&upstream);
     if let Some(auth) = headers.get("authorization") {
         req = req.header("authorization", auth);
+    } else if let Some(ref worker_key) = cfg.security.worker_hermes_key {
+        if upstream_base.contains("192.168.1.102") || upstream_base.contains(":8642") {
+            req = req.header("authorization", format!("Bearer {}", worker_key));
+        }
     }
 
     let upstream_res = match req.send().await {

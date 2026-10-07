@@ -1,51 +1,93 @@
-use rusqlite::Connection;
-use std::fs;
+use agent_trace_gw::{
+    db::Database,
+    ledger::{compute_event_hash_v1, compute_event_hash_v2, NodeIdentity, GENESIS_PREV_HASH},
+    schema::{EventType, SecurityVerdict, TraceEvent},
+};
 use tempfile::NamedTempFile;
 
-// Test the compiled binary or db module via a simple script or standalone test
 #[test]
-fn test_hash_chain_tamper_detection() {
-    let tmp_file = NamedTempFile::new().unwrap();
-    let db_path = tmp_file.path().to_str().unwrap();
+fn test_v2_tamper_detection_security_verdict() {
+    let tmp = NamedTempFile::new().unwrap();
+    let db_path = tmp.path().to_str().unwrap();
+    let db = Database::new(db_path).unwrap();
 
-    let conn = Connection::open(db_path).unwrap();
-    conn.execute_batch(
-        "CREATE TABLE events (
-            event_id TEXT PRIMARY KEY,
-            node_id TEXT NOT NULL,
-            session_id TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            event_type TEXT NOT NULL,
-            target TEXT NOT NULL,
-            action_details TEXT NOT NULL,
-            diff TEXT,
-            provenance_sources TEXT NOT NULL,
-            security_verdict TEXT NOT NULL,
-            security_reasons TEXT NOT NULL,
-            duration_ms REAL NOT NULL,
-            prev_hash TEXT NOT NULL,
-            event_hash TEXT NOT NULL,
-            signature TEXT,
-            public_key TEXT
-        );",
-    ).unwrap();
+    let key_file = NamedTempFile::new().unwrap();
+    let identity = NodeIdentity::load_or_generate(key_file.path()).unwrap();
 
-    // Insert block 1 (Genesis)
-    let genesis_prev = "0000000000000000000000000000000000000000000000000000000000000000";
-    let block1_hash = "1111111111111111111111111111111111111111111111111111111111111111";
-    conn.execute(
-        "INSERT INTO events VALUES ('ev_1', 'PC-1', 's1', '2026-10-05T00:00:00Z', 'FileRead', 'main.rs', '{}', NULL, '[]', 'Allowed', '[]', 10.0, ?1, ?2, NULL, NULL)",
-        rusqlite::params![genesis_prev, block1_hash],
-    ).unwrap();
+    // 1. Insert an event that was Flagged by security
+    let mut ev1 = TraceEvent {
+        event_id: "ev_1".to_string(),
+        node_id: "PC-2".to_string(),
+        session_id: "sess_1".to_string(),
+        timestamp: "2026-10-07T12:00:00Z".to_string(),
+        event_type: EventType::CommandRun,
+        target: "rm -rf /".to_string(),
+        action_details: serde_json::json!({"blocked": true}),
+        diff: None,
+        provenance_sources: vec!["rule_engine".to_string()],
+        security_verdict: SecurityVerdict::Flagged,
+        security_reasons: vec!["Dangerous destructive command".to_string()],
+        duration_ms: 12.5,
+        prev_hash: String::new(),
+        event_hash: String::new(),
+        signature: None,
+        public_key: None,
+    };
 
-    // Insert block 2 (Chained to block 1)
-    let block2_hash = "2222222222222222222222222222222222222222222222222222222222222222";
-    conn.execute(
-        "INSERT INTO events VALUES ('ev_2', 'PC-2', 's1', '2026-10-05T00:01:00Z', 'FileWrite', 'app.rs', '{}', '+diff', '[]', 'Allowed', '[]', 15.0, ?1, ?2, NULL, NULL)",
-        rusqlite::params![block1_hash, block2_hash],
-    ).unwrap();
+    db.insert_event_signed(&mut ev1, Some(&identity)).unwrap();
 
-    // Verify chaining query
-    let prev_of_block2: String = conn.query_row("SELECT prev_hash FROM events WHERE event_id = 'ev_2'", [], |r| r.get(0)).unwrap();
-    assert_eq!(prev_of_block2, block1_hash);
+    // Verification must pass initially
+    let report = db.verify_ledger().unwrap();
+    assert!(report.is_valid);
+    assert_eq!(report.total_blocks, 1);
+
+    // 2. An attacker directly tampers with SQLite table, flipping verdict from Flagged to Allowed
+    {
+        let conn = rusqlite::Connection::open(db_path).unwrap();
+        conn.execute("UPDATE events SET security_verdict = 'Allowed' WHERE event_id = 'ev_1'", []).unwrap();
+    }
+
+    // 3. Verification MUST catch this tampering!
+    let tampered_report = db.verify_ledger().unwrap();
+    assert!(!tampered_report.is_valid, "Tampering with security_verdict must be detected by V2 canonical hash!");
+    assert_eq!(tampered_report.broken_block_id, Some("ev_1".to_string()));
+}
+
+#[test]
+fn test_ed25519_signature_verification() {
+    let key_file = NamedTempFile::new().unwrap();
+    let identity = NodeIdentity::load_or_generate(key_file.path()).unwrap();
+
+    let digest = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+    let sig = identity.sign_event(digest);
+
+    assert!(NodeIdentity::verify_signature(digest, &sig, identity.public_key_hex()));
+    // Mismatched digest must fail
+    assert!(!NodeIdentity::verify_signature("different_digest", &sig, identity.public_key_hex()));
+}
+
+#[test]
+fn test_v1_legacy_compatibility() {
+    let ev = TraceEvent {
+        event_id: "legacy_1".to_string(),
+        node_id: "PC-1".to_string(),
+        session_id: "s1".to_string(),
+        timestamp: "2026-10-05T00:00:00Z".to_string(),
+        event_type: EventType::FileRead,
+        target: "main.rs".to_string(),
+        action_details: serde_json::json!({}),
+        diff: None,
+        provenance_sources: vec![],
+        security_verdict: SecurityVerdict::Allowed,
+        security_reasons: vec![],
+        duration_ms: 10.0,
+        prev_hash: GENESIS_PREV_HASH.to_string(),
+        event_hash: String::new(),
+        signature: None,
+        public_key: None,
+    };
+
+    let hash_v1 = compute_event_hash_v1(&ev);
+    let hash_v2 = compute_event_hash_v2(&ev);
+    assert_ne!(hash_v1, hash_v2, "V2 and V1 hashes should use distinct canonical formats");
 }
