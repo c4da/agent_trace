@@ -34,23 +34,43 @@ pub async fn handle_chat_completions(
         .unwrap_or("unknown")
         .to_string();
 
-    // 1. Dynamic upstream resolution: use X-Upstream-Url header if provided, else auto-route by model!
-    let (upstream_base, node_id) = if let Some(custom) = headers.get("x-upstream-url").and_then(|v| v.to_str().ok()) {
+    let last_prompt = req_json.as_ref()
+        .and_then(|j| j.get("messages"))
+        .and_then(|msgs| msgs.as_array())
+        .and_then(|arr| arr.last())
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let smart_header = headers.get("x-smart-route")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    // 1. Dynamic upstream resolution & smart prompt routing
+    let (upstream_base, node_id, effective_model, routing_decision) = if let Some(custom) = headers.get("x-upstream-url").and_then(|v| v.to_str().ok()) {
         let nid = headers
             .get("x-node-id")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("PC-1")
             .to_string();
-        (custom.trim_end_matches('/').to_string(), nid)
+        (custom.trim_end_matches('/').to_string(), nid, model_name.clone(), None)
     } else {
-        let m_lower = model_name.to_lowercase();
-        if m_lower.contains("deepseek") || m_lower.contains("r1") || m_lower.contains("hermes") {
-            // Auto-route deepseek-r1 and hermes to PC-2 Worker Node (:8642)
-            ("http://192.168.1.102:8642".to_string(), "PC-2".to_string())
-        } else {
-            // Auto-route Qwen (qwen3.8:27b, qwen3:14b) and others to PC-1 local Ollama (:11434)
-            (cfg.upstream_url.trim_end_matches('/').to_string(), "PC-1".to_string())
-        }
+        let available_models = vec![
+            "qwen3.8:27b".to_string(),
+            "gemma4:latest".to_string(),
+            "hermes-agent".to_string(),
+        ];
+        let decision = crate::router::classify_and_route(
+            &last_prompt,
+            &model_name,
+            smart_header,
+            &available_models,
+            &cfg.upstream_url,
+            "http://192.168.1.102:8642",
+        );
+        (decision.target_upstream.clone(), decision.node_id.clone(), decision.selected_model.clone(), Some(decision))
     };
 
     // SSRF Prevention: Enforce upstream allowlist
@@ -66,16 +86,19 @@ pub async fn handle_chat_completions(
         .and_then(|s| s.as_bool())
         .unwrap_or(false);
 
-    let last_prompt = req_json.as_ref()
-        .and_then(|j| j.get("messages"))
-        .and_then(|msgs| msgs.as_array())
-        .and_then(|arr| arr.last())
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_str())
-        .unwrap_or("")
-        .to_string();
-
     let t0 = std::time::Instant::now();
+
+    // Prepare forward body (rewriting model if smart router selected a specific target)
+    let forward_body = if let (Some(mut j), Some(ref dec)) = (req_json.clone(), &routing_decision) {
+        if dec.enabled && dec.selected_model != model_name {
+            j["model"] = serde_json::Value::String(effective_model.clone());
+            serde_json::to_vec(&j).unwrap_or_else(|_| body.to_vec())
+        } else {
+            body.to_vec()
+        }
+    } else {
+        body.to_vec()
+    };
 
     // 2. Build upstream request and pass through Authorization header if present
     let mut req = cfg.client.post(&upstream).header("content-type", "application/json");
@@ -88,7 +111,7 @@ pub async fn handle_chat_completions(
         }
     }
 
-    let upstream_res = match req.body(body.clone()).send().await {
+    let upstream_res = match req.body(forward_body).send().await {
         Ok(res) => res,
         Err(e) => {
             let status = if e.is_timeout() {
@@ -108,6 +131,8 @@ pub async fn handle_chat_completions(
     let nid = node_id.clone();
     let logged_upstream = upstream.clone();
     let identity = cfg.identity.clone();
+    let eff_model = effective_model.clone();
+    let route_meta = routing_decision.clone();
 
     if is_stream {
         let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
@@ -125,13 +150,15 @@ pub async fn handle_chat_completions(
                 session_id: "active_session".to_string(),
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 event_type: EventType::LlmInference,
-                target: format!("{} [{}]", logged_upstream, model_name),
+                target: format!("{} [{}]", logged_upstream, eff_model),
                 action_details: serde_json::json!({
                     "status": status.as_u16(),
                     "duration_ms": duration_ms,
-                    "model": model_name,
+                    "model": eff_model,
+                    "requested_model": model_name,
                     "stream": true,
                     "prompt": last_prompt,
+                    "smart_routing": route_meta,
                 }),
                 diff: None,
                 provenance_sources: vec![],
@@ -177,6 +204,7 @@ pub async fn handle_chat_completions(
             .to_string();
 
         let usage = resp_json.as_ref().and_then(|j| j.get("usage")).cloned();
+        let thread_eff_model = eff_model.clone();
 
         tokio::spawn(async move {
             let mut ev = TraceEvent {
@@ -185,15 +213,17 @@ pub async fn handle_chat_completions(
                 session_id: "active_session".to_string(),
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 event_type: EventType::LlmInference,
-                target: format!("{} [{}]", logged_upstream, model_name),
+                target: format!("{} [{}]", logged_upstream, thread_eff_model),
                 action_details: serde_json::json!({
                     "status": status.as_u16(),
                     "duration_ms": duration_ms,
-                    "model": model_name,
+                    "model": thread_eff_model,
+                    "requested_model": model_name,
                     "stream": false,
                     "prompt": last_prompt,
                     "completion": completion_text,
                     "usage": usage,
+                    "smart_routing": route_meta,
                 }),
                 diff: None,
                 provenance_sources: vec![],
@@ -208,9 +238,20 @@ pub async fn handle_chat_completions(
             let _ = db.insert_event_signed(&mut ev, Some(&*identity));
         });
 
-        Ok(Response::builder()
+        let mut res_builder = Response::builder()
             .status(status)
             .header("content-type", "application/json")
+            .header("x-routed-model", eff_model);
+
+        if let Some(dec) = routing_decision {
+            if dec.enabled {
+                res_builder = res_builder
+                    .header("x-routed-intent", format!("{:?}", dec.intent))
+                    .header("x-routed-node", dec.node_id);
+            }
+        }
+
+        Ok(res_builder
             .body(Body::from(resp_bytes))
             .unwrap())
     }

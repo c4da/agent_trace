@@ -2,6 +2,7 @@ mod antigravity_watcher;
 mod db;
 mod ledger;
 mod proxy;
+mod router;
 mod schema;
 mod secrets;
 
