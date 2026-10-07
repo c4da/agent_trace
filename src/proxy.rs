@@ -19,6 +19,7 @@ pub struct ProxyConfig {
     pub security: Arc<ClusterSecurityConfig>,
     pub identity: Arc<NodeIdentity>,
     pub client: reqwest::Client,
+    pub registry: Arc<tokio::sync::RwLock<crate::registry::ClusterModelRegistry>>,
 }
 
 pub async fn handle_chat_completions(
@@ -48,27 +49,22 @@ pub async fn handle_chat_completions(
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
 
-    // 1. Dynamic upstream resolution & smart prompt routing
+    // 1. Dynamic upstream resolution & smart capability-based prompt routing
     let (upstream_base, node_id, effective_model, routing_decision) = if let Some(custom) = headers.get("x-upstream-url").and_then(|v| v.to_str().ok()) {
         let nid = headers
             .get("x-node-id")
             .and_then(|v| v.to_str().ok())
-            .unwrap_or("PC-1")
+            .unwrap_or("CUSTOM")
             .to_string();
         (custom.trim_end_matches('/').to_string(), nid, model_name.clone(), None)
     } else {
-        let available_models = vec![
-            "qwen3.8:27b".to_string(),
-            "gemma4:latest".to_string(),
-            "hermes-agent".to_string(),
-        ];
-        let decision = crate::router::classify_and_route(
+        let reg_guard = cfg.registry.read().await;
+        let decision = crate::router::classify_and_route_dynamic(
             &last_prompt,
             &model_name,
             smart_header,
-            &available_models,
+            &*reg_guard,
             &cfg.upstream_url,
-            "http://192.168.1.102:8642",
         );
         (decision.target_upstream.clone(), decision.node_id.clone(), decision.selected_model.clone(), Some(decision))
     };

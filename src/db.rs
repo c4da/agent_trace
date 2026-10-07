@@ -342,6 +342,7 @@ impl Database {
                     status: row.get(4)?,
                     last_seen: row.get(5)?,
                     public_key: row.get(6)?,
+                    models: None,
                 })
             })?;
             let mut nodes = Vec::new();

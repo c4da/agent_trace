@@ -48,6 +48,7 @@ pub struct RoutingDecision {
 /// * `available_models` - List of live models currently detected in the cluster.
 /// * `pc1_upstream` - Upstream base URL for PC-1 (e.g. "http://127.0.0.1:11434").
 /// * `pc2_upstream` - Upstream base URL for PC-2 (e.g. "http://192.168.1.102:8642").
+#[allow(dead_code)]
 pub fn classify_and_route(
     prompt: &str,
     requested_model: &str,
@@ -278,5 +279,126 @@ mod tests {
         assert!(decision.enabled);
         assert_eq!(decision.intent, RoutingIntent::ComplexReasoning);
         assert_eq!(decision.selected_model, "qwen3.8:27b");
+    }
+
+    #[test]
+    fn test_dynamic_registry_routing() {
+        let mut reg = crate::registry::ClusterModelRegistry::new();
+        reg.register_single_model("WORKER-GPU", "http://10.0.0.5:8642", "custom-r1:1.5b", Some(vec![crate::registry::ModelCapability::SanityVerification]));
+        reg.register_single_model("LEAD-BOX", "http://127.0.0.1:11434", "custom-coder:32b", Some(vec![crate::registry::ModelCapability::ComplexReasoning]));
+
+        let decision = classify_and_route_dynamic("Sanity test regex string", "auto", false, &reg, "http://127.0.0.1:11434");
+        assert!(decision.enabled);
+        assert_eq!(decision.selected_model, "custom-r1:1.5b");
+        assert_eq!(decision.node_id, "WORKER-GPU");
+        assert_eq!(decision.target_upstream, "http://10.0.0.5:8642");
+    }
+}
+
+/// Dynamically routes requests using live capability discovery in ClusterModelRegistry.
+/// Eliminates hardcoded model names and static node mappings.
+pub fn classify_and_route_dynamic(
+    prompt: &str,
+    requested_model: &str,
+    smart_header: bool,
+    registry: &crate::registry::ClusterModelRegistry,
+    default_upstream: &str,
+) -> RoutingDecision {
+    let req_lower = requested_model.to_lowercase();
+    let is_auto = req_lower == "auto"
+        || req_lower == "cluster-router"
+        || req_lower == "cluster-smart"
+        || req_lower == "smart"
+        || smart_header;
+
+    // --- 1. Explicit Model Request ---
+    if !is_auto && !requested_model.is_empty() {
+        if let Some(m) = registry.find_model(requested_model) {
+            return RoutingDecision {
+                enabled: false,
+                intent: RoutingIntent::GeneralExecution,
+                requested_model: requested_model.to_string(),
+                selected_model: m.model_id,
+                target_upstream: m.endpoint,
+                node_id: m.node_id.clone(),
+                rationale: format!("Direct dynamic route to node {}", m.node_id),
+                fallback_applied: false,
+            };
+        } else {
+            return RoutingDecision {
+                enabled: false,
+                intent: RoutingIntent::GeneralExecution,
+                requested_model: requested_model.to_string(),
+                selected_model: requested_model.to_string(),
+                target_upstream: default_upstream.trim_end_matches('/').to_string(),
+                node_id: "DEFAULT".to_string(),
+                rationale: format!("Direct request for '{}'; dispatched to default upstream", requested_model),
+                fallback_applied: false,
+            };
+        }
+    }
+
+    // --- 2. Smart Capability Intent Classification ---
+    let prompt_lower = prompt.to_lowercase();
+    let prompt_len = prompt.len();
+
+    let intent = if prompt_lower.contains("architect")
+        || prompt_lower.contains("refactor")
+        || prompt_lower.contains("proof")
+        || prompt_lower.contains("physics")
+        || prompt_lower.contains("math")
+        || prompt_lower.contains("algorithm")
+        || prompt_lower.contains("invariant")
+        || prompt_lower.contains("plan")
+        || prompt_len > 1000
+    {
+        RoutingIntent::ComplexReasoning
+    } else if prompt_lower.contains("unit test")
+        || prompt_lower.contains("cargo test")
+        || prompt_lower.contains("boilerplate")
+        || prompt_lower.contains("docstring")
+        || prompt_lower.contains("parser")
+        || prompt_lower.contains("generate")
+        || prompt_lower.contains("scaffold")
+    {
+        RoutingIntent::FastCodeGeneration
+    } else if prompt_lower.contains("verify")
+        || prompt_lower.contains("regex")
+        || prompt_lower.contains("assertion")
+        || prompt_lower.contains("sanity")
+        || prompt_lower.contains("validate")
+        || prompt_lower.contains("lint")
+        || (prompt_len > 0 && prompt_len < 60)
+    {
+        RoutingIntent::SanityVerification
+    } else {
+        RoutingIntent::GeneralExecution
+    };
+
+    if let Some(candidate) = registry.find_best_candidate(&intent) {
+        RoutingDecision {
+            enabled: true,
+            intent: intent.clone(),
+            requested_model: requested_model.to_string(),
+            selected_model: candidate.model_id.clone(),
+            target_upstream: candidate.endpoint,
+            node_id: candidate.node_id.clone(),
+            rationale: format!(
+                "Classified as {:?}: dynamically matched capability on node {} (model '{}')",
+                intent, candidate.node_id, candidate.model_id
+            ),
+            fallback_applied: false,
+        }
+    } else {
+        RoutingDecision {
+            enabled: true,
+            intent,
+            requested_model: requested_model.to_string(),
+            selected_model: requested_model.to_string(),
+            target_upstream: default_upstream.trim_end_matches('/').to_string(),
+            node_id: "LOCAL".to_string(),
+            rationale: "No active candidate matching capability; falling back to default upstream".to_string(),
+            fallback_applied: true,
+        }
     }
 }

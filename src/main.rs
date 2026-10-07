@@ -1,7 +1,9 @@
+mod agent_interface;
 mod antigravity_watcher;
 mod db;
 mod ledger;
 mod proxy;
+mod registry;
 mod router;
 mod schema;
 mod secrets;
@@ -44,6 +46,7 @@ struct AppState {
     lead_url: Option<String>,
     #[allow(dead_code)]
     node_id: String,
+    registry: Arc<tokio::sync::RwLock<registry::ClusterModelRegistry>>,
 }
 
 #[tokio::main]
@@ -115,6 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             status: "ACTIVE".to_string(),
             last_seen: chrono::Utc::now().to_rfc3339(),
             public_key: Some(identity.public_key_hex().to_string()),
+            models: None,
         });
         let _ = db.upsert_node(&NodeHeartbeat {
             node_id: "PC-2".to_string(),
@@ -124,6 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             status: "ACTIVE".to_string(),
             last_seen: chrono::Utc::now().to_rfc3339(),
             public_key: None,
+            models: None,
         });
         let _ = db.delete_node("PC-3");
     }
@@ -141,23 +146,82 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
+    let registry = Arc::new(tokio::sync::RwLock::new(registry::ClusterModelRegistry::new()));
+
     let proxy_cfg = Arc::new(ProxyConfig {
-        upstream_url,
+        upstream_url: upstream_url.clone(),
         db: db.clone(),
         security: security_cfg.clone(),
         identity: identity.clone(),
         client: client.clone(),
+        registry: registry.clone(),
     });
 
     let state = AppState {
-        db,
-        proxy_cfg,
+        db: db.clone(),
+        proxy_cfg: proxy_cfg.clone(),
         tx_events,
         security: security_cfg.clone(),
         identity: identity.clone(),
         lead_url: lead_url.clone(),
         node_id: node_id.clone(),
+        registry: registry.clone(),
     };
+
+    let agent_state = agent_interface::AgentInterfaceState {
+        db: db.clone(),
+        registry: registry.clone(),
+        security: security_cfg.clone(),
+        identity: identity.clone(),
+        upstream_url: upstream_url.clone(),
+    };
+
+    if !is_worker {
+        // Dynamic Model Introspector: periodically auto-discovers models and refreshes registry
+        let reg_clone = registry.clone();
+        let bg_client = client.clone();
+        let bg_upstream = upstream_url.clone();
+        let bg_security = security_cfg.clone();
+        tokio::spawn(async move {
+            loop {
+                // 1. Ingest PC-1 Local Models (Ollama)
+                let pc1_tags_url = format!("{}/api/tags", bg_upstream.trim_end_matches('/'));
+                if let Ok(resp) = bg_client.get(&pc1_tags_url).send().await {
+                    if let Ok(json) = resp.json::<serde_json::Value>().await {
+                        let mut reg = reg_clone.write().await;
+                        reg.ingest_ollama_tags("PC-1", &bg_upstream, &json);
+                    }
+                }
+
+                // 2. Ingest PC-2 Worker Models (Hermes Agent / CUDA)
+                let pc2_url = "http://192.168.1.102:8642";
+                let mut req = bg_client.get(format!("{}/v1/models", pc2_url));
+                if let Some(ref key) = bg_security.worker_hermes_key {
+                    req = req.header("authorization", format!("Bearer {}", key));
+                }
+                if let Ok(resp) = req.send().await {
+                    if let Ok(json) = resp.json::<serde_json::Value>().await {
+                        if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
+                            let mut reg = reg_clone.write().await;
+                            for m in arr {
+                                if let Some(id) = m.get("id").and_then(|i| i.as_str()) {
+                                    reg.register_single_model("PC-2", pc2_url, id, None);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Prune nodes that haven't sent a heartbeat within 60s
+                {
+                    let mut reg = reg_clone.write().await;
+                    reg.prune_stale_nodes(60);
+                }
+
+                tokio::time::sleep(Duration::from_secs(15)).await;
+            }
+        });
+    }
 
     // If running in Worker Mode, start background Heartbeat & Telemetry Forwarder to Lead
     if is_worker {
@@ -212,6 +276,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/summary", get(get_summary))
         .route("/api/v1/ledger/verify", get(verify_ledger_handler))
         .route("/api/v1/stream", get(sse_handler))
+        // AI Agent Control & MCP Endpoints
+        .route("/api/v1/agent/tools", get(agent_interface::get_agent_tools))
+        .route("/api/v1/agent/action", post(agent_interface::handle_agent_action).with_state(agent_state.clone()))
+        .route("/api/v1/mcp", post(agent_interface::handle_mcp_rpc).with_state(agent_state))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -383,6 +451,17 @@ async fn register_heartbeat(
         return Err(StatusCode::UNAUTHORIZED);
     }
     state.db.upsert_node(&node).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Dynamically register advertised models in cluster registry
+    if let Some(ref models) = node.models {
+        let mut reg = state.registry.write().await;
+        reg.register_models(models.clone());
+    } else {
+        let endpoint = format!("http://{}:8642", node.ip_address);
+        let mut reg = state.registry.write().await;
+        reg.register_single_model(&node.node_id, &endpoint, "hermes-agent", None);
+    }
+
     Ok(StatusCode::OK)
 }
 

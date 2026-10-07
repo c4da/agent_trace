@@ -59,6 +59,8 @@ pub struct NodeHeartbeat {
     pub last_seen: String,
     /// Public key used for authentication and verification.
     pub public_key: Option<String>,
+    /// Optional self-announced model manifests deployed on this node.
+    pub models: Option<Vec<crate::registry::ModelManifest>>,
 }
 
 /// Provides a summary of the current state of the entire telemetry cluster.
