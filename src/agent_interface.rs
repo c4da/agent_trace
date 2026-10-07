@@ -35,6 +35,7 @@ pub struct AgentInterfaceState {
     pub upstream_url: String,
     pub override_store: Arc<RwLock<RouteOverrideStore>>,
     pub delegation_engine: Arc<AgentDelegationEngine>,
+    pub policy: Arc<RwLock<crate::policy::PolicyEngine>>,
 }
 
 /// Request payload for an agent executing an action.
@@ -222,6 +223,83 @@ pub async fn get_agent_tools() -> Json<Value> {
                         "rule_id": {
                             "type": "string",
                             "description": "The unique rule ID of the override to remove."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "analyze_telemetry",
+                "description": "Computes multi-dimensional telemetry analytics across trace events in the ledger, returning target hotspots, agent behavioral profiles, activity time-series, and security anomalies.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "get_access_policies",
+                "description": "Lists all active agent sandbox and whitelist policies governing allowed read, write, and network pull paths.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "set_access_policy",
+                "description": "Creates or updates an access policy restricting or permitting where a specific agent can read, write, or pull data.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["agent_id"],
+                    "properties": {
+                        "agent_id": {
+                            "type": "string",
+                            "description": "Agent identifier (e.g. 'hermes-agent', 'claude-code', or '*' for global baseline)."
+                        },
+                        "read_whitelist": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "List of allowed path prefixes/patterns for reading data."
+                        },
+                        "write_whitelist": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "List of allowed path prefixes/patterns for writing data."
+                        },
+                        "network_whitelist": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "List of allowed domain or URL prefixes for outbound network requests."
+                        },
+                        "blocked_patterns": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "List of forbidden sensitive substrings/patterns (e.g. '.env', 'id_rsa')."
+                        },
+                        "enforcing": {
+                            "type": "boolean",
+                            "description": "Whether violations are strictly Blocked (true) or Flagged for audit only (false). Defaults to true."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "evaluate_access_policy",
+                "description": "Evaluates whether a proposed data read/write or network pull is permitted under current agent sandbox rules without executing it.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["agent_id", "action", "target"],
+                    "properties": {
+                        "agent_id": {
+                            "type": "string",
+                            "description": "Agent ID proposing the action."
+                        },
+                        "action": {
+                            "type": "string",
+                            "enum": ["Read", "Write", "Execute", "NetworkPull"],
+                            "description": "Type of access action."
+                        },
+                        "target": {
+                            "type": "string",
+                            "description": "The file path or URL destination to evaluate."
                         }
                     }
                 }
@@ -432,6 +510,73 @@ pub async fn handle_agent_action(
                 let removed = store.remove_rule(rule_id);
                 (true, json!({ "rule_id": rule_id, "removed": removed }), None)
             }
+        }
+        "analyze_telemetry" => {
+            match state.db.get_telemetry_analytics() {
+                Ok(report) => (true, serde_json::to_value(report).unwrap_or(json!({})), None),
+                Err(e) => (false, json!({}), Some(format!("Analytics computation failed: {}", e))),
+            }
+        }
+        "get_access_policies" => {
+            let guard = state.policy.read().await;
+            let policies = guard.list_policies();
+            (true, json!({ "count": policies.len(), "policies": policies }), None)
+        }
+        "set_access_policy" => {
+            let agent_id = req.parameters.get("agent_id").and_then(|v| v.as_str()).unwrap_or("");
+            if agent_id.is_empty() {
+                (false, json!({}), Some("'agent_id' parameter is required".to_string()))
+            } else {
+                let read_whitelist = req.parameters.get("read_whitelist")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|s| s.as_str().map(|x| x.to_string())).collect())
+                    .unwrap_or_default();
+                let write_whitelist = req.parameters.get("write_whitelist")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|s| s.as_str().map(|x| x.to_string())).collect())
+                    .unwrap_or_default();
+                let network_whitelist = req.parameters.get("network_whitelist")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|s| s.as_str().map(|x| x.to_string())).collect())
+                    .unwrap_or_default();
+                let blocked_patterns = req.parameters.get("blocked_patterns")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|s| s.as_str().map(|x| x.to_string())).collect())
+                    .unwrap_or_default();
+                let enforcing = req.parameters.get("enforcing").and_then(|v| v.as_bool()).unwrap_or(true);
+
+                let policy = crate::policy::AgentAccessPolicy {
+                    agent_id: agent_id.to_string(),
+                    read_whitelist,
+                    write_whitelist,
+                    network_whitelist,
+                    blocked_patterns,
+                    enforcing,
+                };
+
+                {
+                    let mut guard = state.policy.write().await;
+                    guard.set_policy(policy.clone());
+                }
+
+                (true, serde_json::to_value(policy).unwrap_or(json!({})), None)
+            }
+        }
+        "evaluate_access_policy" => {
+            let agent_id = req.parameters.get("agent_id").and_then(|v| v.as_str()).unwrap_or("*");
+            let action_str = req.parameters.get("action").and_then(|v| v.as_str()).unwrap_or("Read");
+            let target = req.parameters.get("target").and_then(|v| v.as_str()).unwrap_or("");
+
+            let action = match action_str.to_lowercase().as_str() {
+                "write" => crate::policy::AccessAction::Write,
+                "execute" => crate::policy::AccessAction::Execute,
+                "networkpull" | "network" => crate::policy::AccessAction::NetworkPull,
+                _ => crate::policy::AccessAction::Read,
+            };
+
+            let guard = state.policy.read().await;
+            let decision = guard.evaluate(agent_id, action, target);
+            (true, serde_json::to_value(decision).unwrap_or(json!({})), None)
         }
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     };

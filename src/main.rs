@@ -1,8 +1,10 @@
 mod agent_interface;
+mod analytics;
 mod antigravity_watcher;
 mod db;
 mod delegation_engine;
 mod ledger;
+mod policy;
 mod proxy;
 mod registry;
 mod router;
@@ -48,6 +50,7 @@ struct AppState {
     #[allow(dead_code)]
     node_id: String,
     registry: Arc<tokio::sync::RwLock<registry::ClusterModelRegistry>>,
+    policy: Arc<tokio::sync::RwLock<policy::PolicyEngine>>,
 }
 
 #[tokio::main]
@@ -165,6 +168,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         delegation_engine: delegation_engine.clone(),
     });
 
+    let policy = Arc::new(tokio::sync::RwLock::new(policy::PolicyEngine::new_with_defaults()));
+
     let state = AppState {
         db: db.clone(),
         proxy_cfg: proxy_cfg.clone(),
@@ -174,6 +179,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         lead_url: lead_url.clone(),
         node_id: node_id.clone(),
         registry: registry.clone(),
+        policy: policy.clone(),
     };
 
     let agent_state = agent_interface::AgentInterfaceState {
@@ -184,6 +190,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         upstream_url: upstream_url.clone(),
         override_store: override_store.clone(),
         delegation_engine: delegation_engine.clone(),
+        policy: policy.clone(),
     };
 
     if !is_worker {
@@ -286,6 +293,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/v1/summary", get(get_summary))
         .route("/api/v1/ledger/verify", get(verify_ledger_handler))
         .route("/api/v1/stream", get(sse_handler))
+        // Telemetry Analytics & Sandbox Policy Endpoints
+        .route("/api/v1/telemetry/analytics", get(get_analytics_handler))
+        .route("/api/v1/policy", get(list_policies_handler).post(set_policy_handler))
+        .route("/api/v1/policy/:agent_id", axum::routing::delete(delete_policy_handler))
+        .route("/api/v1/policy/evaluate", post(evaluate_policy_handler))
         // AI Agent Control, MCP & Dynamic Delegation Endpoints
         .route("/api/v1/agent/tools", get(agent_interface::get_agent_tools))
         .route("/api/v1/agent/action", post(agent_interface::handle_agent_action).with_state(agent_state.clone()))
@@ -419,6 +431,29 @@ async fn ingest_event(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // 1. Evaluate Agent Sandbox / Whitelist Policy
+    let action = policy::AccessAction::from_event_type(&event.event_type);
+    let agent_id = if !event.node_id.is_empty() {
+        &event.node_id
+    } else {
+        "*"
+    };
+
+    let decision = {
+        let p_guard = state.policy.read().await;
+        p_guard.evaluate(agent_id, action, &event.target)
+    };
+
+    if decision.verdict != schema::SecurityVerdict::Allowed {
+        event.security_verdict = decision.verdict.clone();
+        for r in decision.reasons {
+            if !event.security_reasons.contains(&r) {
+                event.security_reasons.push(r);
+            }
+        }
+    }
+
+    // Cryptographically record event into the tamper-proof ledger (including blocked attempts for audit trail)
     state.db.insert_event_signed(&mut event, Some(&*state.identity)).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let msg = serde_json::to_string(&event).unwrap_or_default();
     let _ = state.tx_events.send(msg);
@@ -438,7 +473,84 @@ async fn ingest_event(
         });
     }
 
+    if event.security_verdict == schema::SecurityVerdict::Blocked {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     Ok(StatusCode::CREATED)
+}
+
+async fn get_analytics_handler(
+    State(state): State<AppState>,
+) -> Result<Json<analytics::TelemetryAnalyticsReport>, StatusCode> {
+    state.db.get_telemetry_analytics().map(Json).map_err(|e| {
+        eprintln!("[-] Error computing telemetry analytics: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
+}
+
+async fn list_policies_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<policy::AgentAccessPolicy>>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let p = state.policy.read().await;
+    Ok(Json(p.list_policies()))
+}
+
+async fn set_policy_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(p): Json<policy::AgentAccessPolicy>,
+) -> Result<Json<policy::AgentAccessPolicy>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut guard = state.policy.write().await;
+    guard.set_policy(p.clone());
+    Ok(Json(p))
+}
+
+async fn delete_policy_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut guard = state.policy.write().await;
+    let removed = guard.remove_policy(&agent_id);
+    Ok(Json(serde_json::json!({ "agent_id": agent_id, "removed": removed })))
+}
+
+#[derive(serde::Deserialize)]
+struct EvaluatePolicyRequest {
+    agent_id: Option<String>,
+    action: Option<String>,
+    target: String,
+}
+
+async fn evaluate_policy_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<EvaluatePolicyRequest>,
+) -> Result<Json<policy::PolicyDecision>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let agent_id = req.agent_id.as_deref().unwrap_or("*");
+    let act = match req.action.as_deref().unwrap_or("Read").to_lowercase().as_str() {
+        "write" => policy::AccessAction::Write,
+        "execute" => policy::AccessAction::Execute,
+        "networkpull" | "network" => policy::AccessAction::NetworkPull,
+        _ => policy::AccessAction::Read,
+    };
+    let guard = state.policy.read().await;
+    let decision = guard.evaluate(agent_id, act, &req.target);
+    Ok(Json(decision))
 }
 
 #[derive(serde::Deserialize)]

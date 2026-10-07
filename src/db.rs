@@ -385,4 +385,170 @@ impl Database {
             ledger_verified: verification.is_valid,
         })
     }
+
+    /// Computes multi-dimensional telemetry analytics across trace events in the ledger.
+    pub fn get_telemetry_analytics(&self) -> SqliteResult<crate::analytics::TelemetryAnalyticsReport> {
+        let (total_events, top_read_targets, top_write_targets, agent_profiles, time_series, security_anomalies) = {
+            let conn = self.conn.lock().unwrap();
+
+            let total_events: u64 = conn
+                .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+                .unwrap_or(0);
+
+            // 1. Top Read Targets Hotspots
+            let mut top_read_stmt = conn.prepare(
+                "SELECT target, count(*) as cnt, max(security_verdict)
+                 FROM events WHERE event_type = 'FileRead'
+                 GROUP BY target ORDER BY cnt DESC LIMIT 10",
+            )?;
+            let top_read_targets: Vec<crate::analytics::TargetHotspot> = top_read_stmt
+                .query_map([], |row| {
+                    let verdict: String = row.get(2)?;
+                    Ok(crate::analytics::TargetHotspot {
+                        target: row.get(0)?,
+                        event_type: EventType::FileRead,
+                        count: row.get(1)?,
+                        risk_flagged: verdict != "Allowed",
+                    })
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            // 2. Top Write Targets Hotspots
+            let mut top_write_stmt = conn.prepare(
+                "SELECT target, count(*) as cnt, max(security_verdict)
+                 FROM events WHERE event_type = 'FileWrite'
+                 GROUP BY target ORDER BY cnt DESC LIMIT 10",
+            )?;
+            let top_write_targets: Vec<crate::analytics::TargetHotspot> = top_write_stmt
+                .query_map([], |row| {
+                    let verdict: String = row.get(2)?;
+                    Ok(crate::analytics::TargetHotspot {
+                        target: row.get(0)?,
+                        event_type: EventType::FileWrite,
+                        count: row.get(1)?,
+                        risk_flagged: verdict != "Allowed",
+                    })
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            // 3. Agent Behavioral Profiles & Threat Scores
+            let mut agent_stmt = conn.prepare(
+                "SELECT node_id, count(*),
+                        sum(case when event_type = 'FileRead' then 1 else 0 end),
+                        sum(case when event_type = 'FileWrite' then 1 else 0 end),
+                        sum(case when event_type = 'CommandRun' then 1 else 0 end),
+                        sum(case when event_type = 'LlmInference' then 1 else 0 end),
+                        sum(case when security_verdict != 'Allowed' then 1 else 0 end)
+                 FROM events GROUP BY node_id ORDER BY count(*) DESC",
+            )?;
+            let agent_profiles: Vec<crate::analytics::AgentProfile> = agent_stmt
+                .query_map([], |row| {
+                    let agent_id: String = row.get(0)?;
+                    let total: u64 = row.get(1)?;
+                    let reads: u64 = row.get(2)?;
+                    let writes: u64 = row.get(3)?;
+                    let commands: u64 = row.get(4)?;
+                    let llm_calls: u64 = row.get(5)?;
+                    let violations: u64 = row.get(6)?;
+
+                    let (blast_radius_score, threat_level) =
+                        crate::analytics::AgentProfile::compute_threat(reads, writes, commands, violations);
+                    let read_to_write_ratio =
+                        crate::analytics::AgentProfile::compute_ratio(reads, writes);
+
+                    Ok(crate::analytics::AgentProfile {
+                        agent_id,
+                        total_events: total,
+                        reads,
+                        writes,
+                        commands,
+                        llm_inferences: llm_calls,
+                        violations,
+                        read_to_write_ratio,
+                        blast_radius_score,
+                        threat_level,
+                    })
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            // 4. Time Series Activity Bucketing
+            let mut ts_stmt = conn.prepare(
+                "SELECT substr(timestamp, 1, 13) || ':00' as bucket,
+                        sum(case when event_type = 'FileRead' then 1 else 0 end),
+                        sum(case when event_type = 'FileWrite' then 1 else 0 end),
+                        sum(case when event_type = 'CommandRun' then 1 else 0 end),
+                        sum(case when event_type = 'LlmInference' then 1 else 0 end),
+                        sum(case when security_verdict != 'Allowed' then 1 else 0 end)
+                 FROM events GROUP BY bucket ORDER BY bucket DESC LIMIT 24",
+            )?;
+            let time_series: Vec<crate::analytics::TimeSeriesBucket> = ts_stmt
+                .query_map([], |row| {
+                    Ok(crate::analytics::TimeSeriesBucket {
+                        bucket: row.get(0)?,
+                        reads: row.get(1)?,
+                        writes: row.get(2)?,
+                        commands: row.get(3)?,
+                        llm_calls: row.get(4)?,
+                        alerts: row.get(5)?,
+                    })
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            // 5. Security Anomalies Breakdown
+            let mut anomaly_stmt = conn.prepare(
+                "SELECT security_verdict, security_reasons, count(*), max(timestamp), target
+                 FROM events WHERE security_verdict != 'Allowed'
+                 GROUP BY security_verdict, security_reasons ORDER BY count(*) DESC LIMIT 10",
+            )?;
+            let security_anomalies: Vec<crate::analytics::SecurityAnomaly> = anomaly_stmt
+                .query_map([], |row| {
+                    let sec_str: String = row.get(0)?;
+                    let reasons_json: String = row.get(1)?;
+                    let verdict = if sec_str == "Blocked" {
+                        SecurityVerdict::Blocked
+                    } else {
+                        SecurityVerdict::Flagged
+                    };
+                    let parsed_reasons: Vec<String> = serde_json::from_str(&reasons_json).unwrap_or_default();
+                    let reason = parsed_reasons.first().cloned().unwrap_or_else(|| "Security Policy Alert".to_string());
+
+                    Ok(crate::analytics::SecurityAnomaly {
+                        verdict,
+                        reason,
+                        count: row.get(2)?,
+                        latest_timestamp: row.get(3)?,
+                        sample_target: row.get(4)?,
+                    })
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            (total_events, top_read_targets, top_write_targets, agent_profiles, time_series, security_anomalies)
+        };
+
+        let rep = self.verify_ledger().unwrap_or(LedgerVerificationReport {
+            is_valid: false,
+            total_blocks: 0,
+            genesis_hash: GENESIS_PREV_HASH.to_string(),
+            latest_block_hash: GENESIS_PREV_HASH.to_string(),
+            broken_block_id: None,
+            error_reason: None,
+        });
+
+        Ok(crate::analytics::TelemetryAnalyticsReport {
+            generated_at: chrono::Utc::now().to_rfc3339(),
+            total_events,
+            top_read_targets,
+            top_write_targets,
+            agent_profiles,
+            time_series,
+            security_anomalies,
+            ledger_valid: rep.is_valid,
+            ledger_head: rep.latest_block_hash,
+        })
+    }
 }

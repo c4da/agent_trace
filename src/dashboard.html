@@ -606,6 +606,84 @@
     </div>
   </div>
 
+  <!-- Advanced Telemetry Analytics & Agent Sandbox Governance Section -->
+  <div class="analytics-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <!-- 1. Target Hotspots & Sensitive Probing -->
+    <div class="card" style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-size: 13px; color: var(--accent); text-transform: uppercase; margin: 0; display: flex; align-items: center; gap: 6px;">
+          🎯 Target Hotspots & File Access
+        </h3>
+        <span style="font-size: 10px; color: var(--text-dim);">Top Access Paths</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600;">📖 MOST READ PATHS</div>
+          <div id="top-reads-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-family: var(--font-mono);">
+            <div style="color: var(--text-dim);">Loading read hotspots...</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600;">✏️ MOST MODIFIED PATHS</div>
+          <div id="top-writes-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-family: var(--font-mono);">
+            <div style="color: var(--text-dim);">Loading write hotspots...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Agent Behavioral Profiles & Threat Scores -->
+    <div class="card" style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-size: 13px; color: var(--accent-green); text-transform: uppercase; margin: 0; display: flex; align-items: center; gap: 6px;">
+          🕵️ Agent Behavioral Profiles & Risk
+        </h3>
+        <span style="font-size: 10px; color: var(--text-dim);">Threat Scoring</span>
+      </div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
+          <thead>
+            <tr style="color: var(--text-dim); border-bottom: 1px solid var(--border);">
+              <th style="padding: 4px 6px;">Agent</th>
+              <th style="padding: 4px 6px;">Events</th>
+              <th style="padding: 4px 6px;">R/W Ratio</th>
+              <th style="padding: 4px 6px;">Violations</th>
+              <th style="padding: 4px 6px;">Blast Radius</th>
+              <th style="padding: 4px 6px;">Threat</th>
+            </tr>
+          </thead>
+          <tbody id="agent-profiles-body">
+            <tr><td colspan="6" style="padding: 8px; text-align: center; color: var(--text-dim);">Loading agent profiles...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. Agent Access Whitelist & Sandbox Policy -->
+    <div class="card" style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-size: 13px; color: #d29922; text-transform: uppercase; margin: 0; display: flex; align-items: center; gap: 6px;">
+          🛡️ Sandbox Access Whitelists & Restrictions
+        </h3>
+        <span class="machine-badge" style="background: #2e2305; color: #d29922; border-color: rgba(210,153,34,0.3);">ENFORCING</span>
+      </div>
+      <div id="policies-summary" style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+        <div style="background: #0d1117; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+          <strong style="color: #58a6ff;">Read Whitelist:</strong>
+          <span style="color: var(--text-dim); font-family: var(--font-mono);" id="policy-reads">Loading allowed read paths...</span>
+        </div>
+        <div style="background: #0d1117; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+          <strong style="color: #3fb950;">Write Whitelist:</strong>
+          <span style="color: var(--text-dim); font-family: var(--font-mono);" id="policy-writes">Loading allowed write paths...</span>
+        </div>
+        <div style="background: #0d1117; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+          <strong style="color: #f85149;">Strict Blacklist:</strong>
+          <span style="color: #ff7b72; font-family: var(--font-mono);" id="policy-blocked">.env, .secrets, id_rsa, id_ed25519, credentials</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Filter & Search Controls -->
   <div class="filter-bar">
     <div class="filter-pills" id="node-filters">
@@ -1005,11 +1083,107 @@
       };
     }
 
+    async function fetchAnalytics() {
+      try {
+        const res = await fetch('/api/v1/telemetry/analytics');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // 1. Render Top Reads
+        const topReads = data.top_read_targets || [];
+        const readsList = document.getElementById('top-reads-list');
+        if (readsList) {
+          if (topReads.length === 0) {
+            readsList.innerHTML = '<div style="color: var(--text-dim);">No read events recorded yet.</div>';
+          } else {
+            readsList.innerHTML = topReads.slice(0, 6).map(t => {
+              const base = t.target.split(/[/\\]/).pop() || t.target;
+              return `<div style="display: flex; justify-content: space-between; align-items: center; background: #0d1117; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border);" title="${t.target}">
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; color: #58a6ff;">${base}</span>
+                <span style="color: var(--text-dim); font-weight: bold;">${t.count}</span>
+              </div>`;
+            }).join('');
+          }
+        }
+
+        // 2. Render Top Writes
+        const topWrites = data.top_write_targets || [];
+        const writesList = document.getElementById('top-writes-list');
+        if (writesList) {
+          if (topWrites.length === 0) {
+            writesList.innerHTML = '<div style="color: var(--text-dim);">No write events recorded yet.</div>';
+          } else {
+            writesList.innerHTML = topWrites.slice(0, 6).map(t => {
+              const base = t.target.split(/[/\\]/).pop() || t.target;
+              return `<div style="display: flex; justify-content: space-between; align-items: center; background: #0d1117; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border);" title="${t.target}">
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; color: #3fb950;">${base}</span>
+                <span style="color: var(--text-dim); font-weight: bold;">${t.count}</span>
+              </div>`;
+            }).join('');
+          }
+        }
+
+        // 3. Render Agent Profiles
+        const profiles = data.agent_profiles || [];
+        const pBody = document.getElementById('agent-profiles-body');
+        if (pBody) {
+          if (profiles.length === 0) {
+            pBody.innerHTML = '<tr><td colspan="6" style="padding: 8px; text-align: center; color: var(--text-dim);">No agent activity recorded yet.</td></tr>';
+          } else {
+            pBody.innerHTML = profiles.map(p => {
+              let tBadge = '<span style="color: #3fb950; font-weight: 700;">LOW</span>';
+              if (p.threat_level === 'CRITICAL') tBadge = '<span style="color: #f85149; font-weight: 700;">CRITICAL</span>';
+              else if (p.threat_level === 'HIGH') tBadge = '<span style="color: #d29922; font-weight: 700;">HIGH</span>';
+              else if (p.threat_level === 'MEDIUM') tBadge = '<span style="color: #db61a2; font-weight: 700;">MEDIUM</span>';
+
+              return `<tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                <td style="padding: 6px;"><strong style="color: #58a6ff;">${p.agent_id}</strong></td>
+                <td style="padding: 6px; font-family: var(--font-mono);">${p.total_events}</td>
+                <td style="padding: 6px; font-family: var(--font-mono);">${p.read_to_write_ratio}:1</td>
+                <td style="padding: 6px; color: ${p.violations > 0 ? '#f85149' : 'var(--text-dim)'};">${p.violations}</td>
+                <td style="padding: 6px; font-family: var(--font-mono);">${p.blast_radius_score} / 100</td>
+                <td style="padding: 6px;">${tBadge}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+      } catch (e) {
+        console.error('Analytics error:', e);
+      }
+    }
+
+    async function fetchPolicies() {
+      try {
+        const res = await fetch('/api/v1/policy');
+        if (!res.ok) return;
+        const policies = await res.json();
+        const globalPolicy = policies.find(p => p.agent_id === '*') || policies[0];
+        if (globalPolicy) {
+          const readsEl = document.getElementById('policy-reads');
+          if (readsEl && globalPolicy.read_whitelist) readsEl.innerText = globalPolicy.read_whitelist.slice(0, 5).join(', ');
+
+          const writesEl = document.getElementById('policy-writes');
+          if (writesEl && globalPolicy.write_whitelist) writesEl.innerText = globalPolicy.write_whitelist.slice(0, 5).join(', ');
+
+          const blockedEl = document.getElementById('policy-blocked');
+          if (blockedEl && globalPolicy.blocked_patterns) blockedEl.innerText = globalPolicy.blocked_patterns.slice(0, 6).join(', ');
+        }
+      } catch (e) {
+        console.error('Policy error:', e);
+      }
+    }
+
     // Start
     fetchSummary();
     fetchEvents();
+    fetchAnalytics();
+    fetchPolicies();
     initSSE();
-    setInterval(fetchSummary, 5000);
+    setInterval(() => {
+      fetchSummary();
+      fetchAnalytics();
+    }, 5000);
+    setInterval(fetchPolicies, 15000);
   </script>
 </body>
 </html>
