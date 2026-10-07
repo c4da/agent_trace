@@ -4,60 +4,48 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 
 ---
 
-## 1. Local Agent Ecosystem & Access Endpoints
+## 1. Cluster Model Topology & Delegation Matrix
 
-### A. Local Gemma 4 (Ollama)
-- **Local Host Endpoint**: `http://127.0.0.1:11434` / `http://localhost:11434`
-- **Model**: `gemma4:latest`
-- **OpenAI Compatible Endpoint**: `http://127.0.0.1:11434/v1`
-- **Native Generate API**: `http://127.0.0.1:11434/api/generate`
-- **Tags & Status**: `http://127.0.0.1:11434/api/tags`, `http://127.0.0.1:11434/api/ps`
+### A. Antigravity (Lead Architect & Orchestrator)
+- **Role**: System architecture, multi-file planning, system invariant enforcement, user communication.
+- **Model**: Frontier / Cloud Gemini reasoning engine.
 
-### B. Local Hermes Agent
-- **CLI Executable**: `C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd`
-- **Config Path**: `C:\Users\milos\AppData\Local\hermes\config.yaml`
-- **Inference Routing**: Configured to route via local gateway (`http://localhost:8080/v1`) or Ollama (`http://localhost:11434/v1`)
+### B. PC-1 Lead Node (VECTOR · 192.168.1.101)
+- **Endpoints**:
+  - AgentTrace Gateway: `http://localhost:8080` / `http://192.168.1.101:8080`
+  - Ollama Engine: `http://127.0.0.1:11434` / `http://127.0.0.1:11434/v1`
+  - Hermes CLI: `C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd`
+- **Models & Delegation Roles**:
+  - `qwen3.8:27b` (Heavy Local Reasoning Partner):
+    - Complex architectural refactoring, structural code analysis, deep math/physics problem solving.
+  - `qwen3:14b` (Fast Local Code Partner):
+    - Rust & Python unit tests (`cargo test`), boilerplate generation, docstrings, telemetry parsers, log analyzers.
 
-### C. AgentTrace Gateway (PC-1 Lead Node)
-- **Crate Location**: `C:\cada\projects\agent_trace_gw`
-- **Executable**: `C:\cada\projects\agent_trace_gw\target\debug\agent_trace_gw.exe`
-- **Gateway Address**: `http://0.0.0.0:8080`
-- **Live UI Dashboard**: `http://localhost:8080/dashboard`
-- **Proxy Endpoint**: `http://localhost:8080/v1/chat/completions`
-- **Models Endpoint**: `http://localhost:8080/v1/models`
-- **Cryptographic Ledger**: `http://localhost:8080/api/v1/ledger/verify`
+### C. PC-2 Worker Node (NODE-02 · 192.168.1.102)
+- **Endpoints**:
+  - Hermes Agent / Ollama: `http://192.168.1.102:8642` / `http://192.168.1.102:8642/v1`
+  - Auth Token: stored in `.secrets/agenttrace.env` as `WORKER_HERMES_KEY`
+- **Models & Delegation Roles**:
+  - `deepseek-r1:1.5b` (Ultra-Fast GPU Reasoning & Sanity Verification):
+    - NVIDIA CUDA acceleration, rapid chain-of-thought verification, syntax checks, regex validation, fast assertion audits at zero token cost.
+
+---
+
+## 2. AgentTrace Gateway Endpoints
+- **Dashboard UI**: `http://localhost:8080/dashboard`
+- **Proxy Endpoint**: `http://localhost:8080/v1/chat/completions` (smart auto-routes by model name!)
+- **Aggregated Models Registry**: `http://localhost:8080/v1/models`
+- **Ledger Verification**: `http://localhost:8080/api/v1/ledger/verify`
 - **Telemetry Ingest**: `http://localhost:8080/api/v1/events`
 - **Cluster Summary**: `http://localhost:8080/api/v1/summary`
 - **Real-Time Stream**: `http://localhost:8080/api/v1/stream` (SSE)
 
 ---
 
-## 2. Remote Cluster Node Access (2-PC Topology)
-
-### PC-2 (Worker Node)
-- **IP Address**: `192.168.1.102`
-- **Port**: `8642`
-- **Platform**: `hermes-agent` v0.21.5
-- **Auth Token**: stored in `.secrets/agenttrace.env` as `WORKER_HERMES_KEY` (never commit it)
-- **Health Check**: `http://192.168.1.102:8642/health`
-- **Models List**: `http://192.168.1.102:8642/v1/models`
-- **Gateway Dynamic Routing Headers**:
-  - `X-Upstream-Url`: `http://192.168.1.102:8642` (must be listed in `UPSTREAM_ALLOWLIST`)
-  - `Authorization`: `Bearer $WORKER_HERMES_KEY`
-  - `X-Node-Id`: `PC-2`
-
-### Secrets
-- All credentials live in `.secrets/agenttrace.env` (gitignored). Template: `secrets.example.env`.
-- Environment variables with the same name override the file.
-- The gateway's Ed25519 signing identity lives in `.secrets/node_key.pk8`.
-
----
-
-## 3. Operational Rules & Token Discipline
-
+## 3. Operational Protocols & Zero-Token Discipline
 1. **Zero External API Cost**:
-   - Secondary boilerplate, unit tests (`cargo test`), telemetry parsing, and documentation must be delegated to local **Gemma 4** and **Hermes**.
+   - Secondary boilerplate, unit tests (`cargo test`), telemetry parsing, and documentation must be delegated to PC-1 (`qwen3.8:27b`, `qwen3:14b`) and PC-2 (`deepseek-r1:1.5b`).
 2. **Queue Waiting Protocol**:
    - The local LLM may be busy with local agent tasks. Check queue status or retry with backoff before assuming timeouts.
 3. **Cryptographic Provenance**:
-   - Every file edit, diff, and command execution should be logged to the gateway to maintain an unbroken SHA-256 hash chain and Ed25519 node signatures.
+   - Every file edit, diff, and command execution is logged to the gateway to maintain an unbroken SHA-256 hash chain and Ed25519 node signatures.

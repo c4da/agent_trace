@@ -26,19 +26,32 @@ pub async fn handle_chat_completions(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, StatusCode> {
-    let node_id = headers
-        .get("x-node-id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("PC-1")
+    // Parse request payload to extract prompt, model, and stream mode
+    let req_json: Option<serde_json::Value> = serde_json::from_slice(&body).ok();
+    let model_name = req_json.as_ref()
+        .and_then(|j| j.get("model"))
+        .and_then(|m| m.as_str())
+        .unwrap_or("unknown")
         .to_string();
 
-    // 1. Dynamic upstream resolution: use X-Upstream-Url header if provided, else default
-    let upstream_base = headers
-        .get("x-upstream-url")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or(&cfg.upstream_url)
-        .trim_end_matches('/')
-        .to_string();
+    // 1. Dynamic upstream resolution: use X-Upstream-Url header if provided, else auto-route by model!
+    let (upstream_base, node_id) = if let Some(custom) = headers.get("x-upstream-url").and_then(|v| v.to_str().ok()) {
+        let nid = headers
+            .get("x-node-id")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("PC-1")
+            .to_string();
+        (custom.trim_end_matches('/').to_string(), nid)
+    } else {
+        let m_lower = model_name.to_lowercase();
+        if m_lower.contains("deepseek") || m_lower.contains("r1") || m_lower.contains("hermes") {
+            // Auto-route deepseek-r1 and hermes to PC-2 Worker Node (:8642)
+            ("http://192.168.1.102:8642".to_string(), "PC-2".to_string())
+        } else {
+            // Auto-route Qwen (qwen3.8:27b, qwen3:14b) and others to PC-1 local Ollama (:11434)
+            (cfg.upstream_url.trim_end_matches('/').to_string(), "PC-1".to_string())
+        }
+    };
 
     // SSRF Prevention: Enforce upstream allowlist
     if !cfg.security.is_upstream_allowed(&upstream_base) {
@@ -47,14 +60,6 @@ pub async fn handle_chat_completions(
     }
 
     let upstream = format!("{}/v1/chat/completions", upstream_base);
-
-    // Parse request payload to extract prompt, model, and stream mode
-    let req_json: Option<serde_json::Value> = serde_json::from_slice(&body).ok();
-    let model_name = req_json.as_ref()
-        .and_then(|j| j.get("model"))
-        .and_then(|m| m.as_str())
-        .unwrap_or("unknown")
-        .to_string();
 
     let is_stream = req_json.as_ref()
         .and_then(|j| j.get("stream"))
@@ -213,54 +218,115 @@ pub async fn handle_chat_completions(
 
 pub async fn handle_models(
     State(cfg): State<Arc<ProxyConfig>>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
-    let upstream_base = headers
-        .get("x-upstream-url")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or(&cfg.upstream_url)
-        .trim_end_matches('/')
-        .to_string();
+    // 1. Query PC-1 Local Models (Ollama)
+    let mut models_list = Vec::new();
 
-    // SSRF Prevention: Enforce upstream allowlist
-    if !cfg.security.is_upstream_allowed(&upstream_base) {
-        eprintln!("[-] [Security Block] Upstream URL not permitted: {}", upstream_base);
-        return Err(StatusCode::FORBIDDEN);
-    }
-
-    let upstream = format!("{}/v1/models", upstream_base);
-
-    let mut req = cfg.client.get(&upstream);
-    if let Some(auth) = headers.get("authorization") {
-        req = req.header("authorization", auth);
-    } else if let Some(ref worker_key) = cfg.security.worker_hermes_key {
-        if upstream_base.contains("192.168.1.102") || upstream_base.contains(":8642") {
-            req = req.header("authorization", format!("Bearer {}", worker_key));
+    let pc1_tags_url = format!("{}/api/tags", cfg.upstream_url.trim_end_matches('/'));
+    if let Ok(resp) = cfg.client.get(&pc1_tags_url).send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            if let Some(arr) = json.get("models").and_then(|m| m.as_array()) {
+                for m in arr {
+                    if let Some(name) = m.get("name").and_then(|n| n.as_str()) {
+                        let role = if name.contains("27b") {
+                            "Heavy Reasoning & Architecture Lead"
+                        } else if name.contains("14b") {
+                            "Fast Code Generation & Boilerplate"
+                        } else {
+                            "Local Offline Executor"
+                        };
+                        models_list.push(serde_json::json!({
+                            "id": name,
+                            "object": "model",
+                            "created": 1791370000,
+                            "owned_by": "PC-1 (VECTOR)",
+                            "node_id": "PC-1",
+                            "host": "192.168.1.101:11434",
+                            "role": role,
+                            "permission": []
+                        }));
+                    }
+                }
+            }
         }
     }
 
-    let upstream_res = match req.send().await {
-        Ok(res) => res,
-        Err(e) => {
-            let status = if e.is_timeout() {
-                StatusCode::GATEWAY_TIMEOUT
+    // Ensure configured Qwen models are visible in registry even while downloading
+    let qwen_keys = ["qwen3.8:27b", "qwen3:14b"];
+    for qk in qwen_keys {
+        if !models_list.iter().any(|m| m.get("id").and_then(|id| id.as_str()) == Some(qk)) {
+            let role = if qk.contains("27b") {
+                "Heavy Reasoning & Architecture Lead (Configured)"
             } else {
-                StatusCode::BAD_GATEWAY
+                "Fast Code Generation & Boilerplate (Configured)"
             };
-            eprintln!("[-] Error connecting to upstream models endpoint ({}): {}", upstream, e);
-            return Err(status);
+            models_list.push(serde_json::json!({
+                "id": qk,
+                "object": "model",
+                "created": 1791370000,
+                "owned_by": "PC-1 (VECTOR)",
+                "node_id": "PC-1",
+                "host": "192.168.1.101:11434",
+                "role": role,
+                "permission": []
+            }));
         }
-    };
+    }
 
-    let status = StatusCode::from_u16(upstream_res.status().as_u16())
-        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    // 2. Query PC-2 Worker Models (Hermes Agent :8642)
+    let pc2_models_url = "http://192.168.1.102:8642/v1/models";
+    let mut pc2_found = false;
+    let mut req = cfg.client.get(pc2_models_url);
+    if let Some(ref key) = cfg.security.worker_hermes_key {
+        req = req.header("authorization", format!("Bearer {}", key));
+    }
+    if let Ok(resp) = req.send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
+                for m in arr {
+                    if let Some(id) = m.get("id").and_then(|i| i.as_str()) {
+                        pc2_found = true;
+                        models_list.push(serde_json::json!({
+                            "id": id,
+                            "object": "model",
+                            "created": 1791370000,
+                            "owned_by": "PC-2 (NODE-02)",
+                            "node_id": "PC-2",
+                            "host": "192.168.1.102:8642",
+                            "role": "CUDA Swarm Worker (Active)",
+                            "permission": []
+                        }));
+                    }
+                }
+            }
+        }
+    }
 
-    let stream = upstream_res.bytes_stream();
-    let body = Body::from_stream(stream);
+    // Ensure DeepSeek-R1 1.5B is registered in cluster catalog
+    if !models_list.iter().any(|m| m.get("id").and_then(|id| id.as_str()) == Some("deepseek-r1:1.5b")) {
+        models_list.push(serde_json::json!({
+            "id": "deepseek-r1:1.5b",
+            "object": "model",
+            "created": 1791370000,
+            "owned_by": "PC-2 (NODE-02)",
+            "node_id": "PC-2",
+            "host": "192.168.1.102:8642",
+            "role": "Ultra-Fast GPU Reasoning & Sanity Verification",
+            "permission": []
+        }));
+    }
+
+    let payload = serde_json::json!({
+        "object": "list",
+        "total_cluster_models": models_list.len(),
+        "pc2_worker_online": pc2_found,
+        "data": models_list
+    });
 
     Ok(Response::builder()
-        .status(status)
+        .status(StatusCode::OK)
         .header("content-type", "application/json")
-        .body(body)
+        .body(Body::from(serde_json::to_vec(&payload).unwrap_or_default()))
         .unwrap())
 }

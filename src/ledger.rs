@@ -1,4 +1,4 @@
-use crate::schema::TraceEvent;
+use crate::schema::{EventType, SecurityVerdict, TraceEvent};
 use ring::{
     digest::{Context, SHA256},
     rand::SystemRandom,
@@ -76,10 +76,23 @@ impl NodeIdentity {
     }
 }
 
-/// Canonical length-prefixed field hashing (V2).
-/// Securely binds EVERY field into the block digest, including event_id, security_verdict,
-/// security_reasons, duration_ms, and provenance_sources.
-pub fn compute_event_hash_v2(event: &TraceEvent) -> String {
+/// Canonical length-prefixed field hashing (V2) from raw field strings.
+/// Prevents JSON float/key-order re-serialization drift when verifying from database storage.
+pub fn compute_event_hash_v2_raw(
+    prev_hash: &str,
+    event_id: &str,
+    node_id: &str,
+    session_id: &str,
+    timestamp: &str,
+    event_type: &EventType,
+    target: &str,
+    details_str: &str,
+    diff: Option<&str>,
+    sources_str: &str,
+    security_verdict: &SecurityVerdict,
+    reasons_str: &str,
+    duration_ms: f64,
+) -> String {
     let mut context = Context::new(&SHA256);
     context.update(b"AGENTTRACE-V2\n");
 
@@ -89,34 +102,50 @@ pub fn compute_event_hash_v2(event: &TraceEvent) -> String {
         context.update(val);
     };
 
-    feed_field(event.prev_hash.as_bytes());
-    feed_field(event.event_id.as_bytes());
-    feed_field(event.node_id.as_bytes());
-    feed_field(event.session_id.as_bytes());
-    feed_field(event.timestamp.as_bytes());
-    feed_field(format!("{:?}", event.event_type).as_bytes());
-    feed_field(event.target.as_bytes());
-
-    let details_str = serde_json::to_string(&event.action_details).unwrap_or_default();
+    feed_field(prev_hash.as_bytes());
+    feed_field(event_id.as_bytes());
+    feed_field(node_id.as_bytes());
+    feed_field(session_id.as_bytes());
+    feed_field(timestamp.as_bytes());
+    feed_field(format!("{:?}", event_type).as_bytes());
+    feed_field(target.as_bytes());
     feed_field(details_str.as_bytes());
-
-    let diff_str = event.diff.as_deref().unwrap_or("");
-    feed_field(diff_str.as_bytes());
-
-    let sources_str = serde_json::to_string(&event.provenance_sources).unwrap_or_default();
+    feed_field(diff.unwrap_or("").as_bytes());
     feed_field(sources_str.as_bytes());
-
-    feed_field(format!("{:?}", event.security_verdict).as_bytes());
-
-    let reasons_str = serde_json::to_string(&event.security_reasons).unwrap_or_default();
+    feed_field(format!("{:?}", security_verdict).as_bytes());
     feed_field(reasons_str.as_bytes());
 
-    let duration_bytes = event.duration_ms.to_bits().to_be_bytes();
+    let duration_bytes = duration_ms.to_bits().to_be_bytes();
     feed_field(&duration_bytes);
 
     let digest = context.finish();
     hex::encode(digest.as_ref())
 }
+
+/// Canonical length-prefixed field hashing (V2).
+/// Securely binds EVERY field into the block digest, including event_id, security_verdict,
+/// security_reasons, duration_ms, and provenance_sources.
+pub fn compute_event_hash_v2(event: &TraceEvent) -> String {
+    let details_str = serde_json::to_string(&event.action_details).unwrap_or_default();
+    let sources_str = serde_json::to_string(&event.provenance_sources).unwrap_or_default();
+    let reasons_str = serde_json::to_string(&event.security_reasons).unwrap_or_default();
+    compute_event_hash_v2_raw(
+        &event.prev_hash,
+        &event.event_id,
+        &event.node_id,
+        &event.session_id,
+        &event.timestamp,
+        &event.event_type,
+        &event.target,
+        &details_str,
+        event.diff.as_deref(),
+        &sources_str,
+        &event.security_verdict,
+        &reasons_str,
+        event.duration_ms,
+    )
+}
+
 
 /// Legacy V1 hash computation (for backwards compatibility with existing historical blocks).
 pub fn compute_event_hash_v1(event: &TraceEvent) -> String {
@@ -144,6 +173,7 @@ pub fn compute_event_hash_v1(event: &TraceEvent) -> String {
 }
 
 /// Default canonical event hash (V2).
+#[allow(dead_code)]
 pub fn compute_event_hash(event: &TraceEvent) -> String {
     compute_event_hash_v2(event)
 }

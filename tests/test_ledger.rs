@@ -91,3 +91,14 @@ fn test_v1_legacy_compatibility() {
     let hash_v2 = compute_event_hash_v2(&ev);
     assert_ne!(hash_v1, hash_v2, "V2 and V1 hashes should use distinct canonical formats");
 }
+
+#[test]
+fn test_verify_live_db() {
+    if std::path::Path::new("cluster_telemetry.db").exists() {
+        let db = Database::new("cluster_telemetry.db").unwrap();
+        let report = db.verify_ledger().unwrap();
+        assert!(report.is_valid, "Live database ledger must verify cleanly: {:?}", report.error_reason);
+    }
+}
+
+

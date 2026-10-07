@@ -1,5 +1,5 @@
 use crate::ledger::{
-    compute_event_hash_v1, compute_event_hash_v2,
+    compute_event_hash_v1, compute_event_hash_v2, compute_event_hash_v2_raw,
     LedgerVerificationReport, NodeIdentity, GENESIS_PREV_HASH,
 };
 use crate::schema::{ClusterSummary, NodeHeartbeat, TraceEvent, EventType, SecurityVerdict};
@@ -55,6 +55,7 @@ impl Database {
         })
     }
 
+    #[allow(dead_code)]
     pub fn get_latest_event_hash(&self) -> SqliteResult<String> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT event_hash FROM events ORDER BY rowid DESC LIMIT 1")?;
@@ -231,24 +232,29 @@ impl Database {
                 _ => SecurityVerdict::Allowed,
             };
 
-            Ok(TraceEvent {
-                event_id: row.get(0)?,
-                node_id: row.get(1)?,
-                session_id: row.get(2)?,
-                timestamp: row.get(3)?,
-                event_type,
-                target: row.get(5)?,
-                action_details: serde_json::from_str(&details_str).unwrap_or_default(),
-                diff: row.get(7)?,
-                provenance_sources: serde_json::from_str(&sources_str).unwrap_or_default(),
-                security_verdict,
-                security_reasons: serde_json::from_str(&reasons_str).unwrap_or_default(),
-                duration_ms: row.get(11)?,
-                prev_hash: row.get(12)?,
-                event_hash: row.get(13)?,
-                signature: row.get(14)?,
-                public_key: row.get(15)?,
-            })
+            Ok((
+                TraceEvent {
+                    event_id: row.get(0)?,
+                    node_id: row.get(1)?,
+                    session_id: row.get(2)?,
+                    timestamp: row.get(3)?,
+                    event_type,
+                    target: row.get(5)?,
+                    action_details: serde_json::from_str(&details_str).unwrap_or_default(),
+                    diff: row.get(7)?,
+                    provenance_sources: serde_json::from_str(&sources_str).unwrap_or_default(),
+                    security_verdict,
+                    security_reasons: serde_json::from_str(&reasons_str).unwrap_or_default(),
+                    duration_ms: row.get(11)?,
+                    prev_hash: row.get(12)?,
+                    event_hash: row.get(13)?,
+                    signature: row.get(14)?,
+                    public_key: row.get(15)?,
+                },
+                details_str,
+                sources_str,
+                reasons_str,
+            ))
         })?;
 
         let mut is_valid = true;
@@ -258,7 +264,7 @@ impl Database {
         let mut error_reason = None;
 
         for r in rows {
-            let ev = r?;
+            let (ev, raw_details, raw_sources, raw_reasons) = r?;
             total_blocks += 1;
 
             // 1. Check prev_hash continuity
@@ -273,7 +279,21 @@ impl Database {
             }
 
             // 2. Recompute and check event_hash (supports canonical V2 or legacy V1)
-            let computed_v2 = compute_event_hash_v2(&ev);
+            let computed_v2 = compute_event_hash_v2_raw(
+                &ev.prev_hash,
+                &ev.event_id,
+                &ev.node_id,
+                &ev.session_id,
+                &ev.timestamp,
+                &ev.event_type,
+                &ev.target,
+                &raw_details,
+                ev.diff.as_deref(),
+                &raw_sources,
+                &ev.security_verdict,
+                &raw_reasons,
+                ev.duration_ms,
+            );
             let matches = (computed_v2 == ev.event_hash) || (compute_event_hash_v1(&ev) == ev.event_hash);
             if !matches {
                 is_valid = false;

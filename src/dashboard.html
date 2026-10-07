@@ -510,17 +510,17 @@
           </div>
         </div>
 
-        <!-- Agent 2: PC-1 Hermes (Local Gemma 4) -->
-        <div class="agent-box hermes" data-filter="PC-1" onclick="setFilter('PC-1')" title="Click to filter events to PC-1 Local Hermes">
+        <!-- Agent 2: PC-1 Local Engines (Qwen 27B / 14B) -->
+        <div class="agent-box hermes" data-filter="PC-1" onclick="setFilter('PC-1')" title="Click to filter events to PC-1 Engines">
           <div class="agent-top">
             <div class="agent-identity">
               <span class="agent-icon">🤖</span>
-              <span class="agent-name">PC-1 Local Hermes & Gemma 4</span>
+              <span class="agent-name">PC-1 Local Engines (Qwen 27B / 14B)</span>
             </div>
             <span class="agent-tag blue">LOCAL OLLAMA</span>
           </div>
-          <div class="agent-role">Offline Executor, Test Runner & Boilerplate Partner</div>
-          <div class="agent-model">Ollama :11434 · gemma4:latest (0 Token Cost)</div>
+          <div class="agent-role">Heavy Reasoning (27B) & Fast Code/Boilerplate (14B)</div>
+          <div class="agent-model">Ollama :11434 · qwen3.8:27b · qwen3:14b</div>
           <div class="agent-footer">
             <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Local CLI & Daemon Active</span></span>
             <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>
@@ -569,17 +569,17 @@
       </div>
 
       <div class="agents-grid">
-        <!-- Agent 4: PC-2 Remote Hermes (CUDA Worker) -->
+        <!-- Agent 4: PC-2 DeepSeek-R1 (CUDA Worker) -->
         <div class="agent-box hermes-cuda" data-filter="PC-2" onclick="setFilter('PC-2')" title="Click to filter events to PC-2 Worker">
           <div class="agent-top">
             <div class="agent-identity">
               <span class="agent-icon">🔥</span>
-              <span class="agent-name">PC-2 Hermes Agent</span>
+              <span class="agent-name">PC-2 DeepSeek-R1 (1.5B Distill)</span>
             </div>
             <span class="agent-tag green">NVIDIA CUDA</span>
           </div>
-          <div class="agent-role">Dedicated Swarm Compute & Remote Autonomous Tasks</div>
-          <div class="agent-model">hermes-agent v0.21.5 · Port :8642 (NVIDIA GPU)</div>
+          <div class="agent-role">Ultra-Fast GPU Chain-of-Thought & Sanity Verification</div>
+          <div class="agent-model">deepseek-r1:1.5b · Port :8642 (NVIDIA GPU Acceleration)</div>
           <div class="agent-footer">
             <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Hardware CUDA Inference Online</span></span>
             <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>

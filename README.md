@@ -1,143 +1,146 @@
 # 🌐 AgentTrace Gateway (`agent_trace_gw`)
 
-High-performance, ultra-low-footprint Rust reverse proxy & telemetry gateway for a **3-PC distributed AI agent cluster**.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-1.78%2B-orange.svg)](https://www.rust-lang.org/)
+[![Ed25519 Ledger](https://img.shields.io/badge/Ledger-Ed25519%20Signed-green.svg)](src/ledger.rs)
+[![Zero Auth Friction](https://img.shields.io/badge/Auth-Zero%20Login%20Required-success.svg)](#-licensing--openclaw-business-model)
+
+High-performance, ultra-low-footprint Rust reverse proxy & cryptographic telemetry gateway for distributed AI agent clusters.
 
 - **RAM Footprint:** ~20 MB (vs 500MB+ in Spring Boot), zero GC pauses, no VRAM contention.
+- **Cryptographic Provenance:** Authoritative SHA-256 hash-chaining and Ed25519 node identity digital signatures on every tool call and LLM inference.
+- **Smart Auto-Routing:** OpenAI-compatible proxy that automatically resolves and routes requests to the optimal cluster node (`PC-1` or `PC-2`) based on the requested model name.
 - **Streaming:** Native async Server-Sent Events (SSE) & byte pass-through via Tokio and Axum.
-- **Topology:** Central hub with an embedded real-time 3-node flowchart and diff inspector.
+- **Zero-Friction Operations:** Single compiled native binary (`agent_trace_gw.exe`), zero database setup (embedded SQLite WAL mode), zero mandatory external services.
 
 ---
 
-## 🏗️ 3-PC Architecture
+## ⚖️ Licensing & OpenClaw Commercial Model
+
+**AgentTrace Gateway** follows the **OpenClaw** operational philosophy:
+
+1. **100% Free & Open Source:** Licensed under the permissive **[MIT License](LICENSE)**. Free for personal, academic, and commercial use with no artificial functional limitations.
+2. **Zero Login, Zero Paywalls:** No user accounts, no login portals, no telemetry phone-home requirements, and no local feature gating. All core capabilities—distributed routing, cryptographic ledger, Ed25519 signing, and real-time dashboard—are fully accessible out of the box.
+3. **Sustainable Monetization Strategy:**
+   - **Managed Fleet Relay (Cloud):** Turnkey multi-region edge mesh for teams orchestrating agents across distributed datacenters and clouds without managing manual VPNs or port forwards.
+   - **Enterprise Cryptographic Compliance Packages:** Automated SOC2 Type II, ISO 27001, and EU AI Act audit exports with cryptographically verifiable tamper-proof ledgers.
+   - **Custom Agent Tooling & Swarm Integrations:** Bespoke MAVLink/PX4, CAD/FEM solver hooks, and dedicated enterprise SLA support.
+
+---
+
+## 🏗️ Cluster Topology
 
 ```
-  [ PC-1: Lead Node ]            [ PC-2: Worker Node ]          [ PC-3: Research Node ]
-  (Gemma 4 / Hermes)             (Task & Test Runner)           (Scraper & Data Worker)
-         │                                │                                │
-         │ (HTTP / SSE)                   │ (Telemetry Events)             │ (Telemetry Events)
-         ▼                                ▼                                ▼
-  ┌─────────────────────────────────────────────────────────────────────────────┐
-  │                    AgentTrace Gateway (Rust / Axum :8080)                   │
-  │   - Reverse Proxy: /v1/chat/completions (forwards to local Ollama)          │
-  │   - Event Ingest:  /api/v1/events (records reads, writes, diffs, commands)  │
-  │   - Embedded UI:   /dashboard (live SVG flowchart + SSE event stream)       │
-  │   - Storage:       cluster_telemetry.db (SQLite WAL mode)                   │
-  └─────────────────────────────────────────────────────────────────────────────┘
+                  ┌─────────────────────────────────────────────────────────┐
+                  │                 Lead Node (PC-1: VECTOR)                │
+                  │  • Antigravity (Architect & Reasoning Lead)             │
+                  │  • Hermes CLI & Ollama (:11434)                         │
+                  │    - qwen3.8:27b (Heavy Reasoning Lead)                 │
+                  │    - qwen3:14b (Fast Code & Boilerplate Partner)        │
+                  │    - gemma4:latest (Offline Executor)                   │
+                  └────────────────────────────┬────────────────────────────┘
+                                               │
+               ┌───────────────────────────────┴───────────────────────────────┐
+               ▼                                                               ▼
+┌──────────────────────────────────────────────┐        ┌──────────────────────────────────────────────┐
+│       AgentTrace Gateway (Rust :8080)        │        │          Worker Node (PC-2: NODE-02)         │
+│  • Smart Model Auto-Router                   │◄───────┤  • Hermes Agent Gateway (:8642)              │
+│  • Cryptographic Ledger V2 + Ed25519         │        │  • deepseek-r1:1.5b (Fast GPU Reasoning)     │
+│  • SSRF-Hardened Upstream Allowlist          │        │  • Gemma 4 on CUDA (Boilerplate & Tests)     │
+│  • Embedded Real-Time Dashboard              │        │                                              │
+│  • SQLite WAL Ledger (cluster_telemetry.db)  │        │  Run: agent_trace_gw.exe --worker            │
+└──────────────────────────────────────────────┘        └──────────────────────────────────────────────┘
+```
+
+---
+
+## 🧠 Smart Model Awareness & Auto-Routing
+
+AgentTrace Gateway eliminates manual endpoint switching. Clients connect directly to `http://localhost:8080/v1` using standard OpenAI SDKs:
+
+| Requested Model | Target Host | Node ID | Assigned Cluster Role |
+| :--- | :--- | :--- | :--- |
+| `qwen3.8:27b` | `http://127.0.0.1:11434` | `PC-1` | Heavy Reasoning & Architecture Lead |
+| `qwen3:14b` | `http://127.0.0.1:11434` | `PC-1` | Fast Code Generation & Boilerplate Partner |
+| `gemma4:latest` | `http://127.0.0.1:11434` | `PC-1` | Local Offline Generalist |
+| `deepseek-r1:1.5b` | `http://192.168.1.102:8642` | `PC-2` | Ultra-Fast GPU Reasoning & Sanity Checks |
+| `hermes-agent` | `http://192.168.1.102:8642` | `PC-2` | Autonomous Swarm Worker & Test Runner |
+
+### 1. Unified Cluster Model Catalog
+```bash
+curl -s http://localhost:8080/v1/models
+```
+Returns an aggregated list of models across both PC-1 and PC-2, tagged with active node IDs, hosts, and capability roles.
+
+### 2. Auto-Routed Completion Call
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8080/v1",
+    api_key="not-needed"
+)
+
+# Gateway automatically routes this to PC-2 (:8642), attaches worker auth, and signs trace block:
+response = client.chat.completions.create(
+    model="hermes-agent",
+    messages=[{"role": "user", "content": "Execute offline benchmark suite."}]
+)
+print(response.choices[0].message.content)
+```
+
+---
+
+## 🔒 Cryptographic Ledger & Zero-Trust Audit Trail
+
+Every file read, file modification (with full unified diff), shell execution, and LLM inference is cryptographically hashed and linked in a server-authoritative hash-chain:
+
+- **Canonical V2 Hashing:** Length-prefixed SHA-256 digest covering `event_id`, `node_id`, `session_id`, `timestamp`, `event_type`, `target`, `action_details`, `diff`, `provenance_sources`, `security_verdict`, `security_reasons`, and `duration_ms`.
+- **Ed25519 Node Signatures:** Every block is signed with the node's private key (`.secrets/node_identity.pk8`).
+- **SSRF Prevention:** Upstream allowlist (`UPSTREAM_ALLOWLIST`) strictly restricts outgoing proxy requests to authorized nodes, blocking forged `X-Upstream-Url` headers with `403 Forbidden`.
+- **Backwards Compatibility:** Transparently verifies legacy V1 blocks and V2 blocks.
+
+### Verifying the Ledger
+```bash
+curl -s http://localhost:8080/api/v1/ledger/verify
+```
+**Response:**
+```json
+{
+  "is_valid": true,
+  "total_blocks": 3146,
+  "genesis_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "latest_block_hash": "f52a1e141e45e46fda414f61b030d7bfcfdc4f19fd0b1308e05ff042a8829d79",
+  "broken_block_id": null,
+  "error_reason": null
+}
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Run the Gateway on PC-1 (Central Node)
+### 1. Build & Run on Lead Node (PC-1)
 ```powershell
 cd C:\cada\projects\agent_trace_gw
-cargo run
+cargo build --release
+.\target\release\agent_trace_gw.exe
 ```
-By default, the gateway listens on `0.0.0.0:8080` and proxies LLM requests to local Ollama at `http://127.0.0.1:11434`.
+By default, listens on `0.0.0.0:8080` with dashboard at **`http://localhost:8080/dashboard`**.
 
-#### Configuration via Environment Variables:
+### 2. Run as Worker Node on PC-2
 ```powershell
-$env:PORT = "8080"
-$env:UPSTREAM_URL = "http://127.0.0.1:11434"
-$env:DB_PATH = "cluster_telemetry.db"
-cargo run
+.\target\release\agent_trace_gw.exe --worker --lead http://192.168.1.101:8080
 ```
+*(See [`docs/WORKER_NODE_SETUP.md`](docs/WORKER_NODE_SETUP.md) for full system service setup on Linux and Windows).*
 
 ---
 
-### 2. View the Live Dashboard & Flowchart
-Open your browser to:
-👉 **`http://localhost:8080/dashboard`**
+## 🕵️ Verification & Inspection Tools
 
-Features:
-- **Interactive SVG Flowchart:** Real-time visual status of PC-1, PC-2, PC-3, and the Gateway.
-- **Live Event Stream:** Automatically streams file reads, writes (with diff inspection), and shell commands via SSE.
-- **Security & Blast Radius Gauge:** Real-time alerts if any node touches sensitive files (`.env`, SSH keys) or escapes its workspace.
-
----
-
-### 3. Hooking Up the 3 PCs
-
-#### Option A: Direct LLM Reverse Proxy
-Point any agent client (Python, Hermes, curl) on any PC to the gateway:
-```python
-from openai import OpenAI
-
-# On PC-1, PC-2, or PC-3:
-client = OpenAI(
-    base_url="http://192.168.1.101:8080/v1",  # IP of Gateway (PC-1)
-    api_key="none",
-    default_headers={"X-Node-Id": "PC-2"}     # Identify which PC is acting
-)
-
-response = client.chat.completions.create(
-    model="gemma4:latest",
-    messages=[{"role": "user", "content": "Hello cluster!"}]
-)
-```
-
-#### Option B: Telemetry Event Ingest
-Send file reads, writes (with diffs), and commands directly to the gateway from any PC:
-```bash
-curl -X POST http://192.168.1.101:8080/api/v1/events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "node_id": "PC-2",
-    "session_id": "sess_102",
-    "event_type": "FileWrite",
-    "target": "src/worker.rs",
-    "action_details": {"risk_score": 0},
-    "diff": "--- a/worker.rs\n+++ b/worker.rs\n@@ -1 +1 @@\n-old\n+new",
-    "security_verdict": "Allowed"
-  }'
-```
-
-#### Option C: Node Heartbeats
-Register or update node status:
-```bash
-curl -X POST http://192.168.1.101:8080/api/v1/heartbeat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "node_id": "PC-3",
-    "hostname": "NODE-03",
-    "ip_address": "192.168.1.103",
-    "role": "Research Node",
-    "status": "ACTIVE"
-  }'
-```
-
----
-
-## 🕵️‍♂️ Autonomous Watchdog Agent (`cluster_inspector.py`)
-
-No need to connect to each PC or gateway separately. An inspection agent (like Hermes) can query the central hub or federate across multiple gateways in one shot:
-
-### 1. Run Cluster Summary:
-```powershell
-python cluster_inspector.py --summary
-```
-
-### 2. Run Autonomous Security Audit:
-Checks for blast-radius spikes, sensitive file touches (`.env`, SSH keys), failed commands, and dead nodes:
-```powershell
-python cluster_inspector.py --audit
-```
-
-### 3. Inspect a Specific Machine:
-Filter all events generated by PC-2:
-```powershell
-python cluster_inspector.py --node PC-2
-```
-
-### 4. Federated Multi-Gateway Mode:
-Query across multiple distributed gateways simultaneously:
-```powershell
-python cluster_inspector.py --gateways "http://192.168.1.101:8080,http://192.168.1.102:8080" --audit
-```
-
-### 5. Delegating Inspection to Hermes:
-Hermes can run this autonomously at zero token cost:
-```powershell
-& "C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd" -z "Run python c:\cada\projects\agent_trace_gw\cluster_inspector.py --audit and summarize any anomalies across our 3 PCs"
-```
+- **[`cluster_inspector.py`](cluster_inspector.py):** Comprehensive CLI tool for security audits, blast-radius scoring, and node telemetry queries.
+- **[`cluster_verification_benchmark.py`](cluster_verification_benchmark.py):** Pure Python standard library benchmark verifying cluster models, ledger integrity, and round-trip routing latency.
+- **Autonomous Delegation:** Delegate audit tasks to local agents at zero external token cost:
+  ```powershell
+  & "C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd" -z "python cluster_inspector.py --audit"
+  ```
