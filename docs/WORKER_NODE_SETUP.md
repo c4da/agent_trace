@@ -9,7 +9,49 @@ runs the AgentTrace Gateway, the hash-chained ledger and the dashboard.
 
 ---
 
-## 1. How traffic flows
+## 1. Architecture Options
+
+You can run worker nodes in one of two ways:
+
+### Option A: Native Standalone Rust Edge Gateway on PC-2 (Recommended)
+Deploying the compiled `agent_trace_gw` binary directly onto PC-2 gives the best performance and zero telemetry loss:
+- **Zero Python or runtime dependencies**: Run the single binary.
+- **Local Signing & Buffering**: Every action and LLM inference is cryptographically signed with PC-2's own Ed25519 private key and stored in a local SQLite WAL ledger (`worker_telemetry.db`).
+- **Autonomous Sync**: Automatically sends periodic heartbeats (every 15s) and asynchronously streams signed events to the Lead Gateway.
+- **Simple Agent Target**: All agents on PC-2 simply query `http://localhost:8080/v1` directly.
+
+```
+  Agents on PC-2 (Hermes / Scripts)
+         │  POST /v1/chat/completions
+         ▼
+  ┌────────────────────────────────────────────────────────┐
+  │ PC-2 Edge Gateway (agent_trace_gw --worker)             │
+  │   - Proxies to local Hermes (:8642)                    │
+  │   - Signs event with PC-2 Ed25519 Node Key             │
+  │   - Logs to local worker_telemetry.db                  │
+  └────────────────────────┬───────────────────────────────┘
+                           │ Async Heartbeat & Events
+                           ▼
+  ┌────────────────────────────────────────────────────────┐
+  │ PC-1 Lead Gateway (192.168.1.101:8080)                 │
+  │   - Aggregates cluster hash chain                      │
+  │   - Verifies PC-2 signature                            │
+  │   - Live SVG Dashboard & Ledger Verification           │
+  └────────────────────────────────────────────────────────┘
+```
+
+```powershell
+# On PC-2 (Windows):
+.\agent_trace_gw.exe --worker --lead http://192.168.1.101:8080
+
+# On PC-2 (Linux):
+./agent_trace_gw --worker --lead http://192.168.1.101:8080
+```
+
+---
+
+### Option B: Central Relay via Lead Gateway (Single Binary on PC-1)
+If you only run `agent_trace_gw` on PC-1, agents on PC-2 route their requests through PC-1's gateway:
 
 ```
  Worker agent (PC-2)                          Lead node (PC-1, :8080)
@@ -23,9 +65,6 @@ runs the AgentTrace Gateway, the hash-chained ledger and the dashboard.
  │ :8642 / :11434   │   (response streams back through the gateway)
  └──────────────────┘
 ```
-
-**Rule:** a request is recorded in the ledger **only if it passes through the lead gateway**.
-If a worker agent calls its own `localhost:8642` directly, the dashboard never sees it.
 
 ---
 
