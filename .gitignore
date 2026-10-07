@@ -1,0 +1,26 @@
+# Rust
+/target
+Cargo.lock
+
+# Secrets & Environment
+.secrets/
+*.env
+!secrets.example.env
+*.pk8
+
+# SQLite Databases & WAL files
+*.db
+*.db-shm
+*.db-wal
+
+# Temporary & cache
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.txt
+cluster_config.json
+
+# IDE
+.idea/
+.vscode/
