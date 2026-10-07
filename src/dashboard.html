@@ -65,15 +65,13 @@
     /* Cluster Architecture & Multi-Agent Topology */
     .topology-container {
       display: grid;
-      grid-template-columns: 1fr 140px 1fr;
+      grid-template-columns: 1fr 1.05fr 1fr;
       gap: 16px;
       align-items: stretch;
       margin-bottom: 24px;
     }
-    @media (max-width: 1100px) {
+    @media (max-width: 1250px) {
       .topology-container { grid-template-columns: 1fr; }
-      .network-bridge { flex-direction: row !important; min-height: 50px !important; }
-      .bridge-line { height: 2px !important; width: 100% !important; background: repeating-linear-gradient(to right, #30363d, #30363d 4px, transparent 4px, transparent 8px) !important; }
     }
     .machine-card {
       background: var(--card-bg);
@@ -83,9 +81,21 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      position: relative;
     }
     .machine-card.lead { border-top: 3px solid var(--accent); }
+    .machine-card.hub {
+      border-top: 3px solid #d29922;
+      background: linear-gradient(180deg, rgba(210,153,34,0.06) 0%, rgba(22,27,34,1) 100%);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
     .machine-card.worker { border-top: 3px solid var(--accent-green); }
+
+    .machine-badge.hub {
+      background: #382805;
+      color: #e3b341;
+      border-color: rgba(227,179,65,0.4);
+    }
 
     .machine-header {
       display: flex;
@@ -478,10 +488,18 @@
   </div>
 
   <!-- Distributed Cluster Topology & Multi-Agent Architecture -->
-  <div class="section-title">
-    <span>🌐 Distributed Cluster Topology & Active Agent Swarm</span>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+    <div class="section-title" style="margin-bottom: 0;">
+      <span>🌐 Distributed Cluster Topology &amp; Agent Mesh</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="filter-pill active" id="btn-topo-nodes" onclick="switchTopoView('nodes')">🎛️ Distributed Node View</button>
+      <button class="filter-pill" id="btn-topo-diagram" onclick="switchTopoView('diagram')">📐 Architecture Flow Diagram</button>
+    </div>
   </div>
-  <div class="topology-container">
+
+  <!-- View 1: 3-Tier Distributed Node View -->
+  <div class="topology-container" id="topo-nodes-view">
     <!-- Machine 1: PC-1 Lead Node -->
     <div class="machine-card lead">
       <div class="machine-header">
@@ -490,7 +508,7 @@
           <strong>PC-1 (LEAD NODE)</strong>
           <span class="host-name">VECTOR · 192.168.1.101</span>
         </div>
-        <span class="machine-badge">CENTRAL CONTROLLER</span>
+        <span class="machine-badge">PRIMARY ORCHESTRATION</span>
       </div>
 
       <div class="agents-grid">
@@ -503,7 +521,7 @@
             </div>
             <span class="agent-tag purple">CLOUD GEMINI RPC</span>
           </div>
-          <div class="agent-role">System Architect, Multi-file Planner & Code Lead</div>
+          <div class="agent-role">System Architect, Multi-file Planner &amp; Code Lead</div>
           <div class="agent-model">Gemini 3.8 / 2.5 Pro (Direct Agentic Session)</div>
           <div class="agent-footer">
             <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Native Session Watcher Active</span></span>
@@ -521,7 +539,7 @@
             <span class="agent-tag blue">LOCAL OLLAMA</span>
           </div>
           <div class="agent-role" style="font-weight: 600; color: #79c0ff; margin-top: 2px;">
-            Heavy Reasoning, Fast Boilerplate & Documentation
+            Heavy Reasoning, Fast Boilerplate &amp; Documentation
           </div>
           <div class="agent-model" style="margin-top: 4px;">
             <strong>Ollama :11434:</strong> <span style="color: #bc8cff;">qwen3.8:27b</span> · <span style="color: #58a6ff;">gemma4:latest</span> · <span style="color: #3fb950;">qwen3:14b</span>
@@ -530,49 +548,106 @@
           <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); margin-top: 8px; font-size: 11px;">
             <div style="color: var(--text-dim); text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px;">Capabilities at Disposal</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              <span style="background: #3b2854; color: #bc8cff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧠 Deep Math & Systems Refactor (27B)</span>
-              <span style="background: #1f3b58; color: #58a6ff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">📚 Offline Docs & Textbooks (Gemma 4)</span>
-              <span style="background: #1b472e; color: #3fb950; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚡ Fast Unit Test Gen (14B)</span>
+              <span style="background: #3b2854; color: #bc8cff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧠 Deep Math &amp; Refactors (27B)</span>
+              <span style="background: #1f3b58; color: #58a6ff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">📚 Offline Docs (Gemma 4)</span>
+              <span style="background: #1b472e; color: #3fb950; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚡ Fast Unit Tests (14B)</span>
             </div>
           </div>
 
           <div class="agent-footer" style="margin-top: 8px;">
-            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Local CLI & Daemon Active</span></span>
+            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Local CLI &amp; Engine Active</span></span>
             <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>
           </div>
         </div>
+      </div>
 
-        <!-- Service 3: Central Gateway & Cryptographic Ledger -->
-        <div class="agent-box gw" data-filter="ALL" onclick="setFilter('ALL')" title="Click to reset filters and view all events">
+      <div style="background: rgba(88,166,255,0.06); border: 1px dashed rgba(88,166,255,0.25); border-radius: 6px; padding: 7px 10px; font-size: 11px; color: #79c0ff; display: flex; align-items: center; justify-content: space-between; margin-top: auto;">
+        <span>✦ Live Transcripts &amp; Local Upstream</span>
+        <strong style="color: #58a6ff;">──▶ Ingested by Central Gateway</strong>
+      </div>
+    </div>
+
+    <!-- Machine 2: AGENTTRACE GATEWAY & LEDGER HUB (CENTRAL INTERCONNECT) -->
+    <div class="machine-card hub">
+      <div class="machine-header">
+        <div class="machine-title">
+          <span class="dot-pulse" style="background: #d29922; box-shadow: 0 0 8px #d29922;"></span>
+          <strong style="color: #e3b341;">AGENTTRACE GATEWAY &amp; LEDGER</strong>
+          <span class="host-name">:8080 · 192.168.1.101</span>
+        </div>
+        <span class="machine-badge hub">CENTRAL INTERCONNECT</span>
+      </div>
+
+      <div class="agents-grid">
+        <!-- Gateway Component 1: Reverse Proxy & Dynamic Router -->
+        <div class="agent-box gw" style="cursor: default;" title="Central OpenAI-compatible proxy and dynamic intent router">
           <div class="agent-top">
             <div class="agent-identity">
-              <span class="agent-icon">🛡️</span>
-              <span class="agent-name">AgentTrace Gateway & Ledger Hub</span>
+              <span class="agent-icon">🌐</span>
+              <span class="agent-name">Dynamic Reverse Proxy &amp; Router</span>
             </div>
             <span class="agent-tag amber">HUB :8080</span>
           </div>
-          <div class="agent-role">Security Proxy, Cryptographic Audit & Cross-Node Ingestion</div>
-          <div class="agent-model">Rust / Axum :8080 · SQLite WAL · Canonical SHA-256</div>
-          <div class="agent-footer">
-            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Tamper-Proof Chained Hash Ledger</span></span>
-            <span style="color: var(--text-dim); font-size: 10px;">Show All Events</span>
+          <div class="agent-role" style="font-weight: 600; color: #e3b341; margin-top: 2px;">
+            Central Proxy &amp; Intelligent Multi-Node Dispatcher
+          </div>
+          <div class="agent-model" style="margin-top: 4px;">
+            <strong>Endpoint:</strong> <code style="color: #58a6ff;">POST /v1/chat/completions</code> · Auto Complexity Routing
+          </div>
+          <div style="background: rgba(0,0,0,0.3); padding: 7px 9px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.06); margin-top: 6px; font-size: 10px; display: flex; flex-direction: column; gap: 3px;">
+            <div style="color: #79c0ff;">◀── Heavy Reasoning: PC-1 Ollama (27B)</div>
+            <div style="color: #7ee787;">──▶ Fast CUDA Swarm: PC-2 Hermes (1.5B)</div>
+          </div>
+          <div class="agent-footer" style="margin-top: 6px;">
+            <span class="status-indicator"><span class="dot-pulse" style="background: #d29922; box-shadow: 0 0 6px #d29922;"></span><span class="status-text" style="color: #d29922;">Zero-Token Routing Active</span></span>
+            <span style="color: var(--text-dim); font-size: 10px;">Port :8080</span>
+          </div>
+        </div>
+
+        <!-- Gateway Component 2: Sandbox Policy & Governance -->
+        <div class="agent-box" style="border-left: 3px solid #d29922; cursor: pointer;" onclick="openGovernanceModal('policies')" title="Click to open Governance Control Center">
+          <div class="agent-top">
+            <div class="agent-identity">
+              <span class="agent-icon">🛡️</span>
+              <span class="agent-name">AI Agent Sandbox Governance</span>
+            </div>
+            <span class="agent-tag amber">ENFORCING</span>
+          </div>
+          <div class="agent-role">Path Whitelisting, Network Boundaries &amp; Blacklist Firewall</div>
+          <div class="agent-model" style="color: var(--text-dim); font-size: 10px;">
+            Strictly blocks <span style="color: #f85149;">.env, .secrets, id_rsa, credentials</span>
+          </div>
+          <div class="agent-footer" style="margin-top: 4px;">
+            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Active Policy Enforcement</span></span>
+            <span style="color: #d29922; font-size: 10px; font-weight: bold;">Open Setup ⚙️</span>
+          </div>
+        </div>
+
+        <!-- Gateway Component 3: Cryptographic Ledger -->
+        <div class="agent-box" style="border-left: 3px solid #3fb950; cursor: pointer;" onclick="verifyLedgerNow()" title="Click to verify cryptographic ledger integrity">
+          <div class="agent-top">
+            <div class="agent-identity">
+              <span class="agent-icon">⛓️</span>
+              <span class="agent-name">Cryptographic Provenance Ledger</span>
+            </div>
+            <span class="agent-tag green">ED25519 VERIFIED</span>
+          </div>
+          <div class="agent-role">SHA-256 Hash Chain · Node Signatures · SQLite WAL</div>
+          <div class="agent-footer" style="margin-top: 4px;">
+            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">100% Immutable Audit Trail</span></span>
+            <span style="color: var(--accent-green); font-size: 10px; font-weight: bold;">Verify ⛓️</span>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Network Interconnect Bridge -->
-    <div class="network-bridge">
-      <div class="bridge-line"></div>
-      <div class="bridge-badge">
-        <span>⚡ GIGABIT LAN</span>
-        <small>192.168.1.0/24</small>
-        <span style="color: var(--accent-green); font-size: 9px; font-weight: bold; margin-top: 2px;">MESH LINKED</span>
+      <div style="display: flex; gap: 8px; margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <button class="copy-btn" style="flex: 1; font-size: 11px; padding: 5px 8px; border-color: #d29922; color: #e3b341;" onclick="openGovernanceModal('policies')">⚙️ Governance</button>
+        <button class="copy-btn" style="flex: 1; font-size: 11px; padding: 5px 8px;" onclick="verifyLedgerNow()">⛓️ Verify Ledger</button>
+        <button class="copy-btn" style="flex: 1; font-size: 11px; padding: 5px 8px;" onclick="setFilter('ALL')">All Events</button>
       </div>
-      <div class="bridge-line"></div>
     </div>
 
-    <!-- Machine 2: PC-2 Worker Node -->
+    <!-- Machine 3: PC-2 Worker Node -->
     <div class="machine-card worker">
       <div class="machine-header">
         <div class="machine-title">
@@ -594,18 +669,18 @@
             <span class="agent-tag green">NVIDIA CUDA</span>
           </div>
           <div class="agent-role" style="font-weight: 600; color: #7ee787; margin-top: 2px;">
-            Dedicated Swarm Compute & Remote Autonomous Tasks
+            Dedicated Swarm Compute &amp; Remote Autonomous Tasks
           </div>
           <div class="agent-model" style="margin-top: 4px;">
-            <strong>Engine:</strong> <span style="color: #58a6ff;">deepseek-r1:1.5b</span> (Distill) · hermes-agent (:8642)
+            <strong>Engine:</strong> <span style="color: #58a6ff;">deepseek-r1:1.5b</span> (100% GPU) · hermes-agent v0.21.5 (:8642)
           </div>
           
           <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); margin-top: 8px; font-size: 11px;">
             <div style="color: var(--text-dim); text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px;">Capabilities at Disposal</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              <span style="background: #1f3b58; color: #58a6ff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚡ Fast CoT Reasoning</span>
-              <span style="background: #1b472e; color: #3fb950; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧪 Assertion & Test Audits</span>
-              <span style="background: #3b2854; color: #bc8cff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🔍 Syntax & Regex Verification</span>
+              <span style="background: #1f3b58; color: #58a6ff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚡ Fast CoT GPU Reasoning</span>
+              <span style="background: #1b472e; color: #3fb950; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧪 Assertion &amp; Test Audits</span>
+              <span style="background: #3b2854; color: #bc8cff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🔍 Syntax &amp; Regex Verification</span>
               <span style="background: #4a341b; color: #d29922; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🛠️ Edge Python/Bash Tools</span>
               <span style="background: #163c40; color: #39c5cf; padding: 2px 6px; border-radius: 3px; font-size: 10px;">💰 Zero Token Cost</span>
             </div>
@@ -622,18 +697,135 @@
           <div class="agent-top">
             <div class="agent-identity">
               <span class="agent-icon">📡</span>
-              <span class="agent-name">Cross-Node Telemetry Channel</span>
+              <span class="agent-name">Worker Telemetry Forwarder</span>
             </div>
             <span class="agent-tag cyan">MESH SYNC</span>
           </div>
-          <div class="agent-role">Heartbeat Reporting & Remote Execution Auditing</div>
-          <div class="agent-model">Worker Telemetry -> Central Gateway (:8080)</div>
+          <div class="agent-role">Heartbeat Reporting &amp; Remote Execution Auditing</div>
+          <div class="agent-model">Worker Telemetry ──▶ Central Gateway (192.168.1.101:8080)</div>
           <div class="agent-footer">
-            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Active Node Topology Registered</span></span>
+            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Active Node Forwarder Registered</span></span>
             <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>
           </div>
         </div>
       </div>
+
+      <div style="background: rgba(63,185,80,0.06); border: 1px dashed rgba(63,185,80,0.25); border-radius: 6px; padding: 7px 10px; font-size: 11px; color: #7ee787; display: flex; align-items: center; justify-content: space-between; margin-top: auto;">
+        <span>⚡ Gigabit LAN Mesh</span>
+        <strong style="color: #3fb950;">Streams to Gateway (:8080) ──▶</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- View 2: Interactive Architecture Flow Diagram (SVG) -->
+  <div id="topo-diagram-view" style="display: none; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <div>
+        <h3 style="font-size: 14px; color: #fff; margin-bottom: 4px;">📐 Cluster Network Data Flow &amp; Protocol Architecture</h3>
+        <p style="font-size: 11px; color: var(--text-dim);">Real-time interconnect showing reverse proxy routing, sandbox policy enforcement, and cryptographic ledger verification.</p>
+      </div>
+      <span class="badge badge-live">100% Cryptographic Provenance</span>
+    </div>
+
+    <!-- Scalable SVG Architecture Flow Diagram -->
+    <div style="width: 100%; overflow-x: auto;">
+      <svg viewBox="0 0 1000 360" style="width: 100%; min-width: 820px; height: auto; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;">
+        <!-- Definitions: Gradients & Markers -->
+        <defs>
+          <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1f3b58"/>
+            <stop offset="100%" stop-color="#0d1117"/>
+          </linearGradient>
+          <linearGradient id="amberGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#382805"/>
+            <stop offset="100%" stop-color="#161b22"/>
+          </linearGradient>
+          <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1b472e"/>
+            <stop offset="100%" stop-color="#0d1117"/>
+          </linearGradient>
+          <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#58a6ff"/>
+          </marker>
+          <marker id="arrow-amber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#d29922"/>
+          </marker>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#3fb950"/>
+          </marker>
+        </defs>
+
+        <!-- Subgraph 1: PC-1 Lead Node -->
+        <rect x="20" y="20" width="280" height="320" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+        <rect x="20" y="20" width="280" height="36" rx="10" fill="#161b22"/>
+        <text x="35" y="44" fill="#58a6ff" font-size="12" font-weight="bold">PC-1 (LEAD NODE · 192.168.1.101)</text>
+
+        <!-- PC-1 Box 1: Antigravity -->
+        <rect x="35" y="75" width="250" height="90" rx="8" fill="url(#blueGrad)" stroke="#58a6ff" stroke-width="1"/>
+        <text x="50" y="98" fill="#bc8cff" font-size="12" font-weight="bold">✦ Antigravity Lead Agent</text>
+        <text x="50" y="118" fill="#c9d1d9" font-size="10">Cloud Gemini Pro Orchestrator</text>
+        <text x="50" y="136" fill="#8b949e" font-size="9" font-family="Consolas, monospace">Native Session Watcher Active</text>
+
+        <!-- PC-1 Box 2: Local Ollama -->
+        <rect x="35" y="190" width="250" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+        <text x="50" y="213" fill="#58a6ff" font-size="12" font-weight="bold">🤖 Ollama Cluster Engines (:11434)</text>
+        <text x="50" y="233" fill="#c9d1d9" font-size="10">qwen3.8:27b · gemma4:latest · qwen3:14b</text>
+        <text x="50" y="253" fill="#79c0ff" font-size="9">🧠 Heavy Math &amp; Systems Architecture</text>
+        <text x="50" y="271" fill="#79c0ff" font-size="9">📚 Zero-Token Offline Documentation</text>
+
+        <!-- Subgraph 2: Central Gateway & Cryptographic Ledger -->
+        <rect x="360" y="10" width="280" height="340" rx="12" fill="url(#amberGrad)" stroke="#d29922" stroke-width="2"/>
+        <rect x="360" y="10" width="280" height="38" rx="12" fill="#2e2305"/>
+        <text x="375" y="35" fill="#e3b341" font-size="13" font-weight="bold">🛡️ CENTRAL AGENTTRACE GATEWAY</text>
+
+        <!-- Gateway Box 1: Proxy & Router -->
+        <rect x="375" y="65" width="250" height="75" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1"/>
+        <text x="390" y="87" fill="#58a6ff" font-size="12" font-weight="bold">🌐 Reverse Proxy &amp; Intent Router</text>
+        <text x="390" y="107" fill="#c9d1d9" font-size="10" font-family="Consolas, monospace">POST /v1/chat/completions (:8080)</text>
+        <text x="390" y="125" fill="#8b949e" font-size="9">Dynamic Capability-Based Dispatch</text>
+
+        <!-- Gateway Box 2: Policy Engine -->
+        <rect x="375" y="155" width="250" height="75" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1"/>
+        <text x="390" y="177" fill="#d29922" font-size="12" font-weight="bold">🛡️ Agent Sandbox Governance</text>
+        <text x="390" y="197" fill="#c9d1d9" font-size="10">Path &amp; Network Whitelist Interceptor</text>
+        <text x="390" y="215" fill="#f85149" font-size="9">Strict Blacklists: .env, secrets, id_rsa</text>
+
+        <!-- Gateway Box 3: Cryptographic Ledger -->
+        <rect x="375" y="245" width="250" height="85" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+        <text x="390" y="267" fill="#3fb950" font-size="12" font-weight="bold">⛓️ Cryptographic Hash Ledger</text>
+        <text x="390" y="287" fill="#c9d1d9" font-size="10" font-family="Consolas, monospace">SHA-256 Chain · Ed25519 Signatures</text>
+        <text x="390" y="307" fill="#8b949e" font-size="9">cluster_telemetry.db (SQLite WAL)</text>
+
+        <!-- Subgraph 3: PC-2 Worker Node -->
+        <rect x="700" y="20" width="280" height="320" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+        <rect x="700" y="20" width="280" height="36" rx="10" fill="#161b22"/>
+        <text x="715" y="44" fill="#3fb950" font-size="12" font-weight="bold">PC-2 (WORKER NODE · 192.168.1.102)</text>
+
+        <!-- PC-2 Box 1: Hermes & CUDA -->
+        <rect x="715" y="75" width="250" height="135" rx="8" fill="url(#greenGrad)" stroke="#3fb950" stroke-width="1"/>
+        <text x="730" y="98" fill="#3fb950" font-size="12" font-weight="bold">🔥 Hermes Agent (:8642 + CUDA)</text>
+        <text x="730" y="118" fill="#c9d1d9" font-size="10">Hardware: NVIDIA GPU Acceleration</text>
+        <text x="730" y="138" fill="#7ee787" font-size="10" font-family="Consolas, monospace">Model: deepseek-r1:1.5b</text>
+        <text x="730" y="158" fill="#8b949e" font-size="9">⚡ Ultra-Fast Chain-of-Thought Reasoning</text>
+        <text x="730" y="176" fill="#8b949e" font-size="9">🧪 Test Assertion &amp; Regex Sanity Audits</text>
+        <text x="730" y="194" fill="#8b949e" font-size="9">💰 Zero Token Cost Autonomous Partner</text>
+
+        <!-- PC-2 Box 2: Telemetry Forwarder -->
+        <rect x="715" y="225" width="250" height="85" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+        <text x="730" y="248" fill="#39c5cf" font-size="12" font-weight="bold">📡 Worker Telemetry Forwarder</text>
+        <text x="730" y="268" fill="#c9d1d9" font-size="10">Streams signed events &amp; heartbeats</text>
+        <text x="730" y="288" fill="#8b949e" font-size="9">Gigabit LAN Mesh Linked</text>
+
+        <!-- Connecting Flows / Arrows -->
+        <!-- Antigravity -> Gateway -->
+        <path d="M 285 110 L 375 90" stroke="#58a6ff" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow-blue)"/>
+        <!-- Gateway -> Ollama -->
+        <path d="M 375 120 L 310 140 L 310 240 L 285 240" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#arrow-blue)"/>
+        <!-- Gateway -> PC-2 Hermes -->
+        <path d="M 625 95 L 715 115" stroke="#3fb950" stroke-width="1.8" marker-end="url(#arrow-green)"/>
+        <!-- PC-2 Forwarder -> Gateway Ledger -->
+        <path d="M 715 275 L 625 285" stroke="#39c5cf" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow-green)"/>
+      </svg>
     </div>
   </div>
 
@@ -1110,6 +1302,25 @@
   <script>
     let allEvents = [];
     let currentFilter = 'ALL';
+
+    function switchTopoView(view) {
+      const nodesView = document.getElementById('topo-nodes-view');
+      const diagView = document.getElementById('topo-diagram-view');
+      const btnNodes = document.getElementById('btn-topo-nodes');
+      const btnDiag = document.getElementById('btn-topo-diagram');
+
+      if (view === 'diagram') {
+        if (nodesView) nodesView.style.display = 'none';
+        if (diagView) diagView.style.display = 'block';
+        if (btnNodes) btnNodes.classList.remove('active');
+        if (btnDiag) btnDiag.classList.add('active');
+      } else {
+        if (nodesView) nodesView.style.display = 'grid';
+        if (diagView) diagView.style.display = 'none';
+        if (btnNodes) btnNodes.classList.add('active');
+        if (btnDiag) btnDiag.classList.remove('active');
+      }
+    }
 
     function setFilter(node) {
       currentFilter = node;
