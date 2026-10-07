@@ -510,18 +510,32 @@
           </div>
         </div>
 
-        <!-- Agent 2: PC-1 Local Engines (Qwen 27B / 14B) -->
+        <!-- Agent 2: PC-1 Local Engines (Ollama Cluster) -->
         <div class="agent-box hermes" data-filter="PC-1" onclick="setFilter('PC-1')" title="Click to filter events to PC-1 Engines">
           <div class="agent-top">
             <div class="agent-identity">
               <span class="agent-icon">🤖</span>
-              <span class="agent-name">PC-1 Local Engines (Qwen 27B / 14B)</span>
+              <span class="agent-name">PC-1 Local Engines (Ollama)</span>
             </div>
             <span class="agent-tag blue">LOCAL OLLAMA</span>
           </div>
-          <div class="agent-role">Heavy Reasoning (27B) & Fast Code/Boilerplate (14B)</div>
-          <div class="agent-model">Ollama :11434 · qwen3.8:27b · qwen3:14b</div>
-          <div class="agent-footer">
+          <div class="agent-role" style="font-weight: 600; color: #79c0ff; margin-top: 2px;">
+            Heavy Reasoning, Fast Boilerplate & Documentation
+          </div>
+          <div class="agent-model" style="margin-top: 4px;">
+            <strong>Ollama :11434:</strong> <span style="color: #bc8cff;">qwen3.8:27b</span> · <span style="color: #58a6ff;">gemma4:latest</span> · <span style="color: #3fb950;">qwen3:14b</span>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); margin-top: 8px; font-size: 11px;">
+            <div style="color: var(--text-dim); text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px;">Capabilities at Disposal</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <span style="background: #3b2854; color: #bc8cff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧠 Deep Math & Systems Refactor (27B)</span>
+              <span style="background: #1f3b58; color: #58a6ff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">📚 Offline Docs & Textbooks (Gemma 4)</span>
+              <span style="background: #1b472e; color: #3fb950; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚡ Fast Unit Test Gen (14B)</span>
+            </div>
+          </div>
+
+          <div class="agent-footer" style="margin-top: 8px;">
             <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Local CLI & Daemon Active</span></span>
             <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>
           </div>
@@ -569,18 +583,34 @@
       </div>
 
       <div class="agents-grid">
-        <!-- Agent 4: PC-2 DeepSeek-R1 (CUDA Worker) -->
+        <!-- Agent 4: PC-2 Hermes Agent (DeepSeek-R1 + CUDA) -->
         <div class="agent-box hermes-cuda" data-filter="PC-2" onclick="setFilter('PC-2')" title="Click to filter events to PC-2 Worker">
           <div class="agent-top">
             <div class="agent-identity">
               <span class="agent-icon">🔥</span>
-              <span class="agent-name">PC-2 DeepSeek-R1 (1.5B Distill)</span>
+              <span class="agent-name">PC-2 Hermes Agent (DeepSeek-R1)</span>
             </div>
             <span class="agent-tag green">NVIDIA CUDA</span>
           </div>
-          <div class="agent-role">Ultra-Fast GPU Chain-of-Thought & Sanity Verification</div>
-          <div class="agent-model">deepseek-r1:1.5b · Port :8642 (NVIDIA GPU Acceleration)</div>
-          <div class="agent-footer">
+          <div class="agent-role" style="font-weight: 600; color: #7ee787; margin-top: 2px;">
+            Dedicated Swarm Compute & Remote Autonomous Tasks
+          </div>
+          <div class="agent-model" style="margin-top: 4px;">
+            <strong>Engine:</strong> <span style="color: #58a6ff;">deepseek-r1:1.5b</span> (Distill) · hermes-agent (:8642)
+          </div>
+          
+          <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); margin-top: 8px; font-size: 11px;">
+            <div style="color: var(--text-dim); text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px;">Capabilities at Disposal</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <span style="background: #1f3b58; color: #58a6ff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚡ Fast CoT Reasoning</span>
+              <span style="background: #1b472e; color: #3fb950; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧪 Assertion & Test Audits</span>
+              <span style="background: #3b2854; color: #bc8cff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🔍 Syntax & Regex Verification</span>
+              <span style="background: #4a341b; color: #d29922; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🛠️ Edge Python/Bash Tools</span>
+              <span style="background: #163c40; color: #39c5cf; padding: 2px 6px; border-radius: 3px; font-size: 10px;">💰 Zero Token Cost</span>
+            </div>
+          </div>
+
+          <div class="agent-footer" style="margin-top: 8px;">
             <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Hardware CUDA Inference Online</span></span>
             <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>
           </div>
