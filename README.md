@@ -144,3 +144,10 @@ By default, listens on `0.0.0.0:8080` with dashboard at **`http://localhost:8080
   ```powershell
   & "C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd" -z "python cluster_inspector.py --audit"
   ```
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details. 
+Completely free, open-source, and unrestricted for personal, academic, and commercial usage.
