@@ -737,3 +737,36 @@ pub async fn handle_delegate_remove_override(
     Ok(Json(json!({ "rule_id": rule_id, "removed": removed })))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_agent_tools_registration() {
+        let axum::Json(body) = get_agent_tools().await;
+        let tools = body["tools"].as_array().expect("Expected tools array");
+        assert!(tools.len() >= 7, "Expected at least 7 registered AI agent tools");
+
+        let tool_names: Vec<String> = tools
+            .iter()
+            .filter_map(|t| t["name"].as_str().map(|s| s.to_string()))
+            .collect();
+
+        assert!(tool_names.contains(&"verify_ledger".to_string()));
+        assert!(tool_names.contains(&"query_telemetry".to_string()));
+        assert!(tool_names.contains(&"inspect_cluster".to_string()));
+        assert!(tool_names.contains(&"flag_incident".to_string()));
+        assert!(tool_names.contains(&"set_route_override".to_string()));
+        assert!(tool_names.contains(&"analyze_telemetry".to_string()));
+        assert!(tool_names.contains(&"get_access_policies".to_string()));
+        assert!(tool_names.contains(&"set_access_policy".to_string()));
+        assert!(tool_names.contains(&"evaluate_access_policy".to_string()));
+
+        for t in tools {
+            assert!(t["description"].is_string());
+            assert_eq!(t["parameters"]["type"], "object");
+        }
+    }
+}
+
+

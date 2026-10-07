@@ -92,3 +92,66 @@ impl AgentProfile {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compute_threat_low() {
+        let (score, level) = AgentProfile::compute_threat(10, 1, 1, 0);
+        assert_eq!(score, 15.0);
+        assert_eq!(level, "LOW");
+    }
+
+    #[test]
+    fn test_compute_threat_medium() {
+        let (score, level) = AgentProfile::compute_threat(10, 2, 2, 0);
+        assert_eq!(score, 30.0);
+        assert_eq!(level, "MEDIUM");
+    }
+
+    #[test]
+    fn test_compute_threat_high() {
+        let (score, level) = AgentProfile::compute_threat(50, 4, 3, 0);
+        assert_eq!(score, 55.0);
+        assert_eq!(level, "HIGH");
+    }
+
+    #[test]
+    fn test_compute_threat_critical_high_score() {
+        let (score, level) = AgentProfile::compute_threat(100, 8, 2, 0);
+        assert_eq!(score, 90.0);
+        assert_eq!(level, "CRITICAL");
+    }
+
+    #[test]
+    fn test_compute_threat_critical_violations() {
+        // Even with 0 writes and 0 commands, a violation triggers CRITICAL
+        let (score, level) = AgentProfile::compute_threat(0, 0, 0, 1);
+        assert_eq!(score, 25.0);
+        assert_eq!(level, "CRITICAL");
+    }
+
+    #[test]
+    fn test_compute_threat_cap_at_100() {
+        let (score, level) = AgentProfile::compute_threat(1000, 20, 50, 10);
+        assert_eq!(score, 100.0);
+        assert_eq!(level, "CRITICAL");
+    }
+
+    #[test]
+    fn test_compute_ratio_zero_writes() {
+        let ratio = AgentProfile::compute_ratio(42, 0);
+        assert_eq!(ratio, 42.0);
+    }
+
+    #[test]
+    fn test_compute_ratio_rounding() {
+        let ratio = AgentProfile::compute_ratio(10, 3);
+        assert_eq!(ratio, 3.33);
+
+        let ratio2 = AgentProfile::compute_ratio(25, 4);
+        assert_eq!(ratio2, 6.25);
+    }
+}
