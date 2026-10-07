@@ -264,6 +264,18 @@ pub async fn handle_models(
     // 1. Query PC-1 Local Models (Ollama)
     let mut models_list = Vec::new();
 
+    // Virtual Auto-Router endpoint for cluster-aware clients
+    models_list.push(serde_json::json!({
+        "id": "auto",
+        "object": "model",
+        "created": 1791370000,
+        "owned_by": "AgentTrace Smart Router",
+        "node_id": "CLUSTER",
+        "host": "127.0.0.1:8080",
+        "role": "Smart Intent-Based Cluster Auto-Router",
+        "permission": []
+    }));
+
     let pc1_tags_url = format!("{}/api/tags", cfg.upstream_url.trim_end_matches('/'));
     if let Ok(resp) = cfg.client.get(&pc1_tags_url).send().await {
         if let Ok(json) = resp.json::<serde_json::Value>().await {
