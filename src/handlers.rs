@@ -77,7 +77,8 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/delegate/decide", post(agent_interface::handle_delegate_decide).with_state(agent_state.clone()))
         .route("/api/v1/delegate/override", post(agent_interface::handle_delegate_override).with_state(agent_state.clone()))
         .route("/api/v1/delegate/overrides", get(agent_interface::handle_delegate_list_overrides).with_state(agent_state.clone()))
-        .route("/api/v1/delegate/override/:rule_id", delete(agent_interface::handle_delegate_remove_override).with_state(agent_state))
+        .route("/api/v1/delegate/override/:rule_id", delete(agent_interface::handle_delegate_remove_override).with_state(agent_state.clone()))
+        .route("/api/v1/delegate/config", get(agent_interface::handle_delegate_get_config).post(agent_interface::handle_delegate_set_config).with_state(agent_state))
         .layer(CorsLayer::permissive())
         .with_state(state)
 }

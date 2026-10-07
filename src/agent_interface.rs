@@ -183,12 +183,12 @@ pub async fn get_agent_tools() -> Json<Value> {
                         },
                         "criteria_type": {
                             "type": "string",
-                            "description": "Type of criteria to match: 'session', 'agent', or 'tag'.",
-                            "enum": ["session", "agent", "tag"]
+                            "description": "Type of criteria to match: 'session', 'agent', 'tag', 'model', or 'prompt_pattern'.",
+                            "enum": ["session", "agent", "tag", "model", "prompt_pattern"]
                         },
                         "criteria_value": {
                             "type": "string",
-                            "description": "Value to match (e.g. session ID 'sec-101', agent ID 'hermes-coder', tag 'high_priority')."
+                            "description": "Value to match (e.g. session ID 'sec-101', agent ID 'hermes-coder', model 'gemini*', prompt pattern '*test*')."
                         },
                         "target_model": {
                             "type": "string",
@@ -300,6 +300,39 @@ pub async fn get_agent_tools() -> Json<Value> {
                         "target": {
                             "type": "string",
                             "description": "The file path or URL destination to evaluate."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "get_delegation_config",
+                "description": "Retrieves the current cluster delegation and zero-token economy enforcement settings.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "set_delegation_config",
+                "description": "Updates cluster delegation and zero-token economy enforcement settings.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "intercept_external_models": {
+                            "type": "boolean",
+                            "description": "Whether to intercept external cloud models (gemini*, gpt*, claude*) and divert them to the local cluster."
+                        },
+                        "zero_token_mode": {
+                            "type": "boolean",
+                            "description": "Whether strict zero-token economy is actively enforced."
+                        },
+                        "auto_switch_offline_models": {
+                            "type": "boolean",
+                            "description": "Whether to auto-switch unavailable models to active downloaded cluster candidates."
+                        },
+                        "default_fallback_model": {
+                            "type": "string",
+                            "description": "Default fallback model ID."
                         }
                     }
                 }
@@ -465,6 +498,8 @@ pub async fn handle_agent_action(
                 let criteria = match criteria_type.to_lowercase().as_str() {
                     "agent" => OverrideCriteria::Agent(criteria_value.to_string()),
                     "tag" => OverrideCriteria::Tag(criteria_value.to_string()),
+                    "model" => OverrideCriteria::Model(criteria_value.to_string()),
+                    "prompt" | "prompt_pattern" | "promptpattern" => OverrideCriteria::PromptPattern(criteria_value.to_string()),
                     _ => OverrideCriteria::Session(criteria_value.to_string()),
                 };
 
@@ -577,6 +612,27 @@ pub async fn handle_agent_action(
             let guard = state.policy.read().await;
             let decision = guard.evaluate(agent_id, action, target);
             (true, serde_json::to_value(decision).unwrap_or(json!({})), None)
+        }
+        "get_delegation_config" => {
+            let cfg = state.delegation_engine.get_config().await;
+            (true, serde_json::to_value(cfg).unwrap_or(json!({})), None)
+        }
+        "set_delegation_config" => {
+            let mut current = state.delegation_engine.get_config().await;
+            if let Some(v) = req.parameters.get("intercept_external_models").and_then(|v| v.as_bool()) {
+                current.intercept_external_models = v;
+            }
+            if let Some(v) = req.parameters.get("zero_token_mode").and_then(|v| v.as_bool()) {
+                current.zero_token_mode = v;
+            }
+            if let Some(v) = req.parameters.get("auto_switch_offline_models").and_then(|v| v.as_bool()) {
+                current.auto_switch_offline_models = v;
+            }
+            if let Some(v) = req.parameters.get("default_fallback_model").and_then(|v| v.as_str()) {
+                current.default_fallback_model = v.to_string();
+            }
+            state.delegation_engine.set_config(current.clone()).await;
+            (true, serde_json::to_value(current).unwrap_or(json!({})), None)
         }
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     };
@@ -737,6 +793,31 @@ pub async fn handle_delegate_remove_override(
     Ok(Json(json!({ "rule_id": rule_id, "removed": removed })))
 }
 
+/// Direct REST API endpoint to retrieve delegation engine and token guard configuration.
+pub async fn handle_delegate_get_config(
+    State(state): State<AgentInterfaceState>,
+    headers: HeaderMap,
+) -> Result<Json<crate::delegation_engine::DelegationConfig>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let cfg = state.delegation_engine.get_config().await;
+    Ok(Json(cfg))
+}
+
+/// Direct REST API endpoint to update delegation engine and token guard configuration.
+pub async fn handle_delegate_set_config(
+    State(state): State<AgentInterfaceState>,
+    headers: HeaderMap,
+    Json(cfg): Json<crate::delegation_engine::DelegationConfig>,
+) -> Result<Json<crate::delegation_engine::DelegationConfig>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    state.delegation_engine.set_config(cfg.clone()).await;
+    Ok(Json(cfg))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -761,6 +842,8 @@ mod tests {
         assert!(tool_names.contains(&"get_access_policies".to_string()));
         assert!(tool_names.contains(&"set_access_policy".to_string()));
         assert!(tool_names.contains(&"evaluate_access_policy".to_string()));
+        assert!(tool_names.contains(&"get_delegation_config".to_string()));
+        assert!(tool_names.contains(&"set_delegation_config".to_string()));
 
         for t in tools {
             assert!(t["description"].is_string());

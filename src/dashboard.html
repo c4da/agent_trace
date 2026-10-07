@@ -1204,10 +1204,61 @@
 
       <!-- Tab 3: Dynamic Route Overrides & Arbitration -->
       <div class="tab-pane" id="gov-tab-overrides">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <!-- Zero-Token Cloud Guard & Interceptor Control Panel -->
+        <div style="background: linear-gradient(135deg, rgba(35, 134, 54, 0.15) 0%, rgba(13, 17, 23, 0.9) 100%); border: 1px solid rgba(63, 185, 80, 0.35); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h4 style="font-size: 14px; color: #3fb950; margin: 0; font-weight: bold;">🛡️ Zero-Token Cloud Guard &amp; Autonomous Model Interception</h4>
+                <span id="zt-guard-badge" class="badge" style="background: rgba(63, 185, 80, 0.2); color: #3fb950; border: 1px solid #3fb950;">ACTIVE</span>
+              </div>
+              <p style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                Intercept requests specifying external cloud models (e.g. <code style="color:#58a6ff;">gemini-1.5-flash</code>, <code style="color:#58a6ff;">gpt-4o</code>) and auto-divert prompts to active downloaded cluster models, enforcing 0 external API tokens.
+              </p>
+            </div>
+            <button class="copy-btn" style="background: #238636; border-color: rgba(255,255,255,0.2); color: #fff; font-weight: bold; white-space: nowrap;" onclick="saveGovDelegationConfig()">💾 Save Guard Policy</button>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; background: rgba(0,0,0,0.25); padding: 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #fff; cursor: pointer;">
+              <input type="checkbox" id="zt-intercept-cloud" checked style="accent-color: #3fb950;">
+              <span>Intercept Cloud Models (<span style="color:#58a6ff;">gemini*</span>, <span style="color:#58a6ff;">gpt*</span>)</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #fff; cursor: pointer;">
+              <input type="checkbox" id="zt-zero-token-mode" checked style="accent-color: #3fb950;">
+              <span>Strict Zero-Token Economy Mode</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #fff; cursor: pointer;">
+              <input type="checkbox" id="zt-auto-switch-offline" checked style="accent-color: #3fb950;">
+              <span>Auto-Switch Offline / Missing Models</span>
+            </label>
+          </div>
+          <div style="font-size: 11px; color: #7ee787; margin-top: 8px;" id="zt-save-status"></div>
+        </div>
+
+        <!-- Downloaded Cluster Models Inventory Card -->
+        <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+              <h4 style="font-size: 13px; color: #58a6ff; margin: 0; display: flex; align-items: center; gap: 6px;">
+                📦 Active Downloaded Cluster Models Inventory
+              </h4>
+              <p style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">
+                Verified local and worker models available for prompt dispatch and auto-switching. Click any model to force an override rule.
+              </p>
+            </div>
+            <button class="copy-btn" style="padding: 2px 8px; font-size: 11px;" onclick="loadDownloadedClusterModels()">🔄 Refresh</button>
+          </div>
+          <div id="cluster-models-grid" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <div style="color: var(--text-dim); font-size: 11px;">Loading cluster model manifest...</div>
+          </div>
+        </div>
+
+        <!-- Active Route Overrides Section -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <div>
-            <h4 style="font-size: 13px; color: #fff;">Dynamic Route Overrides</h4>
-            <p style="font-size: 11px; color: var(--text-dim);">Mandate specific models or cluster nodes dynamically based on session, agent, or metadata tags.</p>
+            <h4 style="font-size: 13px; color: #fff; margin: 0;">Dynamic Route Overrides</h4>
+            <p style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Mandate specific models or cluster nodes dynamically based on requested model, prompt patterns, agent identity, or session.</p>
           </div>
         </div>
 
@@ -1236,10 +1287,12 @@
           <h4 style="font-size: 13px; color: #bc8cff; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
             ➕ Register Route Override Rule
           </h4>
-          <div style="display: grid; grid-template-columns: 140px 180px 180px 120px 1fr; gap: 12px; margin-bottom: 12px;">
+          <div style="display: grid; grid-template-columns: 160px 180px 180px 110px 1fr; gap: 12px; margin-bottom: 12px;">
             <div>
               <label style="display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;">Criteria Type:</label>
-              <select id="ovr-type" class="search-input" style="width: 100%; background: #161b22; color: #fff;">
+              <select id="ovr-type" class="search-input" style="width: 100%; background: #161b22; color: #fff;" onchange="updateOvrPlaceholder()">
+                <option value="model">Requested Model (e.g. gemini*, gpt*)</option>
+                <option value="prompt_pattern">Prompt Pattern (e.g. *test*, *cuda*)</option>
                 <option value="agent">Agent ID</option>
                 <option value="session">Session ID</option>
                 <option value="tag">Metadata Tag</option>
@@ -1247,7 +1300,7 @@
             </div>
             <div>
               <label style="display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;">Match Value:</label>
-              <input type="text" id="ovr-val" class="search-input" style="width: 100%; font-family: var(--font-mono);" placeholder="Hermes-Coder or debug-01">
+              <input type="text" id="ovr-val" class="search-input" style="width: 100%; font-family: var(--font-mono);" placeholder="gemini* or gpt*">
             </div>
             <div>
               <label style="display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;">Forced Target Model:</label>
@@ -1255,6 +1308,7 @@
                 <option value="qwen3.8:27b">qwen3.8:27b (Heavy Reasoning)</option>
                 <option value="deepseek-r1:1.5b">deepseek-r1:1.5b (Fast CUDA)</option>
                 <option value="gemma4:latest">gemma4:latest (PC-1 Engine)</option>
+                <option value="qwen3:14b">qwen3:14b (Fast Code / Tests)</option>
                 <option value="hermes-agent">hermes-agent (PC-2 Swarm)</option>
               </select>
             </div>
@@ -1268,7 +1322,7 @@
             </div>
             <div>
               <label style="display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;">Reason / Rationale:</label>
-              <input type="text" id="ovr-reason" class="search-input" style="width: 100%;" placeholder="Route all coding tasks to Qwen 27B">
+              <input type="text" id="ovr-reason" class="search-input" style="width: 100%;" placeholder="Intercept Gemini tokens and divert to local Qwen 27B">
             </div>
           </div>
           <div style="display: flex; justify-content: flex-end;">
@@ -1276,23 +1330,38 @@
           </div>
         </div>
 
-        <!-- Prompt Arbitration Simulator -->
+        <!-- Prompt Arbitration & Token Guard Simulator -->
         <div style="background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
           <h4 style="font-size: 13px; color: #58a6ff; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-            🧭 Test Live Prompt Arbitrator
+            🧭 Test Live Prompt Arbitrator &amp; Token Diverter
           </h4>
-          <div style="display: grid; grid-template-columns: 1fr 160px; gap: 12px; margin-bottom: 10px;">
-            <input type="text" id="arb-prompt" class="search-input" style="width: 100%; font-family: var(--font-mono);" placeholder="Enter prompt to test arbitration (e.g. 'Solve Navier-Stokes PDE in Rust')" value="Write a comprehensive Rust unit test for cryptographic ledger verification">
-            <button class="copy-btn" style="background: #1f3b58; border-color: #58a6ff; color: #58a6ff; font-weight: bold;" onclick="simulateGovRoute()">Test Arbitrator</button>
-          </div>
-          <div id="arb-result-card" style="display: none; background: #161b22; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 12px;">
-            <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px;">
-              <div><span style="color: var(--text-dim);">Selected Model:</span> <strong id="arb-res-model" style="color: #3fb950; font-family: var(--font-mono);">-</strong></div>
-              <div><span style="color: var(--text-dim);">Node:</span> <strong id="arb-res-node" style="color: #58a6ff;">-</strong></div>
-              <div><span style="color: var(--text-dim);">Source:</span> <span id="arb-res-src" class="tag" style="background: #1f3b58; color: #58a6ff;">-</span></div>
-              <div><span style="color: var(--text-dim);">Intent:</span> <span id="arb-res-intent" style="color: #bc8cff; font-family: var(--font-mono);">-</span></div>
+          <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 12px;">
+            Simulate incoming LLM requests (e.g. Gemini Flash requesting tokens) to verify how the gateway intercepts, arbitrates, and switches models to local compute nodes.
+          </p>
+          <div style="display: grid; grid-template-columns: 220px 1fr 180px; gap: 12px; margin-bottom: 10px;">
+            <div>
+              <label style="display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;">Simulated Client Model:</label>
+              <input type="text" id="arb-req-model" class="search-input" style="width: 100%; font-family: var(--font-mono);" value="gemini-1.5-flash" placeholder="e.g. gemini-1.5-flash">
             </div>
-            <div style="color: var(--text-dim); font-size: 11px;" id="arb-res-reasoning">-</div>
+            <div>
+              <label style="display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px;">Incoming Prompt:</label>
+              <input type="text" id="arb-prompt" class="search-input" style="width: 100%; font-family: var(--font-mono);" placeholder="Enter prompt to test arbitration" value="Write a comprehensive Rust unit test for cryptographic ledger verification">
+            </div>
+            <div style="display: flex; align-items: flex-end;">
+              <button class="copy-btn" style="width: 100%; height: 32px; background: #1f3b58; border-color: #58a6ff; color: #58a6ff; font-weight: bold;" onclick="simulateGovRoute()">Test Arbitrator</button>
+            </div>
+          </div>
+          <div id="arb-result-card" style="display: none; background: #161b22; border: 1px solid var(--border); border-radius: 6px; padding: 14px; font-size: 12px;">
+            <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; align-items: center;">
+              <div><span style="color: var(--text-dim);">Client Model:</span> <span id="arb-res-orig" style="color: #f85149; font-family: var(--font-mono); text-decoration: line-through;">-</span></div>
+              <div style="color: var(--text-dim);">➔</div>
+              <div><span style="color: var(--text-dim);">Gateway Switched To:</span> <strong id="arb-res-model" style="color: #3fb950; font-family: var(--font-mono);">-</strong></div>
+              <div><span style="color: var(--text-dim);">Node:</span> <strong id="arb-res-node" style="color: #58a6ff;">-</strong></div>
+              <div><span style="color: var(--text-dim);">Decision Source:</span> <span id="arb-res-src" class="tag" style="background: #1f3b58; color: #58a6ff;">-</span></div>
+              <div><span style="color: var(--text-dim);">Intent:</span> <span id="arb-res-intent" style="color: #bc8cff; font-family: var(--font-mono);">-</span></div>
+              <div id="arb-res-savings" style="margin-left: auto;"><span class="badge" style="background: rgba(63, 185, 80, 0.2); color: #3fb950; border: 1px solid #3fb950;">🛡️ 0 EXTERNAL TOKENS</span></div>
+            </div>
+            <div style="color: #c9d1d9; font-size: 12px; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 4px; border-left: 3px solid #3fb950;" id="arb-res-reasoning">-</div>
           </div>
         </div>
       </div>
@@ -1692,6 +1761,8 @@
       switchGovTab('gov-tab-' + tab);
       loadGovPolicies();
       loadGovOverrides();
+      loadGovDelegationConfig();
+      loadDownloadedClusterModels();
     }
 
     function closeGovModal(e) {
@@ -2002,11 +2073,140 @@
       }
     }
 
+    function updateOvrPlaceholder() {
+      const type = document.getElementById('ovr-type').value;
+      const valInput = document.getElementById('ovr-val');
+      if (!valInput) return;
+      if (type === 'model') {
+        valInput.placeholder = 'gemini* or gpt*';
+      } else if (type === 'prompt_pattern') {
+        valInput.placeholder = '*test* or *cuda*';
+      } else if (type === 'agent') {
+        valInput.placeholder = 'Hermes-Coder';
+      } else if (type === 'session') {
+        valInput.placeholder = 'sec-101';
+      } else {
+        valInput.placeholder = 'critical';
+      }
+    }
+
+    async function loadGovDelegationConfig() {
+      try {
+        const res = await fetch('/api/v1/delegate/config', { headers: getGovHeaders() });
+        if (!res.ok) return;
+        const cfg = await res.json();
+        const chkIntercept = document.getElementById('zt-intercept-cloud');
+        const chkZeroToken = document.getElementById('zt-zero-token-mode');
+        const chkAutoSwitch = document.getElementById('zt-auto-switch-offline');
+        if (chkIntercept) chkIntercept.checked = cfg.intercept_external_models !== false;
+        if (chkZeroToken) chkZeroToken.checked = cfg.zero_token_mode !== false;
+        if (chkAutoSwitch) chkAutoSwitch.checked = cfg.auto_switch_offline_models !== false;
+
+        const badge = document.getElementById('zt-guard-badge');
+        if (badge) {
+          if (cfg.intercept_external_models || cfg.zero_token_mode) {
+            badge.innerText = 'ACTIVE';
+            badge.style.color = '#3fb950';
+            badge.style.borderColor = '#3fb950';
+            badge.style.background = 'rgba(63, 185, 80, 0.2)';
+          } else {
+            badge.innerText = 'BYPASS';
+            badge.style.color = '#d29922';
+            badge.style.borderColor = '#d29922';
+            badge.style.background = 'rgba(210, 153, 34, 0.2)';
+          }
+        }
+      } catch (e) {
+        console.error('Error loading delegation config:', e);
+      }
+    }
+
+    async function saveGovDelegationConfig() {
+      const payload = {
+        intercept_external_models: document.getElementById('zt-intercept-cloud').checked,
+        zero_token_mode: document.getElementById('zt-zero-token-mode').checked,
+        auto_switch_offline_models: document.getElementById('zt-auto-switch-offline').checked,
+        default_fallback_model: 'auto'
+      };
+      const statusEl = document.getElementById('zt-save-status');
+      try {
+        if (statusEl) statusEl.innerText = 'Applying guard policy...';
+        const res = await fetch('/api/v1/delegate/config', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          if (statusEl) statusEl.innerText = '✓ Guard policy successfully enforced across all gateway traffic!';
+          setTimeout(() => { if (statusEl) statusEl.innerText = ''; }, 4000);
+          loadGovDelegationConfig();
+        } else {
+          if (statusEl) statusEl.innerText = 'Failed to save config (HTTP ' + res.status + ')';
+        }
+      } catch (e) {
+        if (statusEl) statusEl.innerText = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadDownloadedClusterModels() {
+      const container = document.getElementById('cluster-models-grid');
+      const selectModel = document.getElementById('ovr-model');
+      if (!container) return;
+      try {
+        const res = await fetch('/v1/models', { headers: getGovHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        const models = data.data || [];
+        if (models.length === 0) {
+          container.innerHTML = '<div style="color:var(--text-dim); font-size:11px;">No active models reported in registry yet.</div>';
+          return;
+        }
+
+        container.innerHTML = models.map(m => {
+          const mid = m.id || m.model_id;
+          const nid = m.node_id || (mid.includes('deepseek') || mid.includes('hermes') ? 'PC-2' : 'PC-1');
+          const isP2 = nid === 'PC-2';
+          const nodeColor = isP2 ? '#bc8cff' : '#58a6ff';
+          const badgeBg = isP2 ? 'rgba(188,140,255,0.15)' : 'rgba(88,166,255,0.15)';
+          return `<div onclick="selectModelForOverride('${mid}', '${nid}')" style="cursor: pointer; background: #161b22; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 8px; transition: border-color 0.2s;" onmouseover="this.style.borderColor='${nodeColor}'" onmouseout="this.style.borderColor='var(--border)'">
+            <span style="background: ${badgeBg}; color: ${nodeColor}; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold;">${nid}</span>
+            <span style="font-family: var(--font-mono); font-size: 11px; color: #fff;">${mid}</span>
+            <span style="font-size: 10px; color: var(--text-dim); margin-left: 4px;">(Force Route)</span>
+          </div>`;
+        }).join('');
+
+        if (selectModel) {
+          const existing = Array.from(selectModel.options).map(o => o.value);
+          models.forEach(m => {
+            const mid = m.id || m.model_id;
+            if (!existing.includes(mid)) {
+              const opt = document.createElement('option');
+              opt.value = mid;
+              opt.text = mid;
+              selectModel.appendChild(opt);
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Error loading cluster models:', e);
+      }
+    }
+
+    function selectModelForOverride(modelId, nodeId) {
+      const selectModel = document.getElementById('ovr-model');
+      const selectNode = document.getElementById('ovr-node');
+      if (selectModel) selectModel.value = modelId;
+      if (selectNode) selectNode.value = nodeId;
+    }
+
     async function simulateGovRoute() {
       const prompt = document.getElementById('arb-prompt').value.trim();
+      const reqModelInput = document.getElementById('arb-req-model');
+      const reqModel = reqModelInput ? reqModelInput.value.trim() : 'gemini-1.5-flash';
       if (!prompt) return;
 
       const card = document.getElementById('arb-result-card');
+      const resOrig = document.getElementById('arb-res-orig');
       const resModel = document.getElementById('arb-res-model');
       const resNode = document.getElementById('arb-res-node');
       const resSrc = document.getElementById('arb-res-src');
@@ -2017,18 +2217,22 @@
         const res = await fetch('/api/v1/delegate/decide', {
           method: 'POST',
           headers: getGovHeaders(),
-          body: JSON.stringify({ prompt: prompt })
+          body: JSON.stringify({
+            prompt: prompt,
+            requested_model: reqModel || 'auto'
+          })
         });
 
         if (!res.ok) throw new Error('Arbitration HTTP ' + res.status);
         const d = await res.json();
 
         card.style.display = 'block';
+        if (resOrig) resOrig.innerText = reqModel || 'auto';
         resModel.innerText = d.selected_model;
         resNode.innerText = d.node_id;
         resSrc.innerText = d.decision_source;
         resIntent.innerText = typeof d.intent === 'object' ? Object.keys(d.intent)[0] : d.intent;
-        resReasoning.innerText = d.reasoning || 'Default arbitration policy satisfied';
+        resReasoning.innerText = d.reasoning || 'Zero-Token arbitration policy satisfied';
       } catch (e) {
         card.style.display = 'block';
         resModel.innerText = 'Error';
@@ -2041,6 +2245,8 @@
     fetchEvents();
     fetchAnalytics();
     fetchPolicies();
+    loadGovDelegationConfig();
+    loadDownloadedClusterModels();
     initSSE();
     setInterval(() => {
       fetchSummary();
