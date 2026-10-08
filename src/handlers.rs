@@ -26,6 +26,7 @@ use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::CorsLayer;
 
 const DASHBOARD_HTML: &str = include_str!("dashboard.html");
+const FLYER_HTML: &str = include_str!("../docs/flyer.html");
 const INSTALL_PS1: &str = include_str!("install.ps1");
 const PROVISION_PS1: &str = include_str!("provision.ps1");
 const INSTALL_SH: &str = include_str!("install.sh");
@@ -51,6 +52,8 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
     Router::new()
         .route("/", get(serve_dashboard))
         .route("/dashboard", get(serve_dashboard))
+        .route("/flyer", get(serve_flyer))
+        .route("/marketing", get(serve_flyer))
         .route("/install", get(serve_install_py))
         .route("/install.py", get(serve_install_py))
         .route("/install.ps1", get(serve_install_script))
@@ -165,6 +168,10 @@ pub async fn serve_dist_binary() -> Result<Response, StatusCode> {
 
 pub async fn serve_dashboard() -> Html<&'static str> {
     Html(DASHBOARD_HTML)
+}
+
+pub async fn serve_flyer() -> Html<&'static str> {
+    Html(FLYER_HTML)
 }
 
 pub async fn ingest_event(
