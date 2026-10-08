@@ -46,6 +46,19 @@ pub async fn handle_chat_completions(
         .unwrap_or("")
         .to_string();
 
+    // Extract or resolve session_id across headers, payload, or active Antigravity session
+    let resolved_session_id = headers.get("x-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            req_json.as_ref()
+                .and_then(|j| j.get("session_id").or_else(|| j.get("session")))
+                .and_then(|s| s.as_str())
+                .map(|s| s.to_string())
+        })
+        .or_else(|| crate::antigravity_watcher::get_latest_session_id())
+        .unwrap_or_else(|| "active_session".to_string());
+
     // 1. Dynamic upstream resolution & smart agent-in-the-loop prompt routing
     let (upstream_base, node_id, effective_model, routing_decision) = if let Some(custom) = headers.get("x-upstream-url").and_then(|v| v.to_str().ok()) {
         let nid = headers
@@ -55,7 +68,6 @@ pub async fn handle_chat_completions(
             .to_string();
         (custom.trim_end_matches('/').to_string(), nid, model_name.clone(), None)
     } else {
-        let session_id = headers.get("x-session-id").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
         let agent_id = headers.get("x-agent-id").and_then(|v| v.to_str().ok()).map(|s| s.to_string());
         let tags: Vec<String> = headers.get("x-tags")
             .and_then(|v| v.to_str().ok())
@@ -64,7 +76,7 @@ pub async fn handle_chat_completions(
 
         let req = crate::delegation_engine::AgentDelegationRequest {
             prompt: last_prompt.clone(),
-            session_id,
+            session_id: Some(resolved_session_id.clone()),
             agent_id,
             tags,
             requested_model: Some(model_name.clone()),
@@ -135,6 +147,8 @@ pub async fn handle_chat_completions(
     let eff_model = effective_model.clone();
     let route_meta = routing_decision.clone();
 
+    let sess_id = resolved_session_id.clone();
+
     if is_stream {
         let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
         let content_type = upstream_res
@@ -146,11 +160,12 @@ pub async fn handle_chat_completions(
 
         let bg_eff_model = eff_model.clone();
         let bg_route_meta = route_meta.clone();
+        let stream_sess_id = sess_id.clone();
         tokio::spawn(async move {
             let mut ev = TraceEvent {
                 event_id: uuid::Uuid::new_v4().simple().to_string(),
                 node_id: nid,
-                session_id: "active_session".to_string(),
+                session_id: stream_sess_id,
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 event_type: EventType::LlmInference,
                 target: format!("{} [{}]", logged_upstream, bg_eff_model),
@@ -217,11 +232,12 @@ pub async fn handle_chat_completions(
         let usage = resp_json.as_ref().and_then(|j| j.get("usage")).cloned();
         let thread_eff_model = eff_model.clone();
 
+        let nonstream_sess_id = sess_id.clone();
         tokio::spawn(async move {
             let mut ev = TraceEvent {
                 event_id: uuid::Uuid::new_v4().simple().to_string(),
                 node_id: nid,
-                session_id: "active_session".to_string(),
+                session_id: nonstream_sess_id,
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 event_type: EventType::LlmInference,
                 target: format!("{} [{}]", logged_upstream, thread_eff_model),

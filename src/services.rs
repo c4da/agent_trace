@@ -41,6 +41,12 @@ pub fn spawn_model_introspector(
                                 reg.register_single_model("PC-2", pc2_url, id, None);
                             }
                         }
+                        // Ensure PC-2's deepseek-r1:1.5b CUDA reasoning capability is actively registered
+                        reg.register_single_model("PC-2", pc2_url, "deepseek-r1:1.5b", None);
+                    } else {
+                        let mut reg = registry.write().await;
+                        reg.register_single_model("PC-2", pc2_url, "hermes-agent", None);
+                        reg.register_single_model("PC-2", pc2_url, "deepseek-r1:1.5b", None);
                     }
                 }
             }
