@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AgentTrace Gateway // Distributed Cluster Telemetry</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -279,6 +280,57 @@
       font-family: var(--font-mono);
     }
 
+    /* Animated Diagram Flow Arrows & Effects */
+    @keyframes flowDash {
+      0% { stroke-dashoffset: 24; }
+      100% { stroke-dashoffset: 0; }
+    }
+    @keyframes flowDashReverse {
+      0% { stroke-dashoffset: 0; }
+      100% { stroke-dashoffset: 24; }
+    }
+    .flow-anim-blue {
+      stroke: #58a6ff;
+      stroke-dasharray: 6 6;
+      animation: flowDash 1.2s linear infinite;
+    }
+    .flow-anim-green {
+      stroke: #3fb950;
+      stroke-dasharray: 6 6;
+      animation: flowDash 1.2s linear infinite;
+    }
+    .flow-anim-cyan {
+      stroke: #39c5cf;
+      stroke-dasharray: 6 6;
+      animation: flowDash 1.2s linear infinite;
+    }
+    .flow-anim-amber {
+      stroke: #d29922;
+      stroke-dasharray: 6 6;
+      animation: flowDash 1.2s linear infinite;
+    }
+    .flow-anim-purple {
+      stroke: #bc8cff;
+      stroke-dasharray: 6 6;
+      animation: flowDash 1.2s linear infinite;
+    }
+    .flow-dot {
+      filter: drop-shadow(0 0 5px currentColor);
+    }
+    .svg-node-box {
+      cursor: pointer;
+      transition: filter 0.2s, transform 0.2s;
+    }
+    .svg-node-box:hover {
+      filter: brightness(1.2) drop-shadow(0 4px 14px rgba(0,0,0,0.6));
+    }
+    .pill-label {
+      pointer-events: none;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
     /* Filter & Search Bar */
     .filter-bar {
       display: flex;
@@ -490,16 +542,376 @@
   <!-- Distributed Cluster Topology & Multi-Agent Architecture -->
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
     <div class="section-title" style="margin-bottom: 0;">
-      <span>🌐 Distributed Cluster Topology &amp; Agent Mesh</span>
+      <span>🌐 Distributed Cluster Topology &amp; Architecture Flow</span>
     </div>
     <div style="display: flex; gap: 8px;">
-      <button class="filter-pill active" id="btn-topo-nodes" onclick="switchTopoView('nodes')">🎛️ Distributed Node View</button>
-      <button class="filter-pill" id="btn-topo-diagram" onclick="switchTopoView('diagram')">📐 Architecture Flow Diagram</button>
+      <button class="filter-pill active" id="btn-topo-diagram" onclick="switchTopoView('diagram')">📐 Architecture Diagram with Arrows</button>
+      <button class="filter-pill" id="btn-topo-mermaid" onclick="switchTopoView('mermaid')">🧜 Mermaid Flowchart</button>
+      <button class="filter-pill" id="btn-topo-nodes" onclick="switchTopoView('nodes')">🎛️ Node Hardware Specs</button>
     </div>
   </div>
 
-  <!-- View 1: 3-Tier Distributed Node View -->
-  <div class="topology-container" id="topo-nodes-view">
+  <!-- View 1: PRIMARY Interactive Architecture Flow Diagram (SVG with Directional Animated Arrows) -->
+  <div id="topo-diagram-view" style="display: block; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.4);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <h3 style="font-size: 14px; color: #fff; margin-bottom: 3px; display: flex; align-items: center; gap: 8px;">
+          <span>📐 Real-Time Cluster Data Flow &amp; Model Routing Diagram</span>
+          <span class="badge badge-live">Live Interconnect Active</span>
+        </h3>
+        <p style="font-size: 11px; color: var(--text-dim);">
+          Directional flow showing Antigravity orchestration, central zero-token model arbitration, policy governance, and distributed CUDA worker execution. Click any node box to filter events below.
+        </p>
+      </div>
+      <div style="display: flex; gap: 6px; font-size: 11px;">
+        <span style="display: inline-flex; align-items: center; gap: 5px; color: #58a6ff;"><span style="width: 8px; height: 8px; background: #58a6ff; border-radius: 50%;"></span> PC-1 Lead</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px; color: #d29922; margin-left: 8px;"><span style="width: 8px; height: 8px; background: #d29922; border-radius: 50%;"></span> Central Gateway :8080</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px; color: #3fb950; margin-left: 8px;"><span style="width: 8px; height: 8px; background: #3fb950; border-radius: 50%;"></span> PC-2 Worker (CUDA)</span>
+      </div>
+    </div>
+
+    <!-- Scalable SVG Architecture Flow Diagram with Animated Directional Arrows -->
+    <div style="width: 100%; overflow-x: auto;">
+      <svg viewBox="0 0 1140 490" style="width: 100%; min-width: 960px; height: auto; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;">
+        <!-- Definitions: Gradients, Markers, and Filters -->
+        <defs>
+          <linearGradient id="blueCardGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#162940"/>
+            <stop offset="100%" stop-color="#0d141f"/>
+          </linearGradient>
+          <linearGradient id="amberCardGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#382506"/>
+            <stop offset="100%" stop-color="#171207"/>
+          </linearGradient>
+          <linearGradient id="greenCardGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#13361e"/>
+            <stop offset="100%" stop-color="#0a160e"/>
+          </linearGradient>
+          <linearGradient id="darkCardGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1b2129"/>
+            <stop offset="100%" stop-color="#0e1217"/>
+          </linearGradient>
+
+          <!-- Crisp Directional Arrow Markers -->
+          <marker id="arrow-blue" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#58a6ff"/>
+          </marker>
+          <marker id="arrow-cyan" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#39c5cf"/>
+          </marker>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#3fb950"/>
+          </marker>
+          <marker id="arrow-amber" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#d29922"/>
+          </marker>
+          <marker id="arrow-purple" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#bc8cff"/>
+          </marker>
+        </defs>
+
+        <!-- Top Level Entry: Antigravity IDE Sessions / Developer Input -->
+        <g class="svg-node-box" onclick="setFilter('PC-1-Antigravity')">
+          <rect x="30" y="14" width="280" height="42" rx="7" fill="url(#darkCardGrad)" stroke="#30363d" stroke-width="1.2"/>
+          <text x="46" y="34" fill="#fff" font-size="12" font-weight="bold">💻 Antigravity IDE Sessions</text>
+          <text x="46" y="47" fill="#8b949e" font-size="9" font-family="Consolas, monospace">Active Multi-Conversation Transcripts Watcher</text>
+        </g>
+
+        <!-- Connecting Arrow: IDE -> Antigravity Agent -->
+        <path d="M 170 56 L 170 96" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow-blue)"/>
+        <rect x="110" y="66" width="120" height="16" rx="4" fill="#161b22" stroke="#30363d"/>
+        <text x="170" y="78" fill="#58a6ff" class="pill-label" text-anchor="middle">User Prompts &amp; Tools</text>
+
+        <!-- =================== NODE 1: PC-1 LEAD NODE =================== -->
+        <rect x="20" y="98" width="300" height="378" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+        <rect x="20" y="98" width="300" height="34" rx="10" fill="#161b22"/>
+        <text x="36" y="120" fill="#58a6ff" font-size="12" font-weight="bold">🖥️ PC-1 (LEAD NODE) · 192.168.1.101</text>
+        <rect x="238" y="106" width="72" height="18" rx="4" fill="#1f3b58"/>
+        <text x="274" y="119" fill="#58a6ff" font-size="9" font-weight="bold" text-anchor="middle">PRIMARY</text>
+
+        <!-- Box 1A: Antigravity Lead Agent -->
+        <g class="svg-node-box" onclick="setFilter('PC-1-Antigravity')">
+          <rect x="35" y="140" width="270" height="92" rx="8" fill="url(#blueCardGrad)" stroke="#58a6ff" stroke-width="1.2"/>
+          <text x="48" y="162" fill="#bc8cff" font-size="12" font-weight="bold">✦ Antigravity Lead Agent</text>
+          <text x="48" y="179" fill="#c9d1d9" font-size="10">Cloud Gemini Pro Session · Lead Architect</text>
+          <text x="48" y="195" fill="#8b949e" font-size="9">Multi-File Planning &amp; Invariant Enforcement</text>
+          <rect x="48" y="204" width="200" height="16" rx="3" fill="rgba(63,185,80,0.15)"/>
+          <text x="148" y="215" fill="#3fb950" font-size="9" font-weight="600" text-anchor="middle">● Multi-Session Watcher Active</text>
+        </g>
+
+        <!-- Box 1B: Ollama Local Engines -->
+        <g class="svg-node-box" onclick="setFilter('PC-1')">
+          <rect x="35" y="244" width="270" height="218" rx="8" fill="url(#darkCardGrad)" stroke="#30363d" stroke-width="1.2"/>
+          <text x="48" y="266" fill="#58a6ff" font-size="12" font-weight="bold">🤖 Ollama Local Cluster (:11434)</text>
+          <text x="48" y="282" fill="#8b949e" font-size="9" font-family="Consolas, monospace">Host: 127.0.0.1:11434 · PC-1 Local</text>
+
+          <!-- Sub-models in Ollama -->
+          <rect x="48" y="293" width="244" height="34" rx="5" fill="#161b22" stroke="#30363d"/>
+          <text x="58" y="307" fill="#bc8cff" font-size="10" font-weight="bold">🧠 qwen3.8:27b</text>
+          <text x="58" y="321" fill="#8b949e" font-size="8.5">Heavy Reasoning, Math &amp; Refactoring</text>
+
+          <rect x="48" y="333" width="244" height="34" rx="5" fill="#161b22" stroke="#30363d"/>
+          <text x="58" y="347" fill="#58a6ff" font-size="10" font-weight="bold">📚 gemma4:latest</text>
+          <text x="58" y="361" fill="#8b949e" font-size="8.5">Offline Documentation &amp; Summaries</text>
+
+          <rect x="48" y="373" width="244" height="34" rx="5" fill="#161b22" stroke="#30363d"/>
+          <text x="58" y="387" fill="#3fb950" font-size="10" font-weight="bold">⚡ qwen3:14b</text>
+          <text x="58" y="401" fill="#8b949e" font-size="8.5">Fast Unit Tests, Parsers &amp; Boilerplate</text>
+
+          <rect x="48" y="415" width="244" height="20" rx="4" fill="rgba(63,185,80,0.12)" stroke="rgba(63,185,80,0.3)"/>
+          <text x="170" y="429" fill="#3fb950" font-size="9.5" font-weight="bold" text-anchor="middle">💰 100% Zero-Token Local Execution</text>
+        </g>
+
+        <!-- =================== NODE 2: CENTRAL AGENTTRACE GATEWAY & LEDGER HUB =================== -->
+        <rect x="385" y="18" width="370" height="458" rx="12" fill="url(#amberCardGrad)" stroke="#d29922" stroke-width="2.2"/>
+        <rect x="385" y="18" width="370" height="38" rx="12" fill="#2d1f05"/>
+        <text x="403" y="42" fill="#e3b341" font-size="13" font-weight="bold">🛡️ CENTRAL AGENTTRACE GATEWAY &amp; LEDGER</text>
+        <rect x="625" y="27" width="118" height="20" rx="4" fill="#382805" stroke="rgba(210,153,34,0.4)"/>
+        <text x="684" y="41" fill="#e3b341" font-size="9" font-weight="bold" text-anchor="middle">HUB · PORT :8080</text>
+
+        <!-- Box 2A: Reverse Proxy & Smart Intent Router -->
+        <g class="svg-node-box" onclick="setFilter('ALL')">
+          <rect x="400" y="68" width="340" height="106" rx="8" fill="url(#darkCardGrad)" stroke="#d29922" stroke-width="1.2"/>
+          <text x="414" y="90" fill="#58a6ff" font-size="12" font-weight="bold">🌐 Reverse Proxy &amp; Smart Intent Router</text>
+          <text x="414" y="108" fill="#e3b341" font-size="10" font-family="Consolas, monospace">POST /v1/chat/completions (OpenAI Compatible)</text>
+          <text x="414" y="126" fill="#c9d1d9" font-size="9.5">Autonomous Complexity Classifier &amp; Token Diverter</text>
+          <text x="414" y="142" fill="#8b949e" font-size="9">Dynamic Session Auto-Attribution across all active windows</text>
+          <rect x="414" y="150" width="170" height="15" rx="3" fill="rgba(88,166,255,0.15)"/>
+          <text x="499" y="161" fill="#58a6ff" font-size="8.5" font-weight="bold" text-anchor="middle">Smart Router Live Intercept</text>
+        </g>
+
+        <!-- Vertical Arrow: Router -> Governance -->
+        <path d="M 570 174 L 570 186" stroke="#d29922" stroke-width="2" marker-end="url(#arrow-amber)"/>
+
+        <!-- Box 2B: Sandbox Governance & Whitelist Firewall -->
+        <g class="svg-node-box" onclick="openGovernanceModal('policies')">
+          <rect x="400" y="186" width="340" height="88" rx="8" fill="url(#darkCardGrad)" stroke="#d29922" stroke-width="1.2"/>
+          <text x="414" y="208" fill="#d29922" font-size="12" font-weight="bold">🛡️ Agent Sandbox Governance &amp; Security</text>
+          <text x="414" y="226" fill="#c9d1d9" font-size="9.5">Path Whitelisting: Safe Workspace Isolation (C:\cada\projects)</text>
+          <text x="414" y="243" fill="#f85149" font-size="9">Strictly Blocks: .env, .secrets, id_rsa, cloud credentials</text>
+          <text x="414" y="259" fill="#79c0ff" font-size="9">Zero-Token Cloud Diverter (blocks unnecessary API costs)</text>
+        </g>
+
+        <!-- Vertical Arrow: Governance -> Ledger -->
+        <path d="M 570 274 L 570 286" stroke="#d29922" stroke-width="2" marker-end="url(#arrow-amber)"/>
+
+        <!-- Box 2C: Cryptographic Provenance Ledger -->
+        <g class="svg-node-box" onclick="verifyLedgerNow()">
+          <rect x="400" y="286" width="340" height="98" rx="8" fill="url(#darkCardGrad)" stroke="#3fb950" stroke-width="1.2"/>
+          <text x="414" y="308" fill="#3fb950" font-size="12" font-weight="bold">⛓️ Cryptographic Provenance Ledger</text>
+          <text x="414" y="326" fill="#c9d1d9" font-size="10" font-family="Consolas, monospace">SHA-256 Hash Chain · Ed25519 Signatures</text>
+          <text x="414" y="344" fill="#8b949e" font-size="9">Immutable Database: cluster_telemetry.db (SQLite WAL Mode)</text>
+          <rect x="414" y="354" width="220" height="18" rx="4" fill="rgba(63,185,80,0.15)"/>
+          <text x="524" y="367" fill="#3fb950" font-size="9" font-weight="bold" text-anchor="middle">⛓️ 100% Cryptographically Audited</text>
+        </g>
+
+        <!-- Vertical Arrow: Ledger -> SSE Stream -->
+        <path d="M 570 384 L 570 396" stroke="#3fb950" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+        <!-- Box 2D: SSE Live Broadcast Hub -->
+        <rect x="400" y="396" width="340" height="66" rx="6" fill="#161b22" stroke="#bc8cff" stroke-width="1"/>
+        <text x="414" y="418" fill="#bc8cff" font-size="11" font-weight="bold">● Real-Time SSE Stream: /api/v1/events/stream</text>
+        <text x="414" y="434" fill="#8b949e" font-size="9">Live Push to Browser Dashboard &amp; Client Watchers</text>
+        <text x="414" y="449" fill="#c9d1d9" font-size="8.5" font-family="Consolas, monospace">Subscribers: Dashboard SSE · UDP Broadcast Beacon</text>
+
+        <!-- =================== NODE 3: PC-2 WORKER NODE =================== -->
+        <rect x="820" y="98" width="300" height="378" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+        <rect x="820" y="98" width="300" height="34" rx="10" fill="#161b22"/>
+        <text x="836" y="120" fill="#3fb950" font-size="12" font-weight="bold">⚡ PC-2 (WORKER NODE) · 192.168.1.102</text>
+        <rect x="1008" y="106" width="100" height="18" rx="4" fill="#1b472e"/>
+        <text x="1058" y="119" fill="#3fb950" font-size="9" font-weight="bold" text-anchor="middle">NVIDIA CUDA GPU</text>
+
+        <!-- Box 3A: Hermes Agent + CUDA -->
+        <g class="svg-node-box" onclick="setFilter('PC-2')">
+          <rect x="835" y="140" width="270" height="198" rx="8" fill="url(#greenCardGrad)" stroke="#3fb950" stroke-width="1.2"/>
+          <text x="848" y="162" fill="#3fb950" font-size="12" font-weight="bold">🔥 Hermes Agent (:8642 + CUDA)</text>
+          <text x="848" y="180" fill="#7ee787" font-size="10.5" font-family="Consolas, monospace">deepseek-r1:1.5b (100% Dedicated GPU)</text>
+          <text x="848" y="196" fill="#c9d1d9" font-size="9.5">Dedicated Swarm Compute &amp; Remote Execution</text>
+
+          <!-- Capabilities -->
+          <rect x="848" y="206" width="244" height="28" rx="4" fill="#161b22" stroke="rgba(63,185,80,0.2)"/>
+          <text x="858" y="222" fill="#7ee787" font-size="9" font-weight="bold">⚡ Fast CoT GPU Reasoning &amp; Physics</text>
+
+          <rect x="848" y="238" width="244" height="28" rx="4" fill="#161b22" stroke="rgba(63,185,80,0.2)"/>
+          <text x="858" y="254" fill="#58a6ff" font-size="9" font-weight="bold">🧪 Sub-Second Regex &amp; Assertion Audits</text>
+
+          <rect x="848" y="270" width="244" height="28" rx="4" fill="#161b22" stroke="rgba(63,185,80,0.2)"/>
+          <text x="858" y="286" fill="#d29922" font-size="9" font-weight="bold">🛠️ Edge Autonomous Tool Executions</text>
+
+          <rect x="848" y="306" width="244" height="20" rx="4" fill="rgba(63,185,80,0.15)"/>
+          <text x="970" y="320" fill="#3fb950" font-size="9.5" font-weight="bold" text-anchor="middle">💰 100% Zero External Token Cost</text>
+        </g>
+
+        <!-- Box 3B: Worker Telemetry Forwarder -->
+        <g class="svg-node-box" onclick="setFilter('PC-2')">
+          <rect x="835" y="350" width="270" height="112" rx="8" fill="url(#darkCardGrad)" stroke="#39c5cf" stroke-width="1.2"/>
+          <text x="848" y="372" fill="#39c5cf" font-size="12" font-weight="bold">📡 Worker Telemetry Forwarder</text>
+          <text x="848" y="390" fill="#c9d1d9" font-size="9.5">Heartbeat Reporting &amp; Edge Execution Audits</text>
+          <text x="848" y="406" fill="#8b949e" font-size="9">Worker Telemetry ──▶ Gateway :8080</text>
+          <text x="848" y="422" fill="#39c5cf" font-size="8.5" font-family="Consolas, monospace">Gigabit LAN Mesh · Signed Heartbeat</text>
+          <rect x="848" y="432" width="220" height="18" rx="3" fill="rgba(57,197,207,0.12)"/>
+          <text x="958" y="445" fill="#39c5cf" font-size="9" font-weight="bold" text-anchor="middle">Active Edge Forwarder Registered</text>
+        </g>
+
+        <!-- =================== PROMINENT CONNECTING ARROWS =================== -->
+
+        <!-- ARROW ①: PC-1 Antigravity -> Gateway Proxy -->
+        <path d="M 305 180 C 355 180, 355 115, 400 115" class="flow-anim-blue" stroke-width="2.6" fill="none" marker-end="url(#arrow-blue)"/>
+        <!-- Arrow Label Pill -->
+        <rect x="296" y="132" width="112" height="18" rx="4" fill="#161b22" stroke="#58a6ff" stroke-width="1"/>
+        <text x="352" y="145" fill="#58a6ff" class="pill-label" text-anchor="middle">Transcripts / Proxy ──▶</text>
+        <!-- Animated traveling signal particle -->
+        <circle r="4" fill="#58a6ff" class="flow-dot">
+          <animateMotion dur="2.2s" repeatCount="indefinite" path="M 305 180 C 355 180, 355 115, 400 115"/>
+        </circle>
+
+        <!-- ARROW ②: Gateway Router -> PC-1 Ollama Cluster (27B Heavy Math) -->
+        <path d="M 400 145 C 355 145, 355 310, 305 310" class="flow-anim-cyan" stroke-width="2.6" fill="none" marker-end="url(#arrow-cyan)"/>
+        <!-- Arrow Label Pill -->
+        <rect x="282" y="222" width="140" height="18" rx="4" fill="#161b22" stroke="#39c5cf" stroke-width="1"/>
+        <text x="352" y="235" fill="#39c5cf" class="pill-label" text-anchor="middle">◀── Heavy Math (27B) Dispatch</text>
+        <!-- Animated traveling signal particle -->
+        <circle r="4" fill="#39c5cf" class="flow-dot">
+          <animateMotion dur="2.5s" repeatCount="indefinite" path="M 400 145 C 355 145, 355 310, 305 310"/>
+        </circle>
+
+        <!-- ARROW ③: Gateway Router -> PC-2 Hermes Worker (:8642 CUDA) -->
+        <path d="M 740 115 C 790 115, 790 190, 835 190" class="flow-anim-green" stroke-width="2.6" fill="none" marker-end="url(#arrow-green)"/>
+        <!-- Arrow Label Pill -->
+        <rect x="732" y="138" width="138" height="18" rx="4" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+        <text x="801" y="151" fill="#3fb950" class="pill-label" text-anchor="middle">Zero-Token CUDA Dispatch ──▶</text>
+        <!-- Animated traveling signal particle -->
+        <circle r="4" fill="#3fb950" class="flow-dot">
+          <animateMotion dur="2.0s" repeatCount="indefinite" path="M 740 115 C 790 115, 790 190, 835 190"/>
+        </circle>
+
+        <!-- ARROW ④: PC-2 Telemetry Forwarder -> Gateway Cryptographic Ledger -->
+        <path d="M 835 405 C 790 405, 790 345, 740 345" class="flow-anim-cyan" stroke-width="2.6" fill="none" marker-end="url(#arrow-cyan)"/>
+        <!-- Arrow Label Pill -->
+        <rect x="726" y="372" width="148" height="18" rx="4" fill="#161b22" stroke="#39c5cf" stroke-width="1"/>
+        <text x="800" y="385" fill="#39c5cf" class="pill-label" text-anchor="middle">◀── Signed Blocks &amp; Heartbeats</text>
+        <!-- Animated traveling signal particle -->
+        <circle r="4" fill="#39c5cf" class="flow-dot">
+          <animateMotion dur="2.5s" repeatCount="indefinite" path="M 835 405 C 790 405, 790 345, 740 345"/>
+        </circle>
+      </svg>
+    </div>
+
+    <!-- Live Interconnect Quick Actions & Direct Filter Buttons -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 11px;">
+        <span class="dot-pulse"></span>
+        <span style="color: #c9d1d9; font-weight: 600;">Cluster Interconnect:</span>
+        <span style="color: #79c0ff;">PC-1 (:11434)</span>
+        <span style="color: var(--text-dim);">◀──▶</span>
+        <span style="color: #e3b341; font-weight: bold;">Gateway Hub (:8080)</span>
+        <span style="color: var(--text-dim);">◀──▶</span>
+        <span style="color: #7ee787;">PC-2 Worker (:8642 CUDA)</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff;" onclick="setFilter('PC-1-Antigravity')">✦ Antigravity</button>
+        <button class="copy-btn" style="border-color: #79c0ff; color: #79c0ff;" onclick="setFilter('PC-1')">🤖 PC-1 Ollama</button>
+        <button class="copy-btn" style="border-color: #3fb950; color: #3fb950;" onclick="setFilter('PC-2')">🔥 PC-2 Hermes (CUDA)</button>
+        <button class="copy-btn" style="border-color: #d29922; color: #e3b341;" onclick="openGovernanceModal('policies')">⚙️ Governance</button>
+        <button class="copy-btn" onclick="verifyLedgerNow()">⛓️ Verify Ledger</button>
+        <button class="copy-btn" onclick="setFilter('ALL')">All Events</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View 2: Mermaid.js Standard Architecture Flowchart -->
+  <div id="topo-mermaid-view" style="display: none; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <h3 style="font-size: 14px; color: #fff; margin-bottom: 3px; display: flex; align-items: center; gap: 8px;">
+          <span>🧜 Mermaid.js Standard Architecture Flowchart</span>
+          <span class="badge" style="background: rgba(188,140,255,0.15); color: #bc8cff; border: 1px solid #bc8cff;">Standard Mermaid Syntax</span>
+        </h3>
+        <p style="font-size: 11px; color: var(--text-dim);">
+          Generated according to DeepSeek R1 specification. Standard declarative graph topology ready for documentation and markdown embeds.
+        </p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="copy-btn" onclick="copyMermaidCode()">📋 Copy Mermaid Code</button>
+        <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff;" onclick="renderMermaidNow()">🔄 Re-render</button>
+      </div>
+    </div>
+
+    <!-- Live Mermaid Container -->
+    <div id="mermaid-render-container" style="background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 24px; overflow-x: auto; text-align: center; margin-bottom: 16px;">
+      <pre class="mermaid" id="mermaid-diagram-code">
+flowchart LR
+    IDE["💻 Antigravity IDE Sessions<br/>(Prompts & Multi-Window Tools)"]
+
+    subgraph PC1["🖥️ PC-1 Lead Node (VECTOR · 192.168.1.101)"]
+        AG["✦ Antigravity Lead Agent<br/>(Gemini Pro Orchestrator)"]
+        OL["🤖 Ollama Cluster Engines (:11434)<br/>qwen3.8:27b · gemma4 · qwen3:14b"]
+    end
+
+    subgraph GW["🛡️ Central AgentTrace Gateway Hub (:8080)"]
+        PR["🌐 Reverse Proxy & Smart Router<br/>(POST /v1/chat/completions)"]
+        GOV["🛡️ Sandbox Governance Firewall<br/>(Enforces Whitelists & Blocks .env)"]
+        LEDGER["⛓️ Cryptographic Ledger<br/>(Ed25519 Signatures + SHA-256 Hash Chain)"]
+        DB[("💾 cluster_telemetry.db<br/>(SQLite WAL Mode)")]
+        PR -->|Policy Audit| GOV
+        GOV -->|Verified Hash| LEDGER
+        LEDGER -->|WAL Commit| DB
+    end
+
+    subgraph PC2["⚡ PC-2 Worker Node (NODE-02 · 192.168.1.102)"]
+        HERMES["🔥 Hermes Agent (:8642 + CUDA)<br/>deepseek-r1:1.5b (100% Dedicated GPU)"]
+        FWD["📡 Worker Telemetry Forwarder<br/>(Ed25519 Signed Heartbeats)"]
+    end
+
+    IDE -->|User Prompts & Tools| AG
+    AG -->|Transcripts & Intercepted Calls| PR
+    PR -->|Heavy Reasoning Dispatch| OL
+    PR -->|Zero-Token CUDA Swarm| HERMES
+    HERMES -->|Edge Verification Results| FWD
+    FWD -->|Heartbeats & Signed Events| LEDGER
+    LEDGER -.->|Real-time SSE Stream| DASH["📊 Live Dashboard Feed"]
+
+    style GW fill:#2d1f05,stroke:#d29922,stroke-width:2px,color:#e3b341
+    style PC1 fill:#0d1117,stroke:#58a6ff,stroke-width:1.5px,color:#79c0ff
+    style PC2 fill:#0d1117,stroke:#3fb950,stroke-width:1.5px,color:#7ee787
+    style PR fill:#161b22,stroke:#d29922,color:#fff
+    style GOV fill:#161b22,stroke:#d29922,color:#fff
+    style LEDGER fill:#161b22,stroke:#3fb950,color:#fff
+    style AG fill:#162940,stroke:#bc8cff,color:#fff
+    style OL fill:#1b2129,stroke:#58a6ff,color:#fff
+    style HERMES fill:#13361e,stroke:#3fb950,color:#fff
+    style FWD fill:#161b22,stroke:#39c5cf,color:#fff
+    style IDE fill:#1b2129,stroke:#8b949e,color:#fff
+    style DB fill:#161b22,stroke:#3fb950,color:#fff
+    style DASH fill:#1f3b58,stroke:#58a6ff,color:#fff
+      </pre>
+    </div>
+
+    <!-- Collapsible Source Code -->
+    <details style="background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; font-size: 11px;">
+      <summary style="cursor: pointer; color: #58a6ff; font-weight: 600;">View Raw Mermaid Code (Click to expand)</summary>
+      <pre style="margin-top: 10px; background: #161b22; padding: 12px; border-radius: 4px; overflow-x: auto; color: #c9d1d9; font-family: var(--font-mono); font-size: 11px;" id="raw-mermaid-pre">
+flowchart LR
+    IDE["💻 Antigravity IDE Sessions"]
+    AG["✦ Antigravity Lead Agent"]
+    OL["🤖 Ollama Cluster Engines (:11434)"]
+    PR["🌐 Reverse Proxy & Smart Router (:8080)"]
+    GOV["🛡️ Sandbox Governance Firewall"]
+    LEDGER["⛓️ Cryptographic Ledger"]
+    HERMES["🔥 Hermes Agent (:8642 + CUDA deepseek-r1:1.5b)"]
+    FWD["📡 Worker Telemetry Forwarder"]
+
+    IDE --> AG --> PR
+    PR -->|Heavy Reasoning| OL
+    PR -->|Fast CUDA Swarm| HERMES
+    HERMES --> FWD --> LEDGER
+    PR --> GOV --> LEDGER
+      </pre>
+    </details>
+  </div>
+
+  <!-- View 3: 3-Tier Distributed Node Hardware Specs Cards -->
+  <div class="topology-container" id="topo-nodes-view" style="display: none;">
     <!-- Machine 1: PC-1 Lead Node -->
     <div class="machine-card lead">
       <div class="machine-header">
@@ -714,118 +1126,6 @@
         <span>⚡ Gigabit LAN Mesh</span>
         <strong style="color: #3fb950;">Streams to Gateway (:8080) ──▶</strong>
       </div>
-    </div>
-  </div>
-
-  <!-- View 2: Interactive Architecture Flow Diagram (SVG) -->
-  <div id="topo-diagram-view" style="display: none; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <div>
-        <h3 style="font-size: 14px; color: #fff; margin-bottom: 4px;">📐 Cluster Network Data Flow &amp; Protocol Architecture</h3>
-        <p style="font-size: 11px; color: var(--text-dim);">Real-time interconnect showing reverse proxy routing, sandbox policy enforcement, and cryptographic ledger verification.</p>
-      </div>
-      <span class="badge badge-live">100% Cryptographic Provenance</span>
-    </div>
-
-    <!-- Scalable SVG Architecture Flow Diagram -->
-    <div style="width: 100%; overflow-x: auto;">
-      <svg viewBox="0 0 1000 360" style="width: 100%; min-width: 820px; height: auto; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;">
-        <!-- Definitions: Gradients & Markers -->
-        <defs>
-          <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1f3b58"/>
-            <stop offset="100%" stop-color="#0d1117"/>
-          </linearGradient>
-          <linearGradient id="amberGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#382805"/>
-            <stop offset="100%" stop-color="#161b22"/>
-          </linearGradient>
-          <linearGradient id="greenGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1b472e"/>
-            <stop offset="100%" stop-color="#0d1117"/>
-          </linearGradient>
-          <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M 0 1 L 8 5 L 0 9 z" fill="#58a6ff"/>
-          </marker>
-          <marker id="arrow-amber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M 0 1 L 8 5 L 0 9 z" fill="#d29922"/>
-          </marker>
-          <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M 0 1 L 8 5 L 0 9 z" fill="#3fb950"/>
-          </marker>
-        </defs>
-
-        <!-- Subgraph 1: PC-1 Lead Node -->
-        <rect x="20" y="20" width="280" height="320" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
-        <rect x="20" y="20" width="280" height="36" rx="10" fill="#161b22"/>
-        <text x="35" y="44" fill="#58a6ff" font-size="12" font-weight="bold">PC-1 (LEAD NODE · 192.168.1.101)</text>
-
-        <!-- PC-1 Box 1: Antigravity -->
-        <rect x="35" y="75" width="250" height="90" rx="8" fill="url(#blueGrad)" stroke="#58a6ff" stroke-width="1"/>
-        <text x="50" y="98" fill="#bc8cff" font-size="12" font-weight="bold">✦ Antigravity Lead Agent</text>
-        <text x="50" y="118" fill="#c9d1d9" font-size="10">Cloud Gemini Pro Orchestrator</text>
-        <text x="50" y="136" fill="#8b949e" font-size="9" font-family="Consolas, monospace">Native Session Watcher Active</text>
-
-        <!-- PC-1 Box 2: Local Ollama -->
-        <rect x="35" y="190" width="250" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
-        <text x="50" y="213" fill="#58a6ff" font-size="12" font-weight="bold">🤖 Ollama Cluster Engines (:11434)</text>
-        <text x="50" y="233" fill="#c9d1d9" font-size="10">qwen3.8:27b · gemma4:latest · qwen3:14b</text>
-        <text x="50" y="253" fill="#79c0ff" font-size="9">🧠 Heavy Math &amp; Systems Architecture</text>
-        <text x="50" y="271" fill="#79c0ff" font-size="9">📚 Zero-Token Offline Documentation</text>
-
-        <!-- Subgraph 2: Central Gateway & Cryptographic Ledger -->
-        <rect x="360" y="10" width="280" height="340" rx="12" fill="url(#amberGrad)" stroke="#d29922" stroke-width="2"/>
-        <rect x="360" y="10" width="280" height="38" rx="12" fill="#2e2305"/>
-        <text x="375" y="35" fill="#e3b341" font-size="13" font-weight="bold">🛡️ CENTRAL AGENTTRACE GATEWAY</text>
-
-        <!-- Gateway Box 1: Proxy & Router -->
-        <rect x="375" y="65" width="250" height="75" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1"/>
-        <text x="390" y="87" fill="#58a6ff" font-size="12" font-weight="bold">🌐 Reverse Proxy &amp; Intent Router</text>
-        <text x="390" y="107" fill="#c9d1d9" font-size="10" font-family="Consolas, monospace">POST /v1/chat/completions (:8080)</text>
-        <text x="390" y="125" fill="#8b949e" font-size="9">Dynamic Capability-Based Dispatch</text>
-
-        <!-- Gateway Box 2: Policy Engine -->
-        <rect x="375" y="155" width="250" height="75" rx="8" fill="#161b22" stroke="#d29922" stroke-width="1"/>
-        <text x="390" y="177" fill="#d29922" font-size="12" font-weight="bold">🛡️ Agent Sandbox Governance</text>
-        <text x="390" y="197" fill="#c9d1d9" font-size="10">Path &amp; Network Whitelist Interceptor</text>
-        <text x="390" y="215" fill="#f85149" font-size="9">Strict Blacklists: .env, secrets, id_rsa</text>
-
-        <!-- Gateway Box 3: Cryptographic Ledger -->
-        <rect x="375" y="245" width="250" height="85" rx="8" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
-        <text x="390" y="267" fill="#3fb950" font-size="12" font-weight="bold">⛓️ Cryptographic Hash Ledger</text>
-        <text x="390" y="287" fill="#c9d1d9" font-size="10" font-family="Consolas, monospace">SHA-256 Chain · Ed25519 Signatures</text>
-        <text x="390" y="307" fill="#8b949e" font-size="9">cluster_telemetry.db (SQLite WAL)</text>
-
-        <!-- Subgraph 3: PC-2 Worker Node -->
-        <rect x="700" y="20" width="280" height="320" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
-        <rect x="700" y="20" width="280" height="36" rx="10" fill="#161b22"/>
-        <text x="715" y="44" fill="#3fb950" font-size="12" font-weight="bold">PC-2 (WORKER NODE · 192.168.1.102)</text>
-
-        <!-- PC-2 Box 1: Hermes & CUDA -->
-        <rect x="715" y="75" width="250" height="135" rx="8" fill="url(#greenGrad)" stroke="#3fb950" stroke-width="1"/>
-        <text x="730" y="98" fill="#3fb950" font-size="12" font-weight="bold">🔥 Hermes Agent (:8642 + CUDA)</text>
-        <text x="730" y="118" fill="#c9d1d9" font-size="10">Hardware: NVIDIA GPU Acceleration</text>
-        <text x="730" y="138" fill="#7ee787" font-size="10" font-family="Consolas, monospace">Model: deepseek-r1:1.5b</text>
-        <text x="730" y="158" fill="#8b949e" font-size="9">⚡ Ultra-Fast Chain-of-Thought Reasoning</text>
-        <text x="730" y="176" fill="#8b949e" font-size="9">🧪 Test Assertion &amp; Regex Sanity Audits</text>
-        <text x="730" y="194" fill="#8b949e" font-size="9">💰 Zero Token Cost Autonomous Partner</text>
-
-        <!-- PC-2 Box 2: Telemetry Forwarder -->
-        <rect x="715" y="225" width="250" height="85" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
-        <text x="730" y="248" fill="#39c5cf" font-size="12" font-weight="bold">📡 Worker Telemetry Forwarder</text>
-        <text x="730" y="268" fill="#c9d1d9" font-size="10">Streams signed events &amp; heartbeats</text>
-        <text x="730" y="288" fill="#8b949e" font-size="9">Gigabit LAN Mesh Linked</text>
-
-        <!-- Connecting Flows / Arrows -->
-        <!-- Antigravity -> Gateway -->
-        <path d="M 285 110 L 375 90" stroke="#58a6ff" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow-blue)"/>
-        <!-- Gateway -> Ollama -->
-        <path d="M 375 120 L 310 140 L 310 240 L 285 240" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#arrow-blue)"/>
-        <!-- Gateway -> PC-2 Hermes -->
-        <path d="M 625 95 L 715 115" stroke="#3fb950" stroke-width="1.8" marker-end="url(#arrow-green)"/>
-        <!-- PC-2 Forwarder -> Gateway Ledger -->
-        <path d="M 715 275 L 625 285" stroke="#39c5cf" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow-green)"/>
-      </svg>
     </div>
   </div>
 
@@ -1373,21 +1673,49 @@
     let currentFilter = 'ALL';
 
     function switchTopoView(view) {
-      const nodesView = document.getElementById('topo-nodes-view');
       const diagView = document.getElementById('topo-diagram-view');
-      const btnNodes = document.getElementById('btn-topo-nodes');
+      const mermaidView = document.getElementById('topo-mermaid-view');
+      const nodesView = document.getElementById('topo-nodes-view');
       const btnDiag = document.getElementById('btn-topo-diagram');
+      const btnMermaid = document.getElementById('btn-topo-mermaid');
+      const btnNodes = document.getElementById('btn-topo-nodes');
 
-      if (view === 'diagram') {
-        if (nodesView) nodesView.style.display = 'none';
-        if (diagView) diagView.style.display = 'block';
-        if (btnNodes) btnNodes.classList.remove('active');
-        if (btnDiag) btnDiag.classList.add('active');
+      if (diagView) diagView.style.display = (view === 'diagram') ? 'block' : 'none';
+      if (mermaidView) mermaidView.style.display = (view === 'mermaid') ? 'block' : 'none';
+      if (nodesView) nodesView.style.display = (view === 'nodes') ? 'grid' : 'none';
+
+      if (btnDiag) btnDiag.classList.toggle('active', view === 'diagram');
+      if (btnMermaid) btnMermaid.classList.toggle('active', view === 'mermaid');
+      if (btnNodes) btnNodes.classList.toggle('active', view === 'nodes');
+
+      if (view === 'mermaid') {
+        renderMermaidNow();
+      }
+
+      localStorage.setItem('agenttrace_topo_view', view);
+    }
+
+    function renderMermaidNow() {
+      if (typeof mermaid !== 'undefined') {
+        try {
+          mermaid.run({ querySelector: '.mermaid' });
+        } catch (e) {
+          console.warn('Mermaid rendering notice:', e);
+        }
+      }
+    }
+
+    function copyMermaidCode() {
+      const el = document.getElementById('mermaid-diagram-code');
+      const text = el ? el.innerText : '';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text.trim()).then(() => {
+          alert('Mermaid architecture code copied to clipboard!');
+        }).catch(() => {
+          prompt('Copy Mermaid code below:', text.trim());
+        });
       } else {
-        if (nodesView) nodesView.style.display = 'grid';
-        if (diagView) diagView.style.display = 'none';
-        if (btnNodes) btnNodes.classList.add('active');
-        if (btnDiag) btnDiag.classList.remove('active');
+        prompt('Copy Mermaid code below:', text.trim());
       }
     }
 
@@ -2248,6 +2576,8 @@
     loadGovDelegationConfig();
     loadDownloadedClusterModels();
     initSSE();
+    const savedTopoView = localStorage.getItem('agenttrace_topo_view') || 'diagram';
+    switchTopoView(savedTopoView);
     setInterval(() => {
       fetchSummary();
       fetchAnalytics();
