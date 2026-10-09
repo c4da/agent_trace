@@ -111,3 +111,87 @@ impl ClusterSecurityConfig {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderValue;
+
+    #[test]
+    fn test_permissive_auth_when_token_is_none() {
+        let cfg = ClusterSecurityConfig {
+            auth_token: None,
+            upstream_allowlist: HashSet::new(),
+            worker_hermes_key: None,
+            key_path: PathBuf::from(".secrets/node_key.pk8"),
+        };
+        let headers = HeaderMap::new();
+        assert!(cfg.is_authorized(&headers));
+    }
+
+    #[test]
+    fn test_bearer_authorization_success_and_failure() {
+        let cfg = ClusterSecurityConfig {
+            auth_token: Some("secret-token-123".to_string()),
+            upstream_allowlist: HashSet::new(),
+            worker_hermes_key: None,
+            key_path: PathBuf::from(".secrets/node_key.pk8"),
+        };
+
+        // Empty headers should fail
+        let headers = HeaderMap::new();
+        assert!(!cfg.is_authorized(&headers));
+
+        // Wrong Bearer token should fail
+        let mut wrong_headers = HeaderMap::new();
+        wrong_headers.insert("authorization", HeaderValue::from_static("Bearer wrong-token"));
+        assert!(!cfg.is_authorized(&wrong_headers));
+
+        // Correct Bearer token should succeed
+        let mut valid_headers = HeaderMap::new();
+        valid_headers.insert("authorization", HeaderValue::from_static("Bearer secret-token-123"));
+        assert!(cfg.is_authorized(&valid_headers));
+    }
+
+    #[test]
+    fn test_custom_header_token_success() {
+        let cfg = ClusterSecurityConfig {
+            auth_token: Some("my-agent-key".to_string()),
+            upstream_allowlist: HashSet::new(),
+            worker_hermes_key: None,
+            key_path: PathBuf::from(".secrets/node_key.pk8"),
+        };
+
+        let mut headers = HeaderMap::new();
+        headers.insert("x-agenttrace-token", HeaderValue::from_static("my-agent-key"));
+        assert!(cfg.is_authorized(&headers));
+    }
+
+    #[test]
+    fn test_upstream_allowlist_and_ssrf_prevention() {
+        let mut allowlist = HashSet::new();
+        allowlist.insert("http://127.0.0.1:11434".to_string());
+        allowlist.insert("http://192.168.1.102:8642".to_string());
+
+        let cfg = ClusterSecurityConfig {
+            auth_token: None,
+            upstream_allowlist: allowlist,
+            worker_hermes_key: None,
+            key_path: PathBuf::from(".secrets/node_key.pk8"),
+        };
+
+        // Exact match
+        assert!(cfg.is_upstream_allowed("http://127.0.0.1:11434"));
+        // Trailing slash normalized
+        assert!(cfg.is_upstream_allowed("http://127.0.0.1:11434/"));
+        // Upper-case normalized
+        assert!(cfg.is_upstream_allowed("HTTP://127.0.0.1:11434"));
+        // Worker allowed
+        assert!(cfg.is_upstream_allowed("http://192.168.1.102:8642"));
+
+        // Malicious SSRF target blocked
+        assert!(!cfg.is_upstream_allowed("http://169.254.169.254/latest/meta-data"));
+        assert!(!cfg.is_upstream_allowed("http://evil-attacker.com:8080"));
+        assert!(!cfg.is_upstream_allowed("http://192.168.1.200:8000"));
+    }
+}

@@ -177,3 +177,75 @@ pub fn compute_event_hash_v1(event: &TraceEvent) -> String {
 pub fn compute_event_hash(event: &TraceEvent) -> String {
     compute_event_hash_v2(event)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_genesis_prev_hash_length() {
+        assert_eq!(GENESIS_PREV_HASH.len(), 64);
+        assert_eq!(GENESIS_PREV_HASH, "0".repeat(64));
+    }
+
+    #[test]
+    fn test_node_identity_generate_sign_and_verify() {
+        let temp_dir = std::env::temp_dir();
+        let key_path = temp_dir.join(format!("test_key_{}.pk8", uuid::Uuid::new_v4()));
+
+        let identity = NodeIdentity::load_or_generate(&key_path).expect("Failed to generate identity");
+        assert_eq!(identity.public_key_hex().len(), 64); // 32 bytes hex encoded = 64 hex chars
+
+        let message_hash = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+        let signature = identity.sign_event(message_hash);
+        assert_eq!(signature.len(), 128); // 64 bytes hex encoded = 128 hex chars
+
+        // Valid verification
+        assert!(NodeIdentity::verify_signature(message_hash, &signature, identity.public_key_hex()));
+
+        // Tampered message hash fails verification
+        let tampered_hash = "1111111234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+        assert!(!NodeIdentity::verify_signature(tampered_hash, &signature, identity.public_key_hex()));
+
+        // Tampered signature fails verification
+        let tampered_sig = format!("00{}", &signature[2..]);
+        assert!(!NodeIdentity::verify_signature(message_hash, &tampered_sig, identity.public_key_hex()));
+
+        // Cleanup
+        let _ = std::fs::remove_file(key_path);
+    }
+
+    #[test]
+    fn test_compute_event_hash_v2_determinism_and_sensitivity() {
+        let event = TraceEvent {
+            event_id: "evt-001".to_string(),
+            node_id: "PC-1".to_string(),
+            session_id: "sess-01".to_string(),
+            timestamp: "2026-10-09T10:00:00Z".to_string(),
+            event_type: EventType::FileWrite,
+            target: "C:/test.txt".to_string(),
+            action_details: json!({"bytes": 42}),
+            diff: Some("+hello world".to_string()),
+            provenance_sources: vec!["tool_call".to_string()],
+            security_verdict: SecurityVerdict::Allowed,
+            security_reasons: vec!["within sandbox".to_string()],
+            duration_ms: 12.5,
+            prev_hash: GENESIS_PREV_HASH.to_string(),
+            event_hash: String::new(),
+            signature: None,
+            public_key: None,
+        };
+
+        let hash1 = compute_event_hash_v2(&event);
+        let hash2 = compute_event_hash_v2(&event);
+        assert_eq!(hash1, hash2);
+        assert_eq!(hash1.len(), 64);
+
+        // Mutating a field must produce a totally different hash
+        let mut tampered = event.clone();
+        tampered.target = "C:/hacked.txt".to_string();
+        let hash_tampered = compute_event_hash_v2(&tampered);
+        assert_ne!(hash1, hash_tampered);
+    }
+}

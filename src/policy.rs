@@ -402,4 +402,62 @@ mod tests {
         );
         assert_eq!(dec_ok.verdict, SecurityVerdict::Allowed);
     }
+
+    #[test]
+    fn test_non_enforcing_audit_mode_flags_instead_of_blocks() {
+        let mut engine = PolicyEngine::new_with_defaults();
+
+        engine.set_policy(AgentAccessPolicy {
+            agent_id: "audit-agent".to_string(),
+            read_whitelist: vec!["c:/cada/projects/allowed".to_string()],
+            write_whitelist: vec![],
+            network_whitelist: vec![],
+            blocked_patterns: vec![".env".to_string()],
+            enforcing: false, // Audit mode only!
+        });
+
+        // Reading unauthorized path in non-enforcing mode results in Flagged, NOT Blocked
+        let dec = engine.evaluate(
+            "audit-agent",
+            AccessAction::Read,
+            r"C:\sensitive\report.pdf",
+        );
+        assert_eq!(dec.verdict, SecurityVerdict::Flagged);
+        assert!(!dec.reasons.is_empty());
+    }
+
+    #[test]
+    fn test_network_whitelist_evaluation() {
+        let mut engine = PolicyEngine::new_with_defaults();
+
+        engine.set_policy(AgentAccessPolicy {
+            agent_id: "network-agent".to_string(),
+            read_whitelist: vec![],
+            write_whitelist: vec![],
+            network_whitelist: vec!["https://api.github.com".to_string(), "http://localhost:8080".to_string()],
+            blocked_patterns: vec![],
+            enforcing: true,
+        });
+
+        // Allowed network calls
+        let dec_gh = engine.evaluate("network-agent", AccessAction::NetworkPull, "https://api.github.com/repos");
+        assert_eq!(dec_gh.verdict, SecurityVerdict::Allowed);
+
+        let dec_local = engine.evaluate("network-agent", AccessAction::NetworkPull, "http://localhost:8080/v1/models");
+        assert_eq!(dec_local.verdict, SecurityVerdict::Allowed);
+
+        // Forbidden network call
+        let dec_evil = engine.evaluate("network-agent", AccessAction::NetworkPull, "https://evil-exfiltration.com/data");
+        assert_eq!(dec_evil.verdict, SecurityVerdict::Blocked);
+    }
+
+    #[test]
+    fn test_matches_pattern_wildcards() {
+        assert!(matches_pattern("c:/foo/bar/baz.txt", "*"));
+        assert!(matches_pattern("c:/foo/bar/baz.txt", "**"));
+        assert!(matches_pattern("c:/foo/bar/baz.txt", "c:/foo/**"));
+        assert!(matches_pattern("c:/foo/bar/baz.txt", "c:/foo/*"));
+        assert!(matches_pattern("c:/foo/bar/baz.txt", "c:/foo/bar/baz.txt"));
+        assert!(!matches_pattern("c:/other/bar/baz.txt", "c:/foo/**"));
+    }
 }
