@@ -1720,7 +1720,7 @@ flowchart LR
       }
     }
 
-    function setFilter(node) {
+    async function setFilter(node) {
       currentFilter = node;
       document.querySelectorAll('.filter-pill').forEach(btn => {
         if (node === 'ALL') {
@@ -1739,7 +1739,7 @@ flowchart LR
         box.classList.toggle('active-filter', target === node && node !== 'ALL');
       });
 
-      renderFilteredEvents();
+      await fetchEvents();
     }
 
     async function fetchSummary() {
@@ -1768,7 +1768,11 @@ flowchart LR
 
     async function fetchEvents() {
       try {
-        const res = await fetch('/api/v1/events?limit=100');
+        let url = '/api/v1/events?limit=150';
+        if (currentFilter && currentFilter !== 'ALL') {
+          url += `&node_id=${encodeURIComponent(currentFilter)}`;
+        }
+        const res = await fetch(url);
         allEvents = await res.json();
         
         // Count LLMs
@@ -1789,13 +1793,6 @@ flowchart LR
       const tbody = document.getElementById('events-body');
 
       let filtered = allEvents.filter(ev => {
-        if (currentFilter !== 'ALL') {
-          if (currentFilter === 'PC-1') {
-            if (ev.node_id !== 'PC-1') return false;
-          } else {
-            if (!ev.node_id.includes(currentFilter)) return false;
-          }
-        }
         if (query) {
           const targetStr = (ev.target || '').toLowerCase();
           const typeStr = (ev.event_type || '').toLowerCase();

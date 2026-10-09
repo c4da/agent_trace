@@ -306,16 +306,21 @@ pub async fn evaluate_policy_handler(
 }
 
 #[derive(serde::Deserialize)]
-pub struct LimitQuery {
+pub struct EventQuery {
     pub limit: Option<usize>,
+    pub node_id: Option<String>,
+    pub event_type: Option<String>,
 }
 
 pub async fn get_events(
     State(state): State<AppState>,
-    Query(q): Query<LimitQuery>,
+    Query(q): Query<EventQuery>,
 ) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
-    let events = state.db.get_recent_events(limit).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let events = state
+        .db
+        .get_recent_events_filtered(limit, q.node_id.as_deref(), q.event_type.as_deref())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(events))
 }
 

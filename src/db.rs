@@ -200,6 +200,96 @@ impl Database {
         Ok(events)
     }
 
+    pub fn get_recent_events_filtered(
+        &self,
+        limit: usize,
+        node_id: Option<&str>,
+        event_type: Option<&str>,
+    ) -> SqliteResult<Vec<Value>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut conditions = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        if let Some(nid) = node_id {
+            let trimmed = nid.trim();
+            if !trimmed.is_empty() && trimmed != "ALL" {
+                if trimmed == "PC-1" {
+                    // Match PC-1 but NOT PC-1-Antigravity so local engines have their own view
+                    conditions.push("(node_id = ? OR node_id = 'DEFAULT')");
+                    params_vec.push(Box::new(trimmed.to_string()));
+                } else if trimmed == "PC-1-Antigravity" {
+                    conditions.push("node_id = ?");
+                    params_vec.push(Box::new(trimmed.to_string()));
+                } else {
+                    // Support exact match or prefix (e.g. PC-2)
+                    conditions.push("(node_id = ? OR node_id LIKE ?)");
+                    params_vec.push(Box::new(trimmed.to_string()));
+                    params_vec.push(Box::new(format!("{}%", trimmed)));
+                }
+            }
+        }
+
+        if let Some(et) = event_type {
+            let trimmed_et = et.trim();
+            if !trimmed_et.is_empty() && trimmed_et != "ALL" {
+                conditions.push("event_type = ?");
+                params_vec.push(Box::new(trimmed_et.to_string()));
+            }
+        }
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        let sql = format!(
+            "SELECT event_id, node_id, session_id, timestamp, event_type,
+                    target, action_details, diff, provenance_sources,
+                    security_verdict, security_reasons, duration_ms,
+                    prev_hash, event_hash, signature, public_key
+             FROM events {} ORDER BY rowid DESC LIMIT ?",
+            where_clause
+        );
+
+        params_vec.push(Box::new(limit as i64));
+
+        let mut stmt = conn.prepare(&sql)?;
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+        let rows = stmt.query_map(param_refs.as_slice(), |row| {
+            let details: String = row.get(6)?;
+            let sources: String = row.get(8)?;
+            let reasons: String = row.get(10)?;
+
+            Ok(serde_json::json!({
+                "event_id": row.get::<_, String>(0)?,
+                "node_id": row.get::<_, String>(1)?,
+                "session_id": row.get::<_, String>(2)?,
+                "timestamp": row.get::<_, String>(3)?,
+                "event_type": row.get::<_, String>(4)?,
+                "target": row.get::<_, String>(5)?,
+                "action_details": serde_json::from_str::<Value>(&details).unwrap_or_default(),
+                "diff": row.get::<_, Option<String>>(7)?,
+                "provenance_sources": serde_json::from_str::<Value>(&sources).unwrap_or_default(),
+                "security_verdict": row.get::<_, String>(9)?,
+                "security_reasons": serde_json::from_str::<Value>(&reasons).unwrap_or_default(),
+                "duration_ms": row.get::<_, f64>(11)?,
+                "prev_hash": row.get::<_, String>(12)?,
+                "event_hash": row.get::<_, String>(13)?,
+                "signature": row.get::<_, Option<String>>(14)?,
+                "public_key": row.get::<_, Option<String>>(15)?,
+            }))
+        })?;
+
+        let mut events = Vec::new();
+        for r in rows {
+            events.push(r?);
+        }
+        Ok(events)
+    }
+
     pub fn verify_ledger(&self) -> SqliteResult<LedgerVerificationReport> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
