@@ -56,6 +56,13 @@ fn create_test_app(auth_token: Option<String>) -> (axum::Router, Database, tempf
         upstream_url.clone(),
     ));
 
+    let (ledger_writer, _) = agent_trace_gw::ledger_writer::LedgerWriter::spawn(
+        db.clone(),
+        Some(identity.clone()),
+        Some(tx_events.clone()),
+        1024,
+    );
+
     let proxy_cfg = Arc::new(ProxyConfig {
         upstream_url: upstream_url.clone(),
         db: db.clone(),
@@ -64,6 +71,7 @@ fn create_test_app(auth_token: Option<String>) -> (axum::Router, Database, tempf
         client,
         registry: registry.clone(),
         delegation_engine: delegation_engine.clone(),
+        ledger_writer: Some(ledger_writer.clone()),
     });
 
     let policy = Arc::new(RwLock::new(PolicyEngine::new_with_defaults()));
@@ -78,6 +86,7 @@ fn create_test_app(auth_token: Option<String>) -> (axum::Router, Database, tempf
         node_id: "TEST-LEAD".to_string(),
         registry: registry.clone(),
         policy: policy.clone(),
+        ledger_writer: Some(ledger_writer),
     };
 
     let agent_state = AgentInterfaceState {

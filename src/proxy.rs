@@ -22,6 +22,7 @@ pub struct ProxyConfig {
     #[allow(dead_code)]
     pub registry: Arc<tokio::sync::RwLock<crate::registry::ClusterModelRegistry>>,
     pub delegation_engine: Arc<crate::delegation_engine::AgentDelegationEngine>,
+    pub ledger_writer: Option<crate::ledger_writer::LedgerWriter>,
 }
 
 pub async fn handle_chat_completions(
@@ -29,6 +30,11 @@ pub async fn handle_chat_completions(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, StatusCode> {
+    // 0. Enforce gateway authentication if configured
+    if !cfg.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     // Parse request payload to extract prompt, model, and stream mode
     let req_json: Option<serde_json::Value> = serde_json::from_slice(&body).ok();
     let model_name = req_json.as_ref()
@@ -140,10 +146,8 @@ pub async fn handle_chat_completions(
     let status = StatusCode::from_u16(upstream_res.status().as_u16())
         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-    let db = cfg.db.clone();
     let nid = node_id.clone();
     let logged_upstream = upstream.clone();
-    let identity = cfg.identity.clone();
     let eff_model = effective_model.clone();
     let route_meta = routing_decision.clone();
 
@@ -161,35 +165,42 @@ pub async fn handle_chat_completions(
         let bg_eff_model = eff_model.clone();
         let bg_route_meta = route_meta.clone();
         let stream_sess_id = sess_id.clone();
-        tokio::spawn(async move {
-            let mut ev = TraceEvent {
-                event_id: uuid::Uuid::new_v4().simple().to_string(),
-                node_id: nid,
-                session_id: stream_sess_id,
-                timestamp: chrono::Utc::now().to_rfc3339(),
-                event_type: EventType::LlmInference,
-                target: format!("{} [{}]", logged_upstream, bg_eff_model),
-                action_details: serde_json::json!({
-                    "status": status.as_u16(),
-                    "duration_ms": duration_ms,
-                    "model": bg_eff_model,
-                    "requested_model": model_name,
-                    "stream": true,
-                    "prompt": last_prompt,
-                    "smart_routing": bg_route_meta,
-                }),
-                diff: None,
-                provenance_sources: vec![],
-                security_verdict: SecurityVerdict::Allowed,
-                security_reasons: vec![],
-                duration_ms,
-                prev_hash: String::new(),
-                event_hash: String::new(),
-                signature: None,
-                public_key: None,
-            };
-            let _ = db.insert_event_signed(&mut ev, Some(&*identity));
-        });
+        let ev = TraceEvent {
+            event_id: uuid::Uuid::new_v4().simple().to_string(),
+            node_id: nid.clone(),
+            session_id: stream_sess_id,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            event_type: EventType::LlmInference,
+            target: format!("{} [{}]", logged_upstream, bg_eff_model),
+            action_details: serde_json::json!({
+                "status": status.as_u16(),
+                "duration_ms": duration_ms,
+                "model": bg_eff_model,
+                "requested_model": model_name,
+                "stream": true,
+                "prompt": last_prompt,
+                "smart_routing": bg_route_meta,
+            }),
+            diff: None,
+            provenance_sources: vec![],
+            security_verdict: SecurityVerdict::Allowed,
+            security_reasons: vec![],
+            duration_ms,
+            prev_hash: String::new(),
+            event_hash: String::new(),
+            signature: None,
+            public_key: None,
+        };
+        if let Some(ref writer) = cfg.ledger_writer {
+            let _ = writer.try_enqueue(ev);
+        } else {
+            let db = cfg.db.clone();
+            let identity = cfg.identity.clone();
+            tokio::spawn(async move {
+                let mut e = ev;
+                let _ = db.insert_event_signed(&mut e, Some(&*identity));
+            });
+        }
 
         let stream = upstream_res.bytes_stream();
         let body = Body::from_stream(stream);
@@ -233,37 +244,44 @@ pub async fn handle_chat_completions(
         let thread_eff_model = eff_model.clone();
 
         let nonstream_sess_id = sess_id.clone();
-        tokio::spawn(async move {
-            let mut ev = TraceEvent {
-                event_id: uuid::Uuid::new_v4().simple().to_string(),
-                node_id: nid,
-                session_id: nonstream_sess_id,
-                timestamp: chrono::Utc::now().to_rfc3339(),
-                event_type: EventType::LlmInference,
-                target: format!("{} [{}]", logged_upstream, thread_eff_model),
-                action_details: serde_json::json!({
-                    "status": status.as_u16(),
-                    "duration_ms": duration_ms,
-                    "model": thread_eff_model,
-                    "requested_model": model_name,
-                    "stream": false,
-                    "prompt": last_prompt,
-                    "completion": completion_text,
-                    "usage": usage,
-                    "smart_routing": route_meta,
-                }),
-                diff: None,
-                provenance_sources: vec![],
-                security_verdict: SecurityVerdict::Allowed,
-                security_reasons: vec![],
-                duration_ms,
-                prev_hash: String::new(),
-                event_hash: String::new(),
-                signature: None,
-                public_key: None,
-            };
-            let _ = db.insert_event_signed(&mut ev, Some(&*identity));
-        });
+        let ev = TraceEvent {
+            event_id: uuid::Uuid::new_v4().simple().to_string(),
+            node_id: nid,
+            session_id: nonstream_sess_id,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            event_type: EventType::LlmInference,
+            target: format!("{} [{}]", logged_upstream, thread_eff_model),
+            action_details: serde_json::json!({
+                "status": status.as_u16(),
+                "duration_ms": duration_ms,
+                "model": thread_eff_model,
+                "requested_model": model_name,
+                "stream": false,
+                "prompt": last_prompt,
+                "completion": completion_text,
+                "usage": usage,
+                "smart_routing": route_meta,
+            }),
+            diff: None,
+            provenance_sources: vec![],
+            security_verdict: SecurityVerdict::Allowed,
+            security_reasons: vec![],
+            duration_ms,
+            prev_hash: String::new(),
+            event_hash: String::new(),
+            signature: None,
+            public_key: None,
+        };
+        if let Some(ref writer) = cfg.ledger_writer {
+            let _ = writer.try_enqueue(ev);
+        } else {
+            let db = cfg.db.clone();
+            let identity = cfg.identity.clone();
+            tokio::spawn(async move {
+                let mut e = ev;
+                let _ = db.insert_event_signed(&mut e, Some(&*identity));
+            });
+        }
 
         let mut res_builder = Response::builder()
             .status(status)
@@ -285,8 +303,12 @@ pub async fn handle_chat_completions(
 
 pub async fn handle_models(
     State(cfg): State<Arc<ProxyConfig>>,
-    _headers: HeaderMap,
+    headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
+    if !cfg.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     // 1. Query PC-1 Local Models (Ollama)
     let mut models_list = Vec::new();
 

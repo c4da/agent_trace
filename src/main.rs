@@ -133,6 +133,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         upstream_url.clone(),
     ));
 
+    let (ledger_writer, _writer_handle) = agent_trace_gw::ledger_writer::LedgerWriter::spawn(
+        db.clone(),
+        Some(identity.clone()),
+        Some(tx_events.clone()),
+        1024,
+    );
+
     let proxy_cfg = Arc::new(ProxyConfig {
         upstream_url: upstream_url.clone(),
         db: db.clone(),
@@ -141,6 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         client: client.clone(),
         registry: registry.clone(),
         delegation_engine: delegation_engine.clone(),
+        ledger_writer: Some(ledger_writer.clone()),
     });
 
     let policy = Arc::new(RwLock::new(PolicyEngine::new_with_defaults()));
@@ -155,6 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         node_id: node_id.clone(),
         registry: registry.clone(),
         policy: policy.clone(),
+        ledger_writer: Some(ledger_writer),
     };
 
     let agent_state = AgentInterfaceState {

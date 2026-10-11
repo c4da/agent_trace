@@ -94,17 +94,25 @@ impl ClusterSecurityConfig {
         false
     }
 
-    /// Checks if a requested upstream URL prefix is explicitly allowlisted (prevents SSRF).
+    /// Checks if a requested upstream URL matches an allowlisted origin (prevents SSRF and prefix attacks).
     pub fn is_upstream_allowed(&self, target_base: &str) -> bool {
-        let normalized = target_base.trim_end_matches('/').to_lowercase();
-        if self.upstream_allowlist.contains(&normalized) {
-            return true;
-        }
+        let target_url = match url::Url::parse(target_base) {
+            Ok(u) => u,
+            Err(_) => return false,
+        };
 
-        // Also check if any allowlisted entry is a prefix
+        let target_origin = target_url.origin();
+
         for allowed in &self.upstream_allowlist {
-            if normalized.starts_with(allowed) {
-                return true;
+            if let Ok(allowed_url) = url::Url::parse(allowed) {
+                if target_origin == allowed_url.origin() {
+                    return true;
+                }
+            } else {
+                let normalized = target_base.trim_end_matches('/').to_lowercase();
+                if normalized == *allowed {
+                    return true;
+                }
             }
         }
 
@@ -193,5 +201,9 @@ mod tests {
         assert!(!cfg.is_upstream_allowed("http://169.254.169.254/latest/meta-data"));
         assert!(!cfg.is_upstream_allowed("http://evil-attacker.com:8080"));
         assert!(!cfg.is_upstream_allowed("http://192.168.1.200:8000"));
+        // Critical: Prefix collision attack blocked (e.g. 127.0.0.1:11434.evil.com)
+        assert!(!cfg.is_upstream_allowed("http://127.0.0.1:11434.evil.com"));
+        assert!(!cfg.is_upstream_allowed("http://127.0.0.1:11434.evil.com:8080"));
+        assert!(!cfg.is_upstream_allowed("http://127.0.0.1:8080"));
     }
 }

@@ -45,6 +45,7 @@ pub struct AppState {
     pub node_id: String,
     pub registry: Arc<RwLock<ClusterModelRegistry>>,
     pub policy: Arc<RwLock<PolicyEngine>>,
+    pub ledger_writer: Option<crate::ledger_writer::LedgerWriter>,
 }
 
 /// Constructs the complete Axum Router for the AgentTrace Gateway.
@@ -206,9 +207,16 @@ pub async fn ingest_event(
     }
 
     // Cryptographically record event into the tamper-proof ledger (including blocked attempts for audit trail)
-    state.db.insert_event_signed(&mut event, Some(&*state.identity)).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let msg = serde_json::to_string(&event).unwrap_or_default();
-    let _ = state.tx_events.send(msg);
+    if let Some(ref writer) = state.ledger_writer {
+        event = writer.commit_acknowledged(event).await.map_err(|e| {
+            eprintln!("[-] Error in ledger writer: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    } else {
+        state.db.insert_event_signed(&mut event, Some(&*state.identity)).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let msg = serde_json::to_string(&event).unwrap_or_default();
+        let _ = state.tx_events.send(msg);
+    }
 
     // If running on worker and lead_url is set, forward event to lead gateway asynchronously
     if let Some(ref target_lead) = state.lead_url {
