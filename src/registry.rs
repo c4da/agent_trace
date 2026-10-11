@@ -141,10 +141,10 @@ pub fn auto_derive_capabilities(
     }
 
     // Explicit heuristics for known families
-    if (lower_name.contains("deepseek") && lower_name.contains("r1")) || lower_name.contains("r1:1.5b") {
-        if !caps.contains(&ModelCapability::SanityVerification) {
-            caps.push(ModelCapability::SanityVerification);
-        }
+    if ((lower_name.contains("deepseek") && lower_name.contains("r1")) || lower_name.contains("r1:1.5b"))
+        && !caps.contains(&ModelCapability::SanityVerification)
+    {
+        caps.push(ModelCapability::SanityVerification);
     }
 
     if caps.is_empty() {

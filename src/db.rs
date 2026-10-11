@@ -1,6 +1,6 @@
 use crate::ledger::{
     compute_event_hash_v1, compute_event_hash_v2, compute_event_hash_v2_raw,
-    LedgerVerificationReport, NodeIdentity, GENESIS_PREV_HASH,
+    LedgerVerificationReport, NodeIdentity, RawEventFields, GENESIS_PREV_HASH,
 };
 use crate::schema::{ClusterSummary, NodeHeartbeat, TraceEvent, EventType, SecurityVerdict};
 use rusqlite::{params, Connection, Result as SqliteResult};
@@ -369,21 +369,22 @@ impl Database {
             }
 
             // 2. Recompute and check event_hash (supports canonical V2 or legacy V1)
-            let computed_v2 = compute_event_hash_v2_raw(
-                &ev.prev_hash,
-                &ev.event_id,
-                &ev.node_id,
-                &ev.session_id,
-                &ev.timestamp,
-                &ev.event_type,
-                &ev.target,
-                &raw_details,
-                ev.diff.as_deref(),
-                &raw_sources,
-                &ev.security_verdict,
-                &raw_reasons,
-                ev.duration_ms,
-            );
+            let raw_fields = RawEventFields {
+                prev_hash: &ev.prev_hash,
+                event_id: &ev.event_id,
+                node_id: &ev.node_id,
+                session_id: &ev.session_id,
+                timestamp: &ev.timestamp,
+                event_type: &ev.event_type,
+                target: &ev.target,
+                details_str: &raw_details,
+                diff: ev.diff.as_deref(),
+                sources_str: &raw_sources,
+                security_verdict: &ev.security_verdict,
+                reasons_str: &raw_reasons,
+                duration_ms: ev.duration_ms,
+            };
+            let computed_v2 = compute_event_hash_v2_raw(&raw_fields);
             let matches = (computed_v2 == ev.event_hash) || (compute_event_hash_v1(&ev) == ev.event_hash);
             if !matches {
                 is_valid = false;

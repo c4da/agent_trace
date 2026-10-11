@@ -196,6 +196,80 @@ pub fn classify_and_route(
     }
 }
 
+/// Dynamically routes requests using live capability discovery in ClusterModelRegistry.
+/// Eliminates hardcoded model names and static node mappings.
+pub fn classify_and_route_dynamic(
+    prompt: &str,
+    requested_model: &str,
+    smart_header: bool,
+    registry: &crate::registry::ClusterModelRegistry,
+    default_upstream: &str,
+) -> RoutingDecision {
+    let req_lower = requested_model.to_lowercase();
+    let is_auto = req_lower == "auto"
+        || req_lower == "cluster-router"
+        || req_lower == "cluster-smart"
+        || req_lower == "smart"
+        || smart_header;
+
+    // --- 1. Explicit Model Request ---
+    if !is_auto && !requested_model.is_empty() {
+        if let Some(m) = registry.find_model(requested_model) {
+            return RoutingDecision {
+                enabled: false,
+                intent: RoutingIntent::GeneralExecution,
+                requested_model: requested_model.to_string(),
+                selected_model: m.model_id,
+                target_upstream: m.endpoint,
+                node_id: m.node_id.clone(),
+                rationale: format!("Direct dynamic route to node {}", m.node_id),
+                fallback_applied: false,
+            };
+        } else {
+            return RoutingDecision {
+                enabled: false,
+                intent: RoutingIntent::GeneralExecution,
+                requested_model: requested_model.to_string(),
+                selected_model: requested_model.to_string(),
+                target_upstream: default_upstream.trim_end_matches('/').to_string(),
+                node_id: "DEFAULT".to_string(),
+                rationale: format!("Direct request for '{}'; dispatched to default upstream", requested_model),
+                fallback_applied: false,
+            };
+        }
+    }
+
+    // --- 2. Smart Capability Intent Classification ---
+    let intent = classify_intent(prompt);
+
+    if let Some(candidate) = registry.find_best_candidate(&intent) {
+        RoutingDecision {
+            enabled: true,
+            intent: intent.clone(),
+            requested_model: requested_model.to_string(),
+            selected_model: candidate.model_id.clone(),
+            target_upstream: candidate.endpoint,
+            node_id: candidate.node_id.clone(),
+            rationale: format!(
+                "Classified as {:?}: dynamically matched capability on node {} (model '{}')",
+                intent, candidate.node_id, candidate.model_id
+            ),
+            fallback_applied: false,
+        }
+    } else {
+        RoutingDecision {
+            enabled: true,
+            intent,
+            requested_model: requested_model.to_string(),
+            selected_model: requested_model.to_string(),
+            target_upstream: default_upstream.trim_end_matches('/').to_string(),
+            node_id: "LOCAL".to_string(),
+            rationale: "No active candidate matching capability; falling back to default upstream".to_string(),
+            fallback_applied: true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,79 +356,5 @@ mod tests {
         assert_eq!(decision.selected_model, "custom-r1:1.5b");
         assert_eq!(decision.node_id, "WORKER-GPU");
         assert_eq!(decision.target_upstream, "http://10.0.0.5:8642");
-    }
-}
-
-/// Dynamically routes requests using live capability discovery in ClusterModelRegistry.
-/// Eliminates hardcoded model names and static node mappings.
-pub fn classify_and_route_dynamic(
-    prompt: &str,
-    requested_model: &str,
-    smart_header: bool,
-    registry: &crate::registry::ClusterModelRegistry,
-    default_upstream: &str,
-) -> RoutingDecision {
-    let req_lower = requested_model.to_lowercase();
-    let is_auto = req_lower == "auto"
-        || req_lower == "cluster-router"
-        || req_lower == "cluster-smart"
-        || req_lower == "smart"
-        || smart_header;
-
-    // --- 1. Explicit Model Request ---
-    if !is_auto && !requested_model.is_empty() {
-        if let Some(m) = registry.find_model(requested_model) {
-            return RoutingDecision {
-                enabled: false,
-                intent: RoutingIntent::GeneralExecution,
-                requested_model: requested_model.to_string(),
-                selected_model: m.model_id,
-                target_upstream: m.endpoint,
-                node_id: m.node_id.clone(),
-                rationale: format!("Direct dynamic route to node {}", m.node_id),
-                fallback_applied: false,
-            };
-        } else {
-            return RoutingDecision {
-                enabled: false,
-                intent: RoutingIntent::GeneralExecution,
-                requested_model: requested_model.to_string(),
-                selected_model: requested_model.to_string(),
-                target_upstream: default_upstream.trim_end_matches('/').to_string(),
-                node_id: "DEFAULT".to_string(),
-                rationale: format!("Direct request for '{}'; dispatched to default upstream", requested_model),
-                fallback_applied: false,
-            };
-        }
-    }
-
-    // --- 2. Smart Capability Intent Classification ---
-    let intent = classify_intent(prompt);
-
-    if let Some(candidate) = registry.find_best_candidate(&intent) {
-        RoutingDecision {
-            enabled: true,
-            intent: intent.clone(),
-            requested_model: requested_model.to_string(),
-            selected_model: candidate.model_id.clone(),
-            target_upstream: candidate.endpoint,
-            node_id: candidate.node_id.clone(),
-            rationale: format!(
-                "Classified as {:?}: dynamically matched capability on node {} (model '{}')",
-                intent, candidate.node_id, candidate.model_id
-            ),
-            fallback_applied: false,
-        }
-    } else {
-        RoutingDecision {
-            enabled: true,
-            intent,
-            requested_model: requested_model.to_string(),
-            selected_model: requested_model.to_string(),
-            target_upstream: default_upstream.trim_end_matches('/').to_string(),
-            node_id: "LOCAL".to_string(),
-            rationale: "No active candidate matching capability; falling back to default upstream".to_string(),
-            fallback_applied: true,
-        }
     }
 }
