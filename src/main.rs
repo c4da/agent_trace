@@ -1,6 +1,7 @@
 use agent_trace_gw::{
     agent_interface::AgentInterfaceState,
     antigravity_watcher,
+    copilot_watcher,
     db::Database,
     delegation_engine::{AgentDelegationEngine, RouteOverrideStore},
     handlers::{create_router, AppState},
@@ -96,6 +97,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             public_key: None,
             models: None,
         });
+        let _ = db.upsert_node(&NodeHeartbeat {
+            node_id: "PC-1-Copilot".to_string(),
+            hostname: hostname.clone(),
+            ip_address: "127.0.0.1".to_string(),
+            role: "GitHub Copilot CLI (v1.0.95 · gpt-6-luna)".to_string(),
+            status: "ACTIVE".to_string(),
+            last_seen: chrono::Utc::now().to_rfc3339(),
+            public_key: Some(identity.public_key_hex().to_string()),
+            models: None,
+        });
         let _ = db.delete_node("PC-3");
     }
 
@@ -104,6 +115,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !is_worker {
         // Spawn native autonomous Antigravity transcript watcher on Lead
         antigravity_watcher::spawn_watcher(db.clone(), tx_events.clone());
+        // Spawn native autonomous GitHub Copilot CLI session watcher on Lead
+        copilot_watcher::spawn_watcher(db.clone(), tx_events.clone());
     }
 
     let client = reqwest::Client::builder()
@@ -157,8 +170,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spawn managed background services
     if !is_worker {
-        services::spawn_model_introspector(registry, client.clone(), upstream_url, security_cfg.clone());
+        services::spawn_model_introspector(registry.clone(), client.clone(), upstream_url, security_cfg.clone());
         services::spawn_discovery_beacon(port, "192.168.1.101");
+        services::spawn_host_agent_discoverer(db.clone(), registry.clone(), hostname.clone(), identity.clone());
     } else if let Some(target_lead) = lead_url {
         services::spawn_worker_forwarder(target_lead, node_id, hostname, identity, client, security_cfg);
     }

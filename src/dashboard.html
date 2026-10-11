@@ -167,6 +167,10 @@
       border-color: #bc8cff;
       background: rgba(188,140,255,0.05);
     }
+    .agent-box.copilot:hover, .agent-box.copilot.active-filter {
+      border-color: #58a6ff;
+      background: rgba(88,166,255,0.05);
+    }
     .agent-box.hermes:hover, .agent-box.hermes.active-filter {
       border-color: #58a6ff;
       background: rgba(88,166,255,0.05);
@@ -611,11 +615,11 @@
           </marker>
         </defs>
 
-        <!-- Top Level Entry: Antigravity IDE Sessions / Developer Input -->
+        <!-- Top Level Entry: Antigravity IDE & Copilot Sessions / Developer Input -->
         <g class="svg-node-box" onclick="setFilter('PC-1-Antigravity')">
           <rect x="30" y="14" width="280" height="42" rx="7" fill="url(#darkCardGrad)" stroke="#30363d" stroke-width="1.2"/>
-          <text x="46" y="34" fill="#fff" font-size="12" font-weight="bold">💻 Antigravity IDE Sessions</text>
-          <text x="46" y="47" fill="#8b949e" font-size="9" font-family="Consolas, monospace">Active Multi-Conversation Transcripts Watcher</text>
+          <text x="46" y="34" fill="#fff" font-size="12" font-weight="bold">💻 Antigravity &amp; Copilot Sessions</text>
+          <text x="46" y="47" fill="#8b949e" font-size="9" font-family="Consolas, monospace">Active Multi-Conversation &amp; Copilot Watchers</text>
         </g>
 
         <!-- Connecting Arrow: IDE -> Antigravity Agent -->
@@ -811,6 +815,7 @@
       </div>
       <div style="display: flex; gap: 8px;">
         <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff;" onclick="setFilter('PC-1-Antigravity')">✦ Antigravity</button>
+        <button class="copy-btn" style="border-color: #58a6ff; color: #79c0ff;" onclick="setFilter('PC-1-Copilot')">🐙 Copilot CLI</button>
         <button class="copy-btn" style="border-color: #79c0ff; color: #79c0ff;" onclick="setFilter('PC-1')">🤖 PC-1 Ollama</button>
         <button class="copy-btn" style="border-color: #3fb950; color: #3fb950;" onclick="setFilter('PC-2')">🔥 PC-2 Hermes (CUDA)</button>
         <button class="copy-btn" style="border-color: #d29922; color: #e3b341;" onclick="openGovernanceModal('policies')">⚙️ Governance</button>
@@ -843,9 +848,11 @@
       <pre class="mermaid" id="mermaid-diagram-code">
 flowchart LR
     IDE["💻 Antigravity IDE Sessions<br/>(Prompts & Multi-Window Tools)"]
+    COP_CLI["🐙 GitHub Copilot CLI<br/>(Terminal Shell & Autopilot)"]
 
     subgraph PC1["🖥️ PC-1 Lead Node (VECTOR · 192.168.1.101)"]
         AG["✦ Antigravity Lead Agent<br/>(Gemini Pro Orchestrator)"]
+        COP["🐙 Copilot Agent Watcher<br/>(copilot.exe · gpt-6-luna)"]
         OL["🤖 Ollama Cluster Engines (:11434)<br/>qwen3.8:27b · gemma4 · qwen3:14b"]
     end
 
@@ -865,6 +872,8 @@ flowchart LR
     end
 
     IDE -->|User Prompts & Tools| AG
+    COP_CLI -->|Terminal Commands & Tool Calls| COP
+    COP -->|Session Events & Proofs| LEDGER
     AG -->|Transcripts & Intercepted Calls| PR
     PR -->|Heavy Reasoning Dispatch| OL
     PR -->|Zero-Token CUDA Swarm| HERMES
@@ -879,6 +888,8 @@ flowchart LR
     style GOV fill:#161b22,stroke:#d29922,color:#fff
     style LEDGER fill:#161b22,stroke:#3fb950,color:#fff
     style AG fill:#162940,stroke:#bc8cff,color:#fff
+    style COP fill:#162940,stroke:#58a6ff,color:#fff
+    style COP_CLI fill:#1b2129,stroke:#58a6ff,color:#fff
     style OL fill:#1b2129,stroke:#58a6ff,color:#fff
     style HERMES fill:#13361e,stroke:#3fb950,color:#fff
     style FWD fill:#161b22,stroke:#39c5cf,color:#fff
@@ -894,7 +905,9 @@ flowchart LR
       <pre style="margin-top: 10px; background: #161b22; padding: 12px; border-radius: 4px; overflow-x: auto; color: #c9d1d9; font-family: var(--font-mono); font-size: 11px;" id="raw-mermaid-pre">
 flowchart LR
     IDE["💻 Antigravity IDE Sessions"]
+    COP_CLI["🐙 GitHub Copilot CLI"]
     AG["✦ Antigravity Lead Agent"]
+    COP["🐙 Copilot Agent (gpt-6-luna)"]
     OL["🤖 Ollama Cluster Engines (:11434)"]
     PR["🌐 Reverse Proxy & Smart Router (:8080)"]
     GOV["🛡️ Sandbox Governance Firewall"]
@@ -903,6 +916,7 @@ flowchart LR
     FWD["📡 Worker Telemetry Forwarder"]
 
     IDE --> AG --> PR
+    COP_CLI --> COP --> LEDGER
     PR -->|Heavy Reasoning| OL
     PR -->|Fast CUDA Swarm| HERMES
     HERMES --> FWD --> LEDGER
@@ -969,6 +983,36 @@ flowchart LR
 
           <div class="agent-footer" style="margin-top: 8px;">
             <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Local CLI &amp; Engine Active</span></span>
+            <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>
+          </div>
+        </div>
+
+        <!-- Agent 3: PC-1 Copilot CLI -->
+        <div class="agent-box copilot" data-filter="PC-1-Copilot" onclick="setFilter('PC-1-Copilot')" title="Click to filter events to GitHub Copilot CLI">
+          <div class="agent-top">
+            <div class="agent-identity">
+              <span class="agent-icon">🐙</span>
+              <span class="agent-name">PC-1 GitHub Copilot CLI</span>
+            </div>
+            <span class="agent-tag blue">LOCAL CLI &amp; AUTOPILOT</span>
+          </div>
+          <div class="agent-role" style="font-weight: 600; color: #79c0ff; margin-top: 2px;">
+            Terminal Coding, Shell Commands &amp; Workspace Autopilot
+          </div>
+          <div class="agent-model" style="margin-top: 4px;">
+            <strong>CLI Binary:</strong> <code>copilot.exe v1.0.95</code> · <strong>Engine:</strong> <span style="color: #bc8cff;">gpt-6-luna</span>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06); margin-top: 8px; font-size: 11px;">
+            <div style="color: var(--text-dim); text-transform: uppercase; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px;">Detected Capabilities</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              <span style="background: #4a341b; color: #d29922; padding: 2px 6px; border-radius: 3px; font-size: 10px;">⚡ Shell Command Runs</span>
+              <span style="background: #1b472e; color: #3fb950; padding: 2px 6px; border-radius: 3px; font-size: 10px;">📝 File Reads &amp; Edits</span>
+              <span style="background: #3b2854; color: #bc8cff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🧠 gpt-6-luna LLM Inference</span>
+              <span style="background: #1f3b58; color: #58a6ff; padding: 2px 6px; border-radius: 3px; font-size: 10px;">🔒 Permission Requests</span>
+            </div>
+          </div>
+          <div class="agent-footer" style="margin-top: 8px;">
+            <span class="status-indicator"><span class="dot-pulse"></span><span class="status-text">Session State Watcher Active (~/.copilot)</span></span>
             <span style="color: var(--text-dim); font-size: 10px;">Click to filter</span>
           </div>
         </div>
@@ -1221,6 +1265,7 @@ flowchart LR
     <div class="filter-pills" id="node-filters">
       <button class="filter-pill active" onclick="setFilter('ALL')">All Events</button>
       <button class="filter-pill" onclick="setFilter('PC-1-Antigravity')">✦ PC-1 Gemini (Antigravity)</button>
+      <button class="filter-pill" onclick="setFilter('PC-1-Copilot')">🐙 PC-1 Copilot CLI</button>
       <button class="filter-pill" onclick="setFilter('PC-1')">🤖 PC-1 Hermes (Local)</button>
       <button class="filter-pill" onclick="setFilter('PC-2')">🔥 PC-2 Hermes (Worker)</button>
     </div>
@@ -1726,11 +1771,13 @@ flowchart LR
         if (node === 'ALL') {
           btn.classList.toggle('active', btn.innerText.includes('All'));
         } else if (node === 'PC-1') {
-          btn.classList.toggle('active', btn.innerText.includes('Local'));
+          btn.classList.toggle('active', btn.innerText.includes('Local') || btn.innerText.includes('Ollama'));
         } else if (node === 'PC-1-Antigravity') {
-          btn.classList.toggle('active', btn.innerText.includes('Gemini'));
+          btn.classList.toggle('active', btn.innerText.includes('Gemini') || btn.innerText.includes('Antigravity'));
+        } else if (node === 'PC-1-Copilot') {
+          btn.classList.toggle('active', btn.innerText.includes('Copilot'));
         } else if (node === 'PC-2') {
-          btn.classList.toggle('active', btn.innerText.includes('Worker'));
+          btn.classList.toggle('active', btn.innerText.includes('Worker') || btn.innerText.includes('CUDA'));
         }
       });
 
@@ -1747,7 +1794,7 @@ flowchart LR
         const res = await fetch('/api/v1/summary');
         const data = await res.json();
         if (data.total_nodes) {
-          document.getElementById('m-nodes').innerText = `${data.total_nodes} PCs (3 Agents)`;
+          document.getElementById('m-nodes').innerText = `${data.total_nodes} Nodes Active`;
         }
         document.getElementById('m-events').innerText = data.total_events;
         document.getElementById('m-reads').innerText = data.total_reads;
