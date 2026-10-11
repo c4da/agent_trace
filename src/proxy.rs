@@ -56,7 +56,7 @@ pub async fn handle_chat_completions(
                 .and_then(|s| s.as_str())
                 .map(|s| s.to_string())
         })
-        .or_else(|| crate::antigravity_watcher::get_latest_session_id())
+        .or_else(crate::antigravity_watcher::get_latest_session_id)
         .unwrap_or_else(|| "active_session".to_string());
 
     // 1. Dynamic upstream resolution & smart agent-in-the-loop prompt routing

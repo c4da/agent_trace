@@ -76,23 +76,28 @@ impl NodeIdentity {
     }
 }
 
+/// Borrowed raw fields of an event for canonical length-prefixed field hashing (V2).
+/// Prevents JSON float/key-order re-serialization drift when verifying from database storage.
+#[derive(Debug, Clone, Copy)]
+pub struct RawEventFields<'a> {
+    pub prev_hash: &'a str,
+    pub event_id: &'a str,
+    pub node_id: &'a str,
+    pub session_id: &'a str,
+    pub timestamp: &'a str,
+    pub event_type: &'a EventType,
+    pub target: &'a str,
+    pub details_str: &'a str,
+    pub diff: Option<&'a str>,
+    pub sources_str: &'a str,
+    pub security_verdict: &'a SecurityVerdict,
+    pub reasons_str: &'a str,
+    pub duration_ms: f64,
+}
+
 /// Canonical length-prefixed field hashing (V2) from raw field strings.
 /// Prevents JSON float/key-order re-serialization drift when verifying from database storage.
-pub fn compute_event_hash_v2_raw(
-    prev_hash: &str,
-    event_id: &str,
-    node_id: &str,
-    session_id: &str,
-    timestamp: &str,
-    event_type: &EventType,
-    target: &str,
-    details_str: &str,
-    diff: Option<&str>,
-    sources_str: &str,
-    security_verdict: &SecurityVerdict,
-    reasons_str: &str,
-    duration_ms: f64,
-) -> String {
+pub fn compute_event_hash_v2_raw(fields: &RawEventFields<'_>) -> String {
     let mut context = Context::new(&SHA256);
     context.update(b"AGENTTRACE-V2\n");
 
@@ -102,20 +107,20 @@ pub fn compute_event_hash_v2_raw(
         context.update(val);
     };
 
-    feed_field(prev_hash.as_bytes());
-    feed_field(event_id.as_bytes());
-    feed_field(node_id.as_bytes());
-    feed_field(session_id.as_bytes());
-    feed_field(timestamp.as_bytes());
-    feed_field(format!("{:?}", event_type).as_bytes());
-    feed_field(target.as_bytes());
-    feed_field(details_str.as_bytes());
-    feed_field(diff.unwrap_or("").as_bytes());
-    feed_field(sources_str.as_bytes());
-    feed_field(format!("{:?}", security_verdict).as_bytes());
-    feed_field(reasons_str.as_bytes());
+    feed_field(fields.prev_hash.as_bytes());
+    feed_field(fields.event_id.as_bytes());
+    feed_field(fields.node_id.as_bytes());
+    feed_field(fields.session_id.as_bytes());
+    feed_field(fields.timestamp.as_bytes());
+    feed_field(format!("{:?}", fields.event_type).as_bytes());
+    feed_field(fields.target.as_bytes());
+    feed_field(fields.details_str.as_bytes());
+    feed_field(fields.diff.unwrap_or("").as_bytes());
+    feed_field(fields.sources_str.as_bytes());
+    feed_field(format!("{:?}", fields.security_verdict).as_bytes());
+    feed_field(fields.reasons_str.as_bytes());
 
-    let duration_bytes = duration_ms.to_bits().to_be_bytes();
+    let duration_bytes = fields.duration_ms.to_bits().to_be_bytes();
     feed_field(&duration_bytes);
 
     let digest = context.finish();
@@ -129,21 +134,22 @@ pub fn compute_event_hash_v2(event: &TraceEvent) -> String {
     let details_str = serde_json::to_string(&event.action_details).unwrap_or_default();
     let sources_str = serde_json::to_string(&event.provenance_sources).unwrap_or_default();
     let reasons_str = serde_json::to_string(&event.security_reasons).unwrap_or_default();
-    compute_event_hash_v2_raw(
-        &event.prev_hash,
-        &event.event_id,
-        &event.node_id,
-        &event.session_id,
-        &event.timestamp,
-        &event.event_type,
-        &event.target,
-        &details_str,
-        event.diff.as_deref(),
-        &sources_str,
-        &event.security_verdict,
-        &reasons_str,
-        event.duration_ms,
-    )
+    let fields = RawEventFields {
+        prev_hash: &event.prev_hash,
+        event_id: &event.event_id,
+        node_id: &event.node_id,
+        session_id: &event.session_id,
+        timestamp: &event.timestamp,
+        event_type: &event.event_type,
+        target: &event.target,
+        details_str: &details_str,
+        diff: event.diff.as_deref(),
+        sources_str: &sources_str,
+        security_verdict: &event.security_verdict,
+        reasons_str: &reasons_str,
+        duration_ms: event.duration_ms,
+    };
+    compute_event_hash_v2_raw(&fields)
 }
 
 

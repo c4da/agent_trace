@@ -457,7 +457,7 @@ pub async fn handle_agent_action(
                 prompt,
                 requested_model,
                 false,
-                &*reg,
+                &reg,
                 &state.upstream_url,
             );
 
