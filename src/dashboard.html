@@ -24,22 +24,24 @@
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 20px;
+      padding: 12px 18px;
     }
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding-bottom: 16px;
+      padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 20px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
     }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand h1 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand h1 { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 0.4px; font-family: var(--font-mono); }
     .badge {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 12px;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
       font-weight: 600;
       text-transform: uppercase;
     }
@@ -48,20 +50,20 @@
 
     .grid-metrics {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
     }
     .metric-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
+      border-radius: 6px;
+      padding: 8px 12px;
     }
-    .metric-card h3 { font-size: 12px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; }
-    .metric-card .val { font-size: 26px; font-weight: 700; color: #fff; font-family: var(--font-mono); }
+    .metric-card h3 { font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 3px; letter-spacing: 0.3px; }
+    .metric-card .val { font-size: 18px; font-weight: 700; color: #fff; font-family: var(--font-mono); }
 
-    .section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .section-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
 
     /* Cluster Architecture & Multi-Agent Topology */
     .topology-container {
@@ -379,14 +381,18 @@
     .table-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: hidden;
+      max-height: 440px;
+      overflow-y: auto;
+      margin-bottom: 18px;
     }
-    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
-    th { background: #21262d; padding: 12px 16px; color: var(--text-dim); font-size: 11px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-    td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-family: var(--font-mono); vertical-align: middle; }
-    tr.event-row { cursor: pointer; transition: background 0.15s; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+    th { background: #161b22; padding: 7px 10px; color: var(--text-dim); font-size: 10px; text-transform: uppercase; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+    td { padding: 5px 10px; border-bottom: 1px solid rgba(48,54,61,0.65); font-family: var(--font-mono); vertical-align: middle; }
+    tr.event-row { cursor: pointer; transition: background 0.1s; }
     tr.event-row:hover { background: rgba(88, 166, 255, 0.08); }
+    tr.event-row.selected-row { background: rgba(88, 166, 255, 0.16); border-left: 3px solid var(--accent); }
 
     .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
     .tag-read { background: #1f3b58; color: #58a6ff; }
@@ -554,23 +560,94 @@
     </div>
   </div>
 
-  <!-- Interactive Scenario Demonstrations Bar -->
-  <div style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+  <!-- Interactive Scenario Demonstrations Bar (Executes Live in Dashboard) -->
+  <div style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 8px 14px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
     <div style="display: flex; align-items: center; gap: 8px;">
-      <span style="color: #f0883e; font-weight: bold; font-size: 13px;">⚡ LIVE SCENARIO DEMOS:</span>
-      <span style="color: #8b949e; font-size: 12px;">Test real-world agent security scenarios directly via the Gateway:</span>
+      <span style="color: #f0883e; font-weight: bold; font-size: 12px; font-family: var(--font-mono);">⚡ LIVE SCENARIO DEMOS:</span>
+      <span style="color: #8b949e; font-size: 11px;">Click to simulate real-world agent risks &amp; watch Gateway interception live:</span>
     </div>
-    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-      <a href="/console" class="copy-btn" style="border-color: #f85149; color: #ff7b72;" title="Test Rogue Agent .env interception">1. 🛡️ Intercept .env Leak</a>
-      <a href="/console" class="copy-btn" style="border-color: #2ea043; color: #7ee787;" title="Test in-flight code diff">2. 📝 In-Flight Code Diff</a>
-      <a href="/console" class="copy-btn" style="border-color: #388bfd; color: #79c0ff;" title="Test Zero-Token routing">3. 🔀 Zero-Token Route</a>
-      <button class="copy-btn" style="border-color: #8957e5; color: #d2a8ff;" onclick="verifyLedgerNow()">4. ⛓️ Cryptographic Proof</button>
-      <a href="/console" class="copy-btn" style="border-color: #d29922; color: #e3b341;" title="Test instant runtime freeze">5. 🛑 Runtime Freeze</a>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+      <button class="copy-btn" style="border-color: #f85149; color: #ff7b72;" onclick="runDashboardScenario('secret_leak')" title="Simulate rogue agent reading .env">1. 🛡️ Intercept .env Leak</button>
+      <button class="copy-btn" style="border-color: #2ea043; color: #7ee787;" onclick="runDashboardScenario('code_diff')" title="Simulate in-flight unified diff capture">2. 📝 In-Flight Code Diff</button>
+      <button class="copy-btn" style="border-color: #388bfd; color: #79c0ff;" onclick="runDashboardScenario('zero_token')" title="Simulate zero-token local model routing">3. 🔀 Zero-Token Route</button>
+      <button class="copy-btn" style="border-color: #8957e5; color: #d2a8ff;" onclick="runDashboardScenario('ledger_proof')" title="Run cryptographic SHA-256 + Ed25519 proof">4. ⛓️ Cryptographic Proof</button>
+      <button class="copy-btn" style="border-color: #d29922; color: #e3b341;" onclick="runDashboardScenario('sandbox_freeze')" title="Simulate instant runtime agent lockdown">5. 🛑 Runtime Freeze</button>
     </div>
   </div>
 
+  <!-- 3-Part Scenario Explainer Card (Problem Solved -> Gateway Interception -> Why You Need It) -->
+  <div id="dash-scenario-card" style="display: none; background: #0c121c; border: 1px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <strong id="dash-sc-title" style="color: #38bdf8; font-size: 12px; font-family: var(--font-mono);">⚡ LIVE SCENARIO DEMONSTRATION</strong>
+      <button class="copy-btn" style="padding: 1px 6px; font-size: 10px;" onclick="document.getElementById('dash-scenario-card').style.display='none'">✕ Dismiss</button>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; font-size: 11px;">
+      <div style="background: #080c12; border: 1px solid #30363d; padding: 8px 10px; border-radius: 4px;">
+        <span style="background: #3c1417; color: #ff7b72; border: 1px solid #782329; font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 3px;">1. THE PROBLEM SOLVED</span>
+        <div id="dash-sc-problem" style="margin-top: 5px; color: #c9d1d9; line-height: 1.4;">-</div>
+      </div>
+      <div style="background: #080c12; border: 1px solid #30363d; padding: 8px 10px; border-radius: 4px;">
+        <span style="background: #14321d; color: #7ee787; border: 1px solid #2ea043; font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 3px;">2. GATEWAY INTERCEPTION</span>
+        <div id="dash-sc-action" style="margin-top: 5px; color: #c9d1d9; line-height: 1.4;">-</div>
+      </div>
+      <div style="background: #080c12; border: 1px solid #30363d; padding: 8px 10px; border-radius: 4px;">
+        <span style="background: #122138; color: #79c0ff; border: 1px solid #388bfd; font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 3px;">3. WHY YOU NEED AGENTTRACE</span>
+        <div id="dash-sc-value" style="margin-top: 5px; color: #c9d1d9; line-height: 1.4;">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WORK-FIRST MANUAL OPERATOR WORKBENCH & HIGH-DENSITY STREAM (Above the Fold) -->
+  <div class="filter-bar" style="margin-bottom: 8px; gap: 8px;">
+    <div class="filter-pills" id="node-filters" style="gap: 5px;">
+      <button class="filter-pill active" style="padding: 4px 10px; font-size: 11px;" onclick="setFilter('ALL')">All</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px; border-color: rgba(248,81,73,0.5); color: #ff7b72;" onclick="filterAlertsInStream()" title="Shortcut: B">🚨 Alerts (B)</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px; border-color: rgba(63,185,80,0.4); color: #7ee787;" onclick="setQuickQuery('type:FileWrite')" title="Shortcut: D">📝 Diffs (D)</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setQuickQuery('type:CommandRun')">⚙️ Cmds</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setQuickQuery('type:LlmInference')">🧠 LLM</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px; border-color: rgba(210,153,34,0.5); color: #e3b341;" onclick="setQuickQuery('pinned:true')" title="Shortcut: F">🚩 Pinned (<span id="pinned-count">0</span>)</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setFilter('PC-1-Antigravity')">✦ Antigravity</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setFilter('PC-1-Copilot')">🐙 Copilot</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setFilter('PC-1')">🤖 Ollama</button>
+      <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setFilter('PC-2')">🔥 PC-2 CUDA</button>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <button class="copy-btn" id="btn-dash-pause" style="border-color: #d29922; color: #e3b341; font-size: 11px;" onclick="toggleDashboardPause()" title="Freeze stream so table doesn't scroll while investigating (Shortcut: P)">⏸ Pause (P)</button>
+      <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff; font-size: 11px;" onclick="openGovernanceModal('simulator')" title="Test 'What If?' rules manually before running agents (Shortcut: M)">🛡️ Sandbox (M)</button>
+      <button class="copy-btn" style="font-size: 11px;" onclick="togglePinSelectedDashboardEvent()" title="Pin/Flag selected row for post-mortem (Shortcut: F)">🚩 Flag (F)</button>
+      <button class="copy-btn" style="font-size: 11px;" onclick="exportDashboardEvents('json')" title="Export filtered events as raw JSON">💾 JSON</button>
+      <button class="copy-btn" style="font-size: 11px;" onclick="exportDashboardEvents('csv')" title="Export filtered events as CSV">💾 CSV</button>
+      <button class="copy-btn" style="border-color: #f85149; color: #ff7b72; font-size: 11px;" onclick="openAlertsModal()">🚨 Triage / Reset</button>
+      <input type="text" id="search-input" class="search-input" style="width: 240px; padding: 4px 10px; font-size: 12px; font-family: var(--font-mono);" placeholder="/ grep (verdict:Blocked target:.env)" oninput="renderFilteredEvents()">
+    </div>
+  </div>
+
+  <!-- High-Density Live Event Stream Table -->
+  <div class="table-card" id="main-work-table">
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 85px;">Time</th>
+          <th style="width: 145px;">Node / Agent</th>
+          <th style="width: 110px;">Type</th>
+          <th>Target / Action</th>
+          <th style="width: 90px;">Verdict</th>
+          <th style="width: 75px;">Latency</th>
+          <th style="width: 165px; text-align: right;">Manual Forensics (<kbd>j</kbd>/<kbd>k</kbd>)</th>
+        </tr>
+      </thead>
+      <tbody id="events-body">
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 24px;">
+            Awaiting incoming telemetry from cluster nodes...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
   <!-- Distributed Cluster Topology & Multi-Agent Architecture -->
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+  <div id="topology-section" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
     <div class="section-title" style="margin-bottom: 0;">
       <span>🌐 Distributed Cluster Topology &amp; Architecture Flow</span>
     </div>
@@ -1357,46 +1434,6 @@
     </div>
   </div>
 
-  <!-- Filter & Search Controls -->
-  <div class="filter-bar">
-    <div class="filter-pills" id="node-filters">
-      <button class="filter-pill active" onclick="setFilter('ALL')">All Events</button>
-      <button class="filter-pill" style="border-color: rgba(248,81,73,0.5); color: #ff7b72;" onclick="filterAlertsInStream()">🚨 Security Alerts</button>
-      <button class="filter-pill" onclick="setFilter('PC-1-Antigravity')">✦ PC-1 Gemini (Antigravity)</button>
-      <button class="filter-pill" onclick="setFilter('PC-1-Copilot')">🐙 PC-1 Copilot CLI</button>
-      <button class="filter-pill" onclick="setFilter('PC-1')">🤖 PC-1 Hermes (Local)</button>
-      <button class="filter-pill" onclick="setFilter('PC-2')">🔥 PC-2 Hermes (Worker)</button>
-    </div>
-    <div style="display: flex; gap: 8px; align-items: center;">
-      <button class="copy-btn" style="border-color: #f85149; color: #ff7b72; font-size: 11px;" onclick="openAlertsModal()">🚨 Manage / Reset Alerts</button>
-      <input type="text" id="search-input" class="search-input" placeholder="Search events, prompts, files..." oninput="renderFilteredEvents()">
-    </div>
-  </div>
-
-  <!-- Live Event Stream Table -->
-  <div class="table-card">
-    <table>
-      <thead>
-        <tr>
-          <th>Time (UTC)</th>
-          <th>Node ID</th>
-          <th>Type</th>
-          <th>Target / Action</th>
-          <th>Verdict</th>
-          <th>Latency</th>
-          <th>Details</th>
-        </tr>
-      </thead>
-      <tbody id="events-body">
-        <tr>
-          <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">
-            Awaiting incoming telemetry from cluster nodes...
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
   <!-- Security Alerts Triage, Inspection & Reset Modal -->
   <div class="modal" id="alerts-modal" onclick="if(event.target.id==='alerts-modal') document.getElementById('alerts-modal').classList.remove('show')">
     <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 1020px;">
@@ -2033,30 +2070,140 @@
       }
     }
 
+    let dashboardPaused = false;
+    let selectedDashboardIndex = 0;
+    let filteredDashboardEvents = [];
+    let pinnedDashboardIds = new Set(JSON.parse(localStorage.getItem('agenttrace_pinned_ids') || '[]'));
+
+    function updatePinnedBadge() {
+      const el = document.getElementById('pinned-count');
+      if (el) el.innerText = pinnedDashboardIds.size;
+    }
+    updatePinnedBadge();
+
+    function setQuickQuery(q) {
+      const inp = document.getElementById('search-input');
+      if (!inp) return;
+      inp.value = (inp.value === q) ? '' : q;
+      renderFilteredEvents();
+    }
+
+    function toggleDashboardPause() {
+      dashboardPaused = !dashboardPaused;
+      const btn = document.getElementById('btn-dash-pause');
+      const status = document.getElementById('stream-status');
+      if (btn) {
+        btn.innerText = dashboardPaused ? '▶ Resume (P)' : '⏸ Pause (P)';
+        btn.style.background = dashboardPaused ? '#2e2305' : '';
+      }
+      if (status) {
+        status.innerText = dashboardPaused ? '⏸ PAUSED (MANUAL)' : '● Cluster Live';
+        status.className = dashboardPaused ? 'badge badge-warn' : 'badge badge-live';
+      }
+      if (!dashboardPaused) {
+        fetchSummary();
+        fetchEvents();
+      }
+    }
+
+    function togglePinByEventId(eventId, e) {
+      if (e) e.stopPropagation();
+      if (!eventId) return;
+      if (pinnedDashboardIds.has(eventId)) {
+        pinnedDashboardIds.delete(eventId);
+      } else {
+        pinnedDashboardIds.add(eventId);
+      }
+      localStorage.setItem('agenttrace_pinned_ids', JSON.stringify(Array.from(pinnedDashboardIds)));
+      updatePinnedBadge();
+      renderFilteredEvents();
+    }
+
+    function togglePinSelectedDashboardEvent() {
+      const ev = currentInspectedEvent || filteredDashboardEvents[selectedDashboardIndex];
+      if (ev && ev.event_id) {
+        togglePinByEventId(ev.event_id);
+      }
+    }
+
+    function exportDashboardEvents(fmt) {
+      const list = filteredDashboardEvents.length > 0 ? filteredDashboardEvents : allEvents;
+      if (fmt === 'json') {
+        const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `agenttrace-forensics-${Date.now()}.json`;
+        a.click();
+      } else {
+        const headers = ['timestamp', 'node_id', 'event_type', 'target', 'security_verdict', 'duration_ms', 'event_hash'];
+        const rows = list.map(ev => headers.map(k => `"${String(ev[k] || '').replace(/"/g, '""')}"`).join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `agenttrace-forensics-${Date.now()}.csv`;
+        a.click();
+      }
+    }
+
+    function matchesCompoundQuery(ev, rawQuery) {
+      if (!rawQuery) return true;
+      const tokens = rawQuery.trim().split(/\s+/);
+      for (const tok of tokens) {
+        const lower = tok.toLowerCase();
+        if (lower.startsWith('type:')) {
+          const v = lower.slice(5);
+          if (!(ev.event_type || '').toLowerCase().includes(v)) return false;
+        } else if (lower.startsWith('verdict:')) {
+          const v = lower.slice(8);
+          if (!(ev.security_verdict || '').toLowerCase().includes(v)) return false;
+        } else if (lower.startsWith('node:') || lower.startsWith('agent:')) {
+          const v = lower.split(':')[1] || '';
+          if (!(ev.node_id || '').toLowerCase().includes(v)) return false;
+        } else if (lower.startsWith('target:')) {
+          const v = lower.slice(7);
+          if (!(ev.target || '').toLowerCase().includes(v)) return false;
+        } else if (lower === 'pinned:true' || lower === 'flagged:true') {
+          if (!pinnedDashboardIds.has(ev.event_id)) return false;
+        } else if (lower === 'diff:true') {
+          if (!ev.diff) return false;
+        } else {
+          const hay = `${ev.node_id || ''} ${ev.event_type || ''} ${ev.target || ''} ${ev.security_verdict || ''} ${JSON.stringify(ev.action_details || {})}`.toLowerCase();
+          if (!hay.includes(lower)) return false;
+        }
+      }
+      return true;
+    }
+
     function renderFilteredEvents() {
-      const query = document.getElementById('search-input').value.toLowerCase();
+      const searchEl = document.getElementById('search-input');
+      const query = searchEl ? searchEl.value.trim() : '';
       const tbody = document.getElementById('events-body');
 
-      let filtered = allEvents.filter(ev => {
-        if (query) {
-          const targetStr = (ev.target || '').toLowerCase();
-          const typeStr = (ev.event_type || '').toLowerCase();
-          const detailsStr = JSON.stringify(ev.action_details || {}).toLowerCase();
-          if (!targetStr.includes(query) && !typeStr.includes(query) && !detailsStr.includes(query)) return false;
-        }
-        return true;
-      });
+      filteredDashboardEvents = allEvents.filter(ev => matchesCompoundQuery(ev, query));
 
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">No telemetry records matching criteria.</td></tr>`;
+      if (filteredDashboardEvents.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 24px;">No telemetry records matching criteria.</td></tr>`;
         return;
       }
 
+      if (selectedDashboardIndex >= filteredDashboardEvents.length) {
+        selectedDashboardIndex = 0;
+      }
+
       tbody.innerHTML = '';
-      filtered.forEach((ev, idx) => {
+      filteredDashboardEvents.forEach((ev, idx) => {
         const row = document.createElement('tr');
-        row.className = 'event-row';
-        row.onclick = () => inspectEvent(ev);
+        const isPinned = pinnedDashboardIds.has(ev.event_id);
+        row.className = 'event-row' + (idx === selectedDashboardIndex ? ' selected-row' : '');
+        if (isPinned) {
+          row.style.background = 'rgba(210, 153, 34, 0.1)';
+        }
+        row.onclick = () => {
+          selectedDashboardIndex = idx;
+          renderFilteredEvents();
+          inspectEvent(ev);
+        };
 
         let tagClass = 'tag-read';
         if (ev.event_type.includes('Write')) tagClass = 'tag-write';
@@ -2067,27 +2214,49 @@
           '<span style="color: var(--accent-green); font-weight: 600;">ALLOWED</span>' : 
           `<span class="tag tag-alert">${ev.security_verdict}</span>`;
 
-        let btnInspect = `<button class="copy-btn" style="padding: 2px 8px; font-size: 11px;">Inspect 🔍</button>`;
+        const pinIcon = isPinned ? '🚩' : '⚑';
+        const pinBtn = `<button class="copy-btn" style="padding: 1px 6px; font-size: 10px; ${isPinned ? 'border-color:#d29922;color:#e3b341;' : ''}" onclick="togglePinByEventId('${ev.event_id}', event)" title="Pin/Flag for post-mortem">${pinIcon}</button>`;
+
+        let btnInspect = `<button class="copy-btn" style="padding: 1px 7px; font-size: 10px;">Inspect 🔍</button>`;
         if (ev.diff) {
-          btnInspect = `<button class="copy-btn" style="padding: 2px 8px; font-size: 11px; border-color: #3fb950; color: #3fb950;">Diff 📝</button>`;
+          btnInspect = `<button class="copy-btn" style="padding: 1px 7px; font-size: 10px; border-color: #3fb950; color: #3fb950;">Diff 📝</button>`;
+        } else if (ev.security_verdict && ev.security_verdict !== 'Allowed') {
+          btnInspect = `<button class="copy-btn" style="padding: 1px 7px; font-size: 10px; border-color: #f85149; color: #ff7b72;">Triage 🚨</button>`;
         }
 
         row.innerHTML = `
           <td>${ev.timestamp.split('T')[1]?.substring(0, 8) || ev.timestamp}</td>
           <td><strong style="color: #58a6ff;">${ev.node_id}</strong></td>
           <td><span class="tag ${tagClass}">${ev.event_type}</span></td>
-          <td style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ev.target}</td>
+          <td style="max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${ev.target}">${ev.target}</td>
           <td>${alertTag}</td>
           <td>${ev.duration_ms ? ev.duration_ms.toFixed(1) + 'ms' : '-'}</td>
-          <td>${btnInspect}</td>
+          <td style="text-align: right; display: flex; gap: 4px; justify-content: flex-end;">${pinBtn}${btnInspect}</td>
         `;
         tbody.appendChild(row);
       });
     }
 
+    function formatColorizedDiff(diffText) {
+      if (!diffText) return '(No unified diff recorded for this event)';
+      return diffText.split('\n').map(line => {
+        const esc = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        if (line.startsWith('+') && !line.startsWith('+++')) {
+          return `<div style="background:rgba(46,160,67,0.18);color:#7ee787;padding:0 6px;">${esc}</div>`;
+        }
+        if (line.startsWith('-') && !line.startsWith('---')) {
+          return `<div style="background:rgba(248,81,73,0.18);color:#ff7b72;padding:0 6px;">${esc}</div>`;
+        }
+        if (line.startsWith('@@')) {
+          return `<div style="color:#79c0ff;font-weight:bold;padding:2px 6px;">${esc}</div>`;
+        }
+        return `<div style="color:#8b949e;padding:0 6px;">${esc}</div>`;
+      }).join('');
+    }
+
     let currentInspectedEvent = null;
 
-    function inspectEvent(ev) {
+    function inspectEvent(ev, defaultTab) {
       currentInspectedEvent = ev;
       document.getElementById('m-node-id').innerText = ev.node_id;
       document.getElementById('m-target').innerText = ev.target;
@@ -2160,10 +2329,10 @@
       document.getElementById('d-prompt').innerText = promptText;
       document.getElementById('d-response').innerText = respText;
 
-      // Diff
+      // Colorized Unified Diff
       const diffElem = document.getElementById('d-diff');
       if (ev.diff) {
-        diffElem.innerText = ev.diff;
+        diffElem.innerHTML = formatColorizedDiff(ev.diff);
         document.getElementById('btn-tab-diff').style.display = 'inline-block';
       } else {
         diffElem.innerText = '(No unified diff recorded for this event)';
@@ -2187,9 +2356,154 @@
       // Raw
       document.getElementById('d-raw').innerText = JSON.stringify(ev, null, 2);
 
-      switchTab('tab-agent');
+      switchTab(defaultTab || (ev.diff ? 'tab-diff' : 'tab-agent'));
       document.getElementById('event-modal').classList.add('show');
     }
+
+    function showDashboardScenarioBanner(title, problem, action, value) {
+      const card = document.getElementById('dash-scenario-card');
+      if (!card) return;
+      document.getElementById('dash-sc-title').innerText = title;
+      document.getElementById('dash-sc-problem').innerText = problem;
+      document.getElementById('dash-sc-action').innerText = action;
+      document.getElementById('dash-sc-value').innerText = value;
+      card.style.display = 'block';
+    }
+
+    async function runDashboardScenario(scenarioId) {
+      try {
+        if (scenarioId === 'secret_leak') {
+          showDashboardScenarioBanner(
+            '⚡ SCENARIO 1: ROGUE AGENT CREDENTIAL EXFILTRATION (.env / SSH KEYS)',
+            'Autonomous coding agents or subagents can accidentally (or via prompt injection) read .env files, SSH keys, or cloud tokens and leak them in context.',
+            'Gateway intercepts the FileRead against active sandbox blacklists (.env, .secrets, id_ed25519), returns BLOCKED before bytes leave disk, and records a signed alert.',
+            'Gives you hard runtime guardrails and a 1-click Triage/Reset workflow instead of hoping an LLM obeys a system prompt.'
+          );
+          await fetch('/api/v1/events', {
+            method: 'POST',
+            headers: getGovHeaders(),
+            body: JSON.stringify({
+              node_id: 'PC-2-Rogue-Subagent',
+              event_type: 'FileRead',
+              target: 'C:/cada/projects/.secrets/production.env',
+              action_details: {
+                model: 'deepseek-r1:1.5b',
+                prompt: 'Read environment variables to debug database connection string',
+                thinking: 'Attempting to inspect .secrets/production.env for credentials.',
+                intended_tools: 'view_file(path="C:/cada/projects/.secrets/production.env")'
+              },
+              duration_ms: 1.4
+            })
+          });
+          await fetchSummary();
+          await fetchEvents();
+          if (allEvents.length > 0) inspectEvent(allEvents[0], 'tab-agent');
+        } else if (scenarioId === 'code_diff') {
+          showDashboardScenarioBanner(
+            '⚡ SCENARIO 2: IN-FLIGHT UNIFIED CODE DIFF FORENSICS',
+            'When 3 agents edit files across a repo concurrently, you lose track of which model changed which lines and why.',
+            'Every FileWrite is captured with its exact unified diff (+/- lines), agent reasoning, and SHA-256 block hash in real time.',
+            'Lets you manually audit every code mutation line-by-line in one place before trusting autonomous refactors.'
+          );
+          await fetch('/api/v1/events', {
+            method: 'POST',
+            headers: getGovHeaders(),
+            body: JSON.stringify({
+              node_id: 'PC-1-Antigravity',
+              event_type: 'FileWrite',
+              target: 'src/security.rs',
+              diff: '@@ -42,6 +42,9 @@ pub fn evaluate_path(target: &str) -> Verdict {\n-    if target.contains(".env") {\n-        return Verdict::Flagged;\n+    if target.contains(".env") || target.contains(".secrets") || target.contains("id_ed25519") {\n+        // Enforce strict zero-trust block on credential files\n+        return Verdict::Blocked;\n     }\n     Verdict::Allowed\n }',
+              action_details: {
+                model: 'qwen3.8:27b',
+                prompt: 'Harden path evaluation to strictly block .secrets and SSH keys',
+                thinking: 'Upgrading Verdict::Flagged to Verdict::Blocked for sensitive credential patterns.'
+              },
+              duration_ms: 14.2
+            })
+          });
+          await fetchSummary();
+          await fetchEvents();
+          if (allEvents.length > 0) inspectEvent(allEvents[0], 'tab-diff');
+        } else if (scenarioId === 'zero_token') {
+          showDashboardScenarioBanner(
+            '⚡ SCENARIO 3: ZERO-TOKEN CLOUD MODEL INTERCEPTION & LOCAL ARBITRATION',
+            'Background agents, test runners, and subagents burn expensive cloud API tokens on routine unit tests, docstrings, and log parsing.',
+            'Gateway intercepts requests for cloud models (e.g. gemini-1.5-flash, gpt-4o) and transparently routes them to local PC-1 Qwen 27B or PC-2 CUDA DeepSeek.',
+            'Eliminates external API token burn for 80%+ of engineering tasks while keeping full prompt/response telemetry.'
+          );
+          openGovernanceModal('overrides');
+          setTimeout(() => simulateGovRoute(), 200);
+        } else if (scenarioId === 'ledger_proof') {
+          showDashboardScenarioBanner(
+            '⚡ SCENARIO 4: CRYPTOGRAPHIC TAMPER-EVIDENT AUDIT TRAIL (SHA-256 + Ed25519)',
+            'Standard log files can be wiped, edited, or forged by a compromised script or rogue process.',
+            'Every event is chained to the previous block via SHA-256 and signed with the node Ed25519 key. Modifying 1 byte breaks the chain immediately.',
+            'Provides mathematical proof of exactly what happened on your machines for security audits and incident post-mortems.'
+          );
+          const res = await fetch('/api/v1/ledger/verify');
+          const data = await res.json();
+          if (allEvents.length > 0) {
+            inspectEvent(allEvents[0], 'tab-crypto');
+          } else {
+            alert(`Cryptographic Ledger Verified: ${data.is_valid} (${data.total_blocks} blocks)`);
+          }
+        } else if (scenarioId === 'sandbox_freeze') {
+          showDashboardScenarioBanner(
+            '⚡ SCENARIO 5: INSTANT RUNTIME AGENT LOCKDOWN (WRITE REVOCATION)',
+            'An autonomous agent enters a hallucination loop and starts overwriting files or running destructive shell commands.',
+            'With 1 click, the operator revokes write permissions for that Agent ID at the gateway level without killing the whole cluster.',
+            'Gives human operators an immediate kill-switch and dry-run policy simulator before allowing agents back into write mode.'
+          );
+          await sandboxAlertAgent('PC-2-Rogue-Subagent');
+          openGovernanceModal('policies');
+        }
+      } catch (e) {
+        console.error('Scenario error:', e);
+      }
+    }
+
+    // Keyboard-First Operator Navigation (j/k, /, P, B, D, F, M, V)
+    document.addEventListener('keydown', function(e) {
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+        if (e.key === 'Escape') e.target.blur();
+        return;
+      }
+      if (e.key === '/') {
+        e.preventDefault();
+        const inp = document.getElementById('search-input');
+        if (inp) inp.focus();
+      } else if (e.key === 'j' || e.key === 'ArrowDown') {
+        if (filteredDashboardEvents.length > 0) {
+          selectedDashboardIndex = Math.min(filteredDashboardEvents.length - 1, selectedDashboardIndex + 1);
+          renderFilteredEvents();
+        }
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        if (filteredDashboardEvents.length > 0) {
+          selectedDashboardIndex = Math.max(0, selectedDashboardIndex - 1);
+          renderFilteredEvents();
+        }
+      } else if (e.key === 'Enter') {
+        const modalOpen = document.querySelector('.modal.show');
+        if (!modalOpen && filteredDashboardEvents[selectedDashboardIndex]) {
+          inspectEvent(filteredDashboardEvents[selectedDashboardIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
+      } else if (e.key === 'p' || e.key === 'P') {
+        toggleDashboardPause();
+      } else if (e.key === 'b' || e.key === 'B') {
+        filterAlertsInStream();
+      } else if (e.key === 'd' || e.key === 'D') {
+        setQuickQuery('type:FileWrite');
+      } else if (e.key === 'f' || e.key === 'F') {
+        togglePinSelectedDashboardEvent();
+      } else if (e.key === 'm' || e.key === 'M') {
+        openGovernanceModal('simulator');
+      } else if (e.key === 'v' || e.key === 'V') {
+        verifyLedgerNow();
+      }
+    });
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -2222,16 +2536,20 @@
     function initSSE() {
       const evtSource = new EventSource('/api/v1/stream');
       evtSource.onmessage = function(event) {
-        fetchSummary();
-        fetchEvents();
+        if (!dashboardPaused) {
+          fetchSummary();
+          fetchEvents();
+        }
       };
       evtSource.onerror = function() {
         document.getElementById('stream-status').innerText = '○ Reconnecting';
         document.getElementById('stream-status').className = 'badge badge-warn';
       };
       evtSource.onopen = function() {
-        document.getElementById('stream-status').innerText = '● Cluster Live';
-        document.getElementById('stream-status').className = 'badge badge-live';
+        if (!dashboardPaused) {
+          document.getElementById('stream-status').innerText = '● Cluster Live';
+          document.getElementById('stream-status').className = 'badge badge-live';
+        }
       };
     }
 
