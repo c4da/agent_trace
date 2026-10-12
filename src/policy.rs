@@ -1,10 +1,13 @@
-//! Autonomous AI Agent Access Whitelist & Sandbox Policy Engine.
+//! Autonomous AI Agent Access Whitelist, Safe Zone & Playground Containment Engine.
 //!
-//! Provides granular path-based and network-based whitelisting for AI agents,
-//! restricting where agents can pull/read data, write data, or send outbound requests,
-//! while strictly enforcing blacklists against sensitive targets (e.g. credentials, .env).
+//! Provides granular path-based and network-based whitelisting, Safe Zone vaults,
+//! Guarded Read-Only repositories, and Danger Zone Agent Playgrounds.
 
 use crate::schema::{EventType, SecurityVerdict};
+use crate::zones::{
+    analyze_shell_command, default_cluster_zones, evaluate_zones_for_path,
+    resolve_canonical_target, zone_applies_to_agent, ContainmentZone, ZoneKind,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -30,27 +33,9 @@ impl AccessAction {
     }
 }
 
-/// Normalizes file and network target paths across platforms (Windows / Unix).
+/// Normalizes file and network target paths across platforms (Windows / Unix) and collapses `..` traversal.
 pub fn normalize_target_path(target: &str) -> String {
-    let mut norm = target.trim().to_string();
-
-    // Strip URL schemes like file:/// or file://
-    if norm.starts_with("file:///") {
-        norm = norm[8..].to_string();
-    } else if norm.starts_with("file://") {
-        norm = norm[7..].to_string();
-    }
-
-    // Convert backslashes to forward slashes for unified cross-platform matching
-    norm = norm.replace('\\', "/");
-
-    // Remove leading ./ if present
-    if norm.starts_with("./") {
-        norm = norm[2..].to_string();
-    }
-
-    // Lowercase for Windows case-insensitive comparisons
-    norm.to_lowercase()
+    resolve_canonical_target(target)
 }
 
 /// Checks whether a normalized target matches an allowed pattern or prefix.
@@ -60,16 +45,16 @@ pub fn matches_pattern(target: &str, pattern: &str) -> bool {
         return true;
     }
 
-    // Check glob wildcard suffix (e.g. /path/** or /path/*)
     if let Some(prefix) = p_norm.strip_suffix("/**") {
-        return target.starts_with(prefix);
+        return target == prefix || target.starts_with(&format!("{}/", prefix));
     }
     if let Some(prefix) = p_norm.strip_suffix("/*") {
-        return target.starts_with(prefix);
+        return target == prefix || target.starts_with(&format!("{}/", prefix));
     }
 
-    // Standard prefix or exact match
-    target.starts_with(&p_norm) || target == p_norm
+    target == p_norm
+        || target.starts_with(&format!("{}/", p_norm.trim_end_matches('/')))
+        || target.starts_with(&p_norm)
 }
 
 /// A specific permission policy rule assigned to an agent or group.
@@ -92,6 +77,9 @@ pub struct AgentAccessPolicy {
     /// Whether enforcement mode is active (true = Blocked on violation, false = Flagged audit only).
     #[serde(default = "default_enforce_true")]
     pub enforcing: bool,
+    /// When true, this agent (or `*` all agents) can ONLY write or execute inside Danger Zone `AgentPlayground` directories.
+    #[serde(default)]
+    pub confine_to_playgrounds: bool,
 }
 
 fn default_enforce_true() -> bool {
@@ -151,9 +139,7 @@ impl AgentAccessPolicy {
         };
 
         if !whitelist.is_empty() {
-            let matched_rule = whitelist
-                .iter()
-                .find(|p| matches_pattern(&norm_target, p));
+            let matched_rule = whitelist.iter().find(|p| matches_pattern(&norm_target, p));
 
             if let Some(rule) = matched_rule {
                 return PolicyDecision {
@@ -188,7 +174,6 @@ impl AgentAccessPolicy {
             }
         }
 
-        // Whitelist is empty -> unrestricted access for this action type (unless blacklisted)
         PolicyDecision {
             verdict: SecurityVerdict::Allowed,
             reasons: vec![],
@@ -200,10 +185,11 @@ impl AgentAccessPolicy {
     }
 }
 
-/// Autonomous Access Policy Engine store.
+/// Autonomous Access Policy & Zone Containment Engine store.
 #[derive(Debug, Clone)]
 pub struct PolicyEngine {
     policies: HashMap<String, AgentAccessPolicy>,
+    zones: Vec<ContainmentZone>,
 }
 
 impl Default for PolicyEngine {
@@ -213,10 +199,11 @@ impl Default for PolicyEngine {
 }
 
 impl PolicyEngine {
-    /// Creates a new policy engine pre-configured with secure cluster defaults.
+    /// Creates a new policy engine pre-configured with secure cluster defaults and zones.
     pub fn new_with_defaults() -> Self {
         let mut engine = Self {
             policies: HashMap::new(),
+            zones: default_cluster_zones(),
         };
 
         let mut read_whitelist = vec![
@@ -228,7 +215,10 @@ impl PolicyEngine {
             "docs".to_string(),
         ];
         if let Ok(profile) = std::env::var("USERPROFILE") {
-            read_whitelist.push(format!("{}/appdata/local/hermes", profile.replace('\\', "/").to_lowercase()));
+            read_whitelist.push(format!(
+                "{}/appdata/local/hermes",
+                profile.replace('\\', "/").to_lowercase()
+            ));
         }
 
         let default_policy = AgentAccessPolicy {
@@ -266,14 +256,142 @@ impl PolicyEngine {
                 "/etc/passwd".to_string(),
             ],
             enforcing: true,
+            confine_to_playgrounds: false,
         };
 
         engine.set_policy(default_policy);
         engine
     }
 
-    /// Evaluates an access request: matches agent-specific policy first, then global "*".
+    /// Evaluates an access request across Global Blacklists, Safe/Danger Zones, Playground Confinement, and Whitelists.
     pub fn evaluate(&self, agent_id: &str, action: AccessAction, target: &str) -> PolicyDecision {
+        let norm_target = normalize_target_path(target);
+        let active_policy = self
+            .policies
+            .get(agent_id)
+            .or_else(|| self.policies.get("*"));
+        let enforcing = active_policy.map(|p| p.enforcing).unwrap_or(true);
+        let confined = self
+            .policies
+            .get(agent_id)
+            .map(|p| p.confine_to_playgrounds)
+            .unwrap_or(false)
+            || self
+                .policies
+                .get("*")
+                .map(|p| p.confine_to_playgrounds)
+                .unwrap_or(false);
+
+        // 1. Global & Agent Sensitive Pattern Blacklist (Always enforced first, cannot be bypassed by per-agent overrides)
+        let mut combined_blocked: Vec<&String> = Vec::new();
+        if let Some(glob) = self.policies.get("*") {
+            combined_blocked.extend(glob.blocked_patterns.iter());
+        }
+        if let Some(spec) = self.policies.get(agent_id) {
+            combined_blocked.extend(spec.blocked_patterns.iter());
+        }
+
+        for blocked in combined_blocked {
+            let b_norm = normalize_target_path(blocked);
+            if !b_norm.is_empty() && norm_target.contains(&b_norm) {
+                let verdict = if enforcing {
+                    SecurityVerdict::Blocked
+                } else {
+                    SecurityVerdict::Flagged
+                };
+                return PolicyDecision {
+                    verdict,
+                    reasons: vec![format!(
+                        "Policy violation: Target '{}' matches blocked sensitive pattern '{}'",
+                        target, blocked
+                    )],
+                    evaluated_agent: agent_id.to_string(),
+                    normalized_target: norm_target,
+                    action,
+                    allowed_by_rule: None,
+                };
+            }
+        }
+
+        // 2. Shell Command Deep Inspection (Execute actions)
+        if action == AccessAction::Execute {
+            let (is_destructive, cmd_paths) = analyze_shell_command(target);
+            for cpath in &cmd_paths {
+                let sub_action = if is_destructive {
+                    AccessAction::Write
+                } else {
+                    AccessAction::Read
+                };
+                if let Some(mut z_dec) =
+                    evaluate_zones_for_path(&self.zones, agent_id, sub_action, cpath, enforcing)
+                {
+                    if z_dec.verdict != SecurityVerdict::Allowed {
+                        z_dec.action = AccessAction::Execute;
+                        z_dec.reasons.insert(
+                            0,
+                            format!(
+                                "Shell command '{}' touches protected zone path '{}'",
+                                target, cpath
+                            ),
+                        );
+                        return z_dec;
+                    }
+                }
+            }
+        }
+
+        // 3. Spatial Containment Zones (VaultNoAccess -> GuardedReadOnly -> AgentPlayground)
+        if action != AccessAction::NetworkPull {
+            if let Some(zone_decision) =
+                evaluate_zones_for_path(&self.zones, agent_id, action, &norm_target, enforcing)
+            {
+                return zone_decision;
+            }
+
+            // 4. Strict Playground Confinement ("Danger Zone Lock")
+            if confined && (action == AccessAction::Write || action == AccessAction::Execute) {
+                let playgrounds: Vec<String> = self
+                    .zones
+                    .iter()
+                    .filter(|z| z.kind == ZoneKind::AgentPlayground && zone_applies_to_agent(z, agent_id))
+                    .map(|z| z.path_prefix.clone())
+                    .collect();
+
+                let in_playground = if action == AccessAction::Execute {
+                    let (_, cmd_paths) = analyze_shell_command(target);
+                    if cmd_paths.is_empty() {
+                        playgrounds.iter().any(|p| matches_pattern(&norm_target, p))
+                    } else {
+                        cmd_paths
+                            .iter()
+                            .all(|cp| playgrounds.iter().any(|p| matches_pattern(cp, p)))
+                    }
+                } else {
+                    playgrounds.iter().any(|p| matches_pattern(&norm_target, p))
+                };
+
+                if !in_playground {
+                    let verdict = if enforcing {
+                        SecurityVerdict::Blocked
+                    } else {
+                        SecurityVerdict::Flagged
+                    };
+                    return PolicyDecision {
+                        verdict,
+                        reasons: vec![format!(
+                            "PLAYGROUND CONFINEMENT VIOLATION: Agent '{}' is locked to Danger Zone Playgrounds ({:?}) and cannot write/execute outside them ('{}')",
+                            agent_id, playgrounds, target
+                        )],
+                        evaluated_agent: agent_id.to_string(),
+                        normalized_target: norm_target,
+                        action,
+                        allowed_by_rule: None,
+                    };
+                }
+            }
+        }
+
+        // 5. Standard Whitelist Evaluation
         if let Some(p) = self.policies.get(agent_id) {
             p.evaluate(action, target)
         } else if let Some(global) = self.policies.get("*") {
@@ -281,12 +399,11 @@ impl PolicyEngine {
             dec.evaluated_agent = agent_id.to_string();
             dec
         } else {
-            // Unrestricted fallback if no policy configured
             PolicyDecision {
                 verdict: SecurityVerdict::Allowed,
                 reasons: vec![],
                 evaluated_agent: agent_id.to_string(),
-                normalized_target: normalize_target_path(target),
+                normalized_target: norm_target,
                 action,
                 allowed_by_rule: Some("no_policy".to_string()),
             }
@@ -296,6 +413,31 @@ impl PolicyEngine {
     /// Inserts or replaces an agent access policy.
     pub fn set_policy(&mut self, policy: AgentAccessPolicy) {
         self.policies.insert(policy.agent_id.clone(), policy);
+    }
+
+    /// Toggles strict Playground Confinement for a specific agent or globally (`*`).
+    pub fn set_playground_confinement(&mut self, agent_id: &str, confined: bool) -> AgentAccessPolicy {
+        if let Some(existing) = self.policies.get_mut(agent_id) {
+            existing.confine_to_playgrounds = confined;
+            return existing.clone();
+        }
+        let mut base = self
+            .policies
+            .get("*")
+            .cloned()
+            .unwrap_or_else(|| AgentAccessPolicy {
+                agent_id: agent_id.to_string(),
+                read_whitelist: vec![],
+                write_whitelist: vec![],
+                network_whitelist: vec![],
+                blocked_patterns: vec![".env".to_string(), ".secrets".to_string()],
+                enforcing: true,
+                confine_to_playgrounds: confined,
+            });
+        base.agent_id = agent_id.to_string();
+        base.confine_to_playgrounds = confined;
+        self.policies.insert(agent_id.to_string(), base.clone());
+        base
     }
 
     /// Retrieves an agent policy by ID.
@@ -313,6 +455,32 @@ impl PolicyEngine {
     pub fn remove_policy(&mut self, agent_id: &str) -> bool {
         self.policies.remove(agent_id).is_some()
     }
+
+    /// Lists all configured Safe Zones and Danger Zone Playgrounds.
+    pub fn list_zones(&self) -> Vec<ContainmentZone> {
+        self.zones.clone()
+    }
+
+    /// Adds or updates a Containment Zone.
+    pub fn upsert_zone(&mut self, mut zone: ContainmentZone) -> ContainmentZone {
+        zone.path_prefix = normalize_target_path(&zone.path_prefix);
+        if zone.zone_id.trim().is_empty() {
+            zone.zone_id = format!("zone-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("custom"));
+        }
+        if let Some(existing) = self.zones.iter_mut().find(|z| z.zone_id == zone.zone_id) {
+            *existing = zone.clone();
+        } else {
+            self.zones.push(zone.clone());
+        }
+        zone
+    }
+
+    /// Removes a Containment Zone by `zone_id`.
+    pub fn remove_zone(&mut self, zone_id: &str) -> bool {
+        let before = self.zones.len();
+        self.zones.retain(|z| z.zone_id != zone_id);
+        self.zones.len() < before
+    }
 }
 
 #[cfg(test)]
@@ -320,7 +488,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_path_normalization() {
+    fn test_path_normalization_and_traversal_collapse() {
         assert_eq!(
             normalize_target_path(r"C:\cada\projects\agent_trace_gw\.env"),
             "c:/cada/projects/agent_trace_gw/.env"
@@ -332,6 +500,11 @@ mod tests {
         assert_eq!(
             normalize_target_path("./src/policy.rs"),
             "src/policy.rs"
+        );
+        // Critical: Verify `..` path traversal out of playground is collapsed!
+        assert_eq!(
+            normalize_target_path(r"C:\cada\projects\hacking_road\playground\..\..\Strux\src\main.rs"),
+            "c:/cada/projects/strux/src/main.rs"
         );
     }
 
@@ -376,10 +549,92 @@ mod tests {
     }
 
     #[test]
+    fn test_safe_zone_vault_and_guarded_readonly_enforcement() {
+        let engine = PolicyEngine::new_with_defaults();
+
+        // 1. VaultNoAccess: Even Read is strictly BLOCKED for all agents
+        let vault_read = engine.evaluate(
+            "PC-1-Antigravity",
+            AccessAction::Read,
+            r"C:\Users\milos\.ssh\known_hosts",
+        );
+        assert_eq!(vault_read.verdict, SecurityVerdict::Blocked);
+        assert!(vault_read.reasons[0].contains("SAFE ZONE VIOLATION"));
+
+        // 2. GuardedReadOnly (`C:\cada\projects\Strux`): Worker agent can Read, but Write is BLOCKED!
+        let strux_read = engine.evaluate(
+            "PC-2-Worker",
+            AccessAction::Read,
+            r"C:\cada\projects\Strux\src\main.rs",
+        );
+        assert_eq!(strux_read.verdict, SecurityVerdict::Allowed);
+
+        let strux_write = engine.evaluate(
+            "PC-2-Worker",
+            AccessAction::Write,
+            r"C:\cada\projects\Strux\src\main.rs",
+        );
+        assert_eq!(strux_write.verdict, SecurityVerdict::Blocked);
+        assert!(strux_write.reasons[0].contains("GuardedReadOnly"));
+
+        // 3. Exempt Lead Architect (`PC-1-Antigravity`) IS permitted to write to Strux
+        let lead_write = engine.evaluate(
+            "PC-1-Antigravity",
+            AccessAction::Write,
+            r"C:\cada\projects\Strux\src\main.rs",
+        );
+        assert_eq!(lead_write.verdict, SecurityVerdict::Allowed);
+    }
+
+    #[test]
+    fn test_danger_zone_playground_confinement_and_traversal_defense() {
+        let mut engine = PolicyEngine::new_with_defaults();
+
+        // Confine "PC-2-Rogue-Subagent" strictly to Danger Zone Playgrounds
+        engine.set_playground_confinement("PC-2-Rogue-Subagent", true);
+
+        // 1. Writing inside Danger Zone Playground (`C:\cada\projects\hacking_road\playground`) is ALLOWED
+        let ok_play = engine.evaluate(
+            "PC-2-Rogue-Subagent",
+            AccessAction::Write,
+            r"C:\cada\projects\hacking_road\playground\exploit_test.py",
+        );
+        assert_eq!(ok_play.verdict, SecurityVerdict::Allowed);
+        assert_eq!(
+            ok_play.allowed_by_rule.as_deref(),
+            Some("danger_zone_playground:zone-playground-lab")
+        );
+
+        // 2. Writing outside Playground (even inside `c:/cada/projects/agent_trace_gw`) is BLOCKED!
+        let blocked_out = engine.evaluate(
+            "PC-2-Rogue-Subagent",
+            AccessAction::Write,
+            r"C:\cada\projects\agent_trace_gw\src\main.rs",
+        );
+        assert_eq!(blocked_out.verdict, SecurityVerdict::Blocked);
+        assert!(blocked_out.reasons[0].contains("PLAYGROUND CONFINEMENT VIOLATION"));
+
+        // 3. Attempting `..\..` path traversal from Playground into Strux Safe Zone is BLOCKED!
+        let traversal_attempt = engine.evaluate(
+            "PC-2-Rogue-Subagent",
+            AccessAction::Write,
+            r"C:\cada\projects\hacking_road\playground\..\..\Strux\src\lib.rs",
+        );
+        assert_eq!(traversal_attempt.verdict, SecurityVerdict::Blocked);
+
+        // 4. Shell command attempting destructive action against Guarded Safe Zone is BLOCKED!
+        let cmd_escape = engine.evaluate(
+            "PC-2-Rogue-Subagent",
+            AccessAction::Execute,
+            r"Remove-Item -Recurse C:\cada\projects\Strux\src",
+        );
+        assert_eq!(cmd_escape.verdict, SecurityVerdict::Blocked);
+    }
+
+    #[test]
     fn test_custom_agent_policy_override() {
         let mut engine = PolicyEngine::new_with_defaults();
 
-        // Register custom restricted sandbox for "untrusted-subagent"
         engine.set_policy(AgentAccessPolicy {
             agent_id: "untrusted-subagent".to_string(),
             read_whitelist: vec!["c:/cada/projects/sandbox".to_string()],
@@ -387,9 +642,9 @@ mod tests {
             network_whitelist: vec![],
             blocked_patterns: vec![".env".to_string()],
             enforcing: true,
+            confine_to_playgrounds: false,
         });
 
-        // Attempt write outside its specific sandbox: should be blocked
         let dec_denied = engine.evaluate(
             "untrusted-subagent",
             AccessAction::Write,
@@ -397,7 +652,6 @@ mod tests {
         );
         assert_eq!(dec_denied.verdict, SecurityVerdict::Blocked);
 
-        // Allowed write inside its specific sandbox
         let dec_ok = engine.evaluate(
             "untrusted-subagent",
             AccessAction::Write,
@@ -416,10 +670,10 @@ mod tests {
             write_whitelist: vec![],
             network_whitelist: vec![],
             blocked_patterns: vec![".env".to_string()],
-            enforcing: false, // Audit mode only!
+            enforcing: false,
+            confine_to_playgrounds: false,
         });
 
-        // Reading unauthorized path in non-enforcing mode results in Flagged, NOT Blocked
         let dec = engine.evaluate(
             "audit-agent",
             AccessAction::Read,
@@ -437,20 +691,34 @@ mod tests {
             agent_id: "network-agent".to_string(),
             read_whitelist: vec![],
             write_whitelist: vec![],
-            network_whitelist: vec!["https://api.github.com".to_string(), "http://localhost:8080".to_string()],
+            network_whitelist: vec![
+                "https://api.github.com".to_string(),
+                "http://localhost:8080".to_string(),
+            ],
             blocked_patterns: vec![],
             enforcing: true,
+            confine_to_playgrounds: false,
         });
 
-        // Allowed network calls
-        let dec_gh = engine.evaluate("network-agent", AccessAction::NetworkPull, "https://api.github.com/repos");
+        let dec_gh = engine.evaluate(
+            "network-agent",
+            AccessAction::NetworkPull,
+            "https://api.github.com/repos",
+        );
         assert_eq!(dec_gh.verdict, SecurityVerdict::Allowed);
 
-        let dec_local = engine.evaluate("network-agent", AccessAction::NetworkPull, "http://localhost:8080/v1/models");
+        let dec_local = engine.evaluate(
+            "network-agent",
+            AccessAction::NetworkPull,
+            "http://localhost:8080/v1/models",
+        );
         assert_eq!(dec_local.verdict, SecurityVerdict::Allowed);
 
-        // Forbidden network call
-        let dec_evil = engine.evaluate("network-agent", AccessAction::NetworkPull, "https://evil-exfiltration.com/data");
+        let dec_evil = engine.evaluate(
+            "network-agent",
+            AccessAction::NetworkPull,
+            "https://evil-exfiltration.com/data",
+        );
         assert_eq!(dec_evil.verdict, SecurityVerdict::Blocked);
     }
 

@@ -572,6 +572,7 @@
       <button class="copy-btn" style="border-color: #388bfd; color: #79c0ff;" onclick="runDashboardScenario('zero_token')" title="Simulate zero-token local model routing">3. 🔀 Zero-Token Route</button>
       <button class="copy-btn" style="border-color: #8957e5; color: #d2a8ff;" onclick="runDashboardScenario('ledger_proof')" title="Run cryptographic SHA-256 + Ed25519 proof">4. ⛓️ Cryptographic Proof</button>
       <button class="copy-btn" style="border-color: #d29922; color: #e3b341;" onclick="runDashboardScenario('sandbox_freeze')" title="Simulate instant runtime agent lockdown">5. 🛑 Runtime Freeze</button>
+      <button class="copy-btn" style="border-color: #3fb950; color: #7ee787; background: rgba(46,160,67,0.12);" onclick="runDashboardScenario('zone_containment')" title="Simulate Safe Zone Vault protection vs Agent Playground confinement">6. ☣️ Safe Zone vs Playground</button>
     </div>
   </div>
 
@@ -1623,6 +1624,74 @@
 
       <!-- Tab 1: Access Policies & Whitelists -->
       <div class="tab-pane active" id="gov-tab-policies">
+        <!-- Spatial Containment Zones (Safe Zones vs Danger Zone Playgrounds) -->
+        <div style="background: linear-gradient(135deg, rgba(56,189,248,0.08) 0%, rgba(13,17,23,0.95) 100%); border: 1px solid #30363d; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <h4 style="font-size: 13px; color: #38bdf8; margin: 0; display: flex; align-items: center; gap: 6px;">
+                🛡️ Spatial Containment Zones (Guarded Safe Zones vs. ☣️ Agent Playgrounds)
+              </h4>
+              <p style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">
+                Guard critical folders against agent access/writes while giving autonomous agents isolated Danger Zone Playgrounds to experiment freely. Collapses <code style="color:#ff7b72;">../</code> traversal and inspects shell commands.
+              </p>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button class="copy-btn" style="border-color: #d29922; color: #e3b341; font-size: 10px;" onclick="confineAgentToPlaygrounds('PC-2-Rogue-Subagent', true)">☣️ Confine Subagent to Playground</button>
+              <button class="copy-btn" style="border-color: #f85149; color: #ff7b72; font-size: 10px;" onclick="confineAgentToPlaygrounds('*', true)">🔒 Confine ALL (*) to Playgrounds</button>
+              <button class="copy-btn" style="border-color: #3fb950; color: #7ee787; font-size: 10px;" onclick="confineAgentToPlaygrounds('*', false)">🔓 Lift Global Confinement</button>
+            </div>
+          </div>
+
+          <div style="overflow-x: auto; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 6px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+              <thead style="background: #0d1117; color: var(--text-dim); border-bottom: 1px solid var(--border);">
+                <tr>
+                  <th style="padding: 6px 8px;">Zone Type</th>
+                  <th style="padding: 6px 8px;">Zone Name</th>
+                  <th style="padding: 6px 8px;">Guarded / Playground Path Prefix</th>
+                  <th style="padding: 6px 8px;">Applies To</th>
+                  <th style="padding: 6px 8px;">Exempt Lead Agents</th>
+                  <th style="padding: 6px 8px; text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="gov-zones-list-body">
+                <tr><td colspan="6" style="padding: 10px; text-align: center; color: var(--text-dim);">Loading containment zones...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Add Zone Quick Bar -->
+          <div style="display: grid; grid-template-columns: 165px 150px 1fr 120px 130px 110px; gap: 8px; align-items: flex-end; background: #0d1117; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+            <div>
+              <label style="display: block; font-size: 10px; color: var(--text-dim); margin-bottom: 3px;">Zone Classification:</label>
+              <select id="zone-kind" class="search-input" style="width: 100%; padding: 4px 6px; font-size: 11px; background: #161b22; color: #fff;">
+                <option value="VaultNoAccess">🛡️ Safe Zone: Vault (No Access)</option>
+                <option value="GuardedReadOnly">🔒 Safe Zone: Guarded (Read-Only)</option>
+                <option value="AgentPlayground">☣️ Danger Zone: Agent Playground</option>
+              </select>
+            </div>
+            <div>
+              <label style="display: block; font-size: 10px; color: var(--text-dim); margin-bottom: 3px;">Zone Label:</label>
+              <input type="text" id="zone-name" class="search-input" style="width: 100%; padding: 4px 6px; font-size: 11px;" placeholder="e.g. Prod Config Vault">
+            </div>
+            <div>
+              <label style="display: block; font-size: 10px; color: var(--text-dim); margin-bottom: 3px;">Folder Path Prefix:</label>
+              <input type="text" id="zone-path" class="search-input" style="width: 100%; padding: 4px 6px; font-size: 11px; font-family: var(--font-mono);" placeholder="C:\cada\projects\hacking_road\playground">
+            </div>
+            <div>
+              <label style="display: block; font-size: 10px; color: var(--text-dim); margin-bottom: 3px;">Enforce For:</label>
+              <input type="text" id="zone-applies" class="search-input" style="width: 100%; padding: 4px 6px; font-size: 11px; font-family: var(--font-mono);" value="*" placeholder="* or PC-2">
+            </div>
+            <div>
+              <label style="display: block; font-size: 10px; color: var(--text-dim); margin-bottom: 3px;">Exempt Agents:</label>
+              <input type="text" id="zone-exempt" class="search-input" style="width: 100%; padding: 4px 6px; font-size: 11px; font-family: var(--font-mono);" placeholder="PC-1-Antigravity">
+            </div>
+            <div>
+              <button class="copy-btn" style="width: 100%; height: 26px; background: #238636; border-color: rgba(255,255,255,0.2); font-weight: bold; font-size: 11px;" onclick="saveContainmentZone()">➕ Add Zone</button>
+            </div>
+          </div>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div>
             <h4 style="font-size: 13px; color: #fff;">Active Agent Sandbox Policies</h4>
@@ -2456,6 +2525,54 @@
           );
           await sandboxAlertAgent('PC-2-Rogue-Subagent');
           openGovernanceModal('policies');
+        } else if (scenarioId === 'zone_containment') {
+          showDashboardScenarioBanner(
+            '⚡ SCENARIO 6: SAFE ZONE VAULTS vs. DANGER ZONE AGENT PLAYGROUND CONFINEMENT',
+            'Flat whitelists let an agent working in a scratch folder overwrite core repos (like Strux) or escape via ../ path traversal.',
+            'Gateway locks the agent to the Danger Zone Playground (c:/cada/projects/hacking_road/playground): writes inside the Playground succeed, while a ../ traversal write into the Guarded Strux Safe Zone is intercepted and BLOCKED.',
+            'Lets you designate Guarded Safe Zones (No-Access Vaults / Read-Only Repos) and Danger Zone Playgrounds enforced for all (*) or specific agents.'
+          );
+          await fetch('/api/v1/zones/confine', {
+            method: 'POST',
+            headers: getGovHeaders(),
+            body: JSON.stringify({ agent_id: 'PC-2-Rogue-Subagent', confined: true })
+          });
+          // 1. Allowed write inside Danger Zone Playground
+          await fetch('/api/v1/events', {
+            method: 'POST',
+            headers: getGovHeaders(),
+            body: JSON.stringify({
+              node_id: 'PC-2-Rogue-Subagent',
+              event_type: 'FileWrite',
+              target: 'C:/cada/projects/hacking_road/playground/sandbox_experiment.py',
+              diff: '@@ -0,0 +1,3 @@\n+# Danger Zone Playground Experiment\n+print("Allowed inside isolated Agent Playground!")\n',
+              action_details: {
+                model: 'deepseek-r1:1.5b',
+                prompt: 'Create experimental script inside Danger Zone Playground',
+                thinking: 'Writing to C:/cada/projects/hacking_road/playground/sandbox_experiment.py (Allowed by AgentPlayground zone).'
+              },
+              duration_ms: 3.1
+            })
+          });
+          // 2. Blocked path-traversal escape into Guarded Safe Zone (Strux)
+          await fetch('/api/v1/events', {
+            method: 'POST',
+            headers: getGovHeaders(),
+            body: JSON.stringify({
+              node_id: 'PC-2-Rogue-Subagent',
+              event_type: 'FileWrite',
+              target: 'C:/cada/projects/hacking_road/playground/../../Strux/src/main.rs',
+              action_details: {
+                model: 'deepseek-r1:1.5b',
+                prompt: 'Attempt path traversal out of Playground into Guarded Strux Safe Zone',
+                thinking: 'Using ../../ traversal from playground to overwrite Strux/src/main.rs.'
+              },
+              duration_ms: 1.2
+            })
+          });
+          await fetchSummary();
+          await fetchEvents();
+          if (allEvents.length > 0) inspectEvent(allEvents[0], 'tab-agent');
         }
       } catch (e) {
         console.error('Scenario error:', e);
@@ -2659,16 +2776,124 @@
 
     // --- CLUSTER AGENT GOVERNANCE & POLICY CONTROLLER ---
     let cachedGovPolicies = [];
+    let cachedContainmentZones = [];
 
     function openGovernanceModal(tab = 'policies') {
       const modal = document.getElementById('governance-modal');
       if (!modal) return;
       modal.classList.add('show');
       switchGovTab('gov-tab-' + tab);
+      loadContainmentZones();
       loadGovPolicies();
       loadGovOverrides();
       loadGovDelegationConfig();
       loadDownloadedClusterModels();
+    }
+
+    async function loadContainmentZones() {
+      const tbody = document.getElementById('gov-zones-list-body');
+      if (!tbody) return;
+      try {
+        const res = await fetch('/api/v1/zones', { headers: getGovHeaders() });
+        if (!res.ok) return;
+        cachedContainmentZones = await res.json();
+        if (cachedContainmentZones.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="padding: 10px; text-align: center; color: var(--text-dim);">No containment zones configured.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = cachedContainmentZones.map(z => {
+          let kindBadge = '';
+          if (z.kind === 'VaultNoAccess') {
+            kindBadge = '<span class="badge" style="background: rgba(248,81,73,0.2); color: #ff7b72; border: 1px solid #f85149;">🛡️ SAFE VAULT (NO ACCESS)</span>';
+          } else if (z.kind === 'GuardedReadOnly') {
+            kindBadge = '<span class="badge" style="background: rgba(56,189,248,0.18); color: #38bdf8; border: 1px solid #38bdf8;">🔒 GUARDED (READ-ONLY)</span>';
+          } else {
+            kindBadge = '<span class="badge" style="background: rgba(63,185,80,0.2); color: #7ee787; border: 1px solid #3fb950;">☣️ AGENT PLAYGROUND</span>';
+          }
+          const exempt = (z.exempt_agents && z.exempt_agents.length > 0)
+            ? z.exempt_agents.join(', ')
+            : '<span style="color:var(--text-dim)">None</span>';
+          return `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 6px 8px;">${kindBadge}</td>
+            <td style="padding: 6px 8px; color: #fff; font-weight: 600;">${z.name}</td>
+            <td style="padding: 6px 8px; font-family: var(--font-mono); color: #58a6ff;">${z.path_prefix}</td>
+            <td style="padding: 6px 8px; font-family: var(--font-mono); color: #e3b341;">${z.applies_to || '*'}</td>
+            <td style="padding: 6px 8px; font-family: var(--font-mono); color: #c9d1d9;">${exempt}</td>
+            <td style="padding: 6px 8px; text-align: right;">
+              <button class="copy-btn" style="padding: 1px 6px; font-size: 10px; border-color: #f85149; color: #ff7b72;" onclick="deleteContainmentZone('${z.zone_id}')">🗑️</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        console.error('Error loading zones:', e);
+      }
+    }
+
+    async function saveContainmentZone() {
+      const kind = document.getElementById('zone-kind').value;
+      const name = document.getElementById('zone-name').value.trim() || kind;
+      const pathPrefix = document.getElementById('zone-path').value.trim();
+      const appliesTo = document.getElementById('zone-applies').value.trim() || '*';
+      const exemptRaw = document.getElementById('zone-exempt').value.trim();
+      const exemptAgents = exemptRaw ? exemptRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+      if (!pathPrefix) {
+        alert('Please enter a folder path prefix for the zone.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/v1/zones', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify({
+            zone_id: '',
+            name: name,
+            path_prefix: pathPrefix,
+            kind: kind,
+            applies_to: appliesTo,
+            exempt_agents: exemptAgents,
+            description: ''
+          })
+        });
+        if (res.ok) {
+          document.getElementById('zone-name').value = '';
+          document.getElementById('zone-path').value = '';
+          loadContainmentZones();
+        }
+      } catch (e) {
+        console.error('Error saving zone:', e);
+      }
+    }
+
+    async function deleteContainmentZone(zoneId) {
+      try {
+        const res = await fetch(`/api/v1/zones/${encodeURIComponent(zoneId)}`, {
+          method: 'DELETE',
+          headers: getGovHeaders()
+        });
+        if (res.ok) {
+          loadContainmentZones();
+        }
+      } catch (e) {
+        console.error('Delete zone error:', e);
+      }
+    }
+
+    async function confineAgentToPlaygrounds(agentId, confined) {
+      try {
+        const res = await fetch('/api/v1/zones/confine', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify({ agent_id: agentId, confined: !!confined })
+        });
+        if (res.ok) {
+          loadGovPolicies();
+          fetchPolicies();
+        }
+      } catch (e) {
+        console.error('Confine agent error:', e);
+      }
     }
 
     function closeGovModal(e) {
@@ -2721,14 +2946,19 @@
       }
 
       tbody.innerHTML = policies.map(p => {
-        const modeBadge = p.enforcing
+        let modeBadge = p.enforcing
           ? '<span class="badge" style="background: rgba(210,153,34,0.2); color: #d29922; border: 1px solid rgba(210,153,34,0.4);">ENFORCING</span>'
           : '<span class="badge" style="background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3);">AUDIT ONLY</span>';
+        if (p.confine_to_playgrounds) {
+          modeBadge += ' <span class="badge" style="background: rgba(248,81,73,0.2); color: #ff7b72; border: 1px solid #f85149;">☣️ PLAYGROUND LOCKED</span>';
+        }
 
         const reads = (p.read_whitelist && p.read_whitelist.length) ? p.read_whitelist.join(', ') : '<span style="color:var(--text-dim)">None</span>';
         const writes = (p.write_whitelist && p.write_whitelist.length) ? p.write_whitelist.join(', ') : '<span style="color:var(--text-dim)">None</span>';
         const net = (p.network_whitelist && p.network_whitelist.length) ? p.network_whitelist.join(', ') : '<span style="color:var(--text-dim)">None</span>';
         const blocked = (p.blocked_patterns && p.blocked_patterns.length) ? p.blocked_patterns.join(', ') : '<span style="color:var(--text-dim)">None</span>';
+        const toggleConfine = !p.confine_to_playgrounds;
+        const confineBtnLabel = p.confine_to_playgrounds ? '🔓 Unconfine' : '☣️ Confine';
 
         return `<tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
           <td style="padding: 8px 10px;"><strong style="color: #58a6ff; font-family: var(--font-mono);">${p.agent_id}</strong></td>
@@ -2738,6 +2968,7 @@
           <td style="padding: 8px 10px; font-family: var(--font-mono); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${net}">${net}</td>
           <td style="padding: 8px 10px; font-family: var(--font-mono); color: #ff7b72; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${blocked}">${blocked}</td>
           <td style="padding: 8px 10px; text-align: right; white-space: nowrap;">
+            <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; margin-right: 4px; border-color: #d29922; color: #e3b341;" onclick="confineAgentToPlaygrounds('${p.agent_id}', ${toggleConfine})">${confineBtnLabel}</button>
             <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; margin-right: 4px;" onclick="editPolicy('${p.agent_id}')">✏️ Edit</button>
             <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; border-color: #f85149; color: #f85149;" onclick="deleteGovPolicy('${p.agent_id}')">🗑️</button>
           </td>

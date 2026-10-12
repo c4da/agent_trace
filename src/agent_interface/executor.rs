@@ -325,6 +325,7 @@ async fn exec_set_access_policy(
         network_whitelist: extract_strings("network_whitelist"),
         blocked_patterns: extract_strings("blocked_patterns"),
         enforcing: params.get("enforcing").and_then(|v| v.as_bool()).unwrap_or(true),
+        confine_to_playgrounds: params.get("confine_to_playgrounds").and_then(|v| v.as_bool()).unwrap_or(false),
     };
 
     {

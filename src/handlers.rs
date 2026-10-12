@@ -80,6 +80,9 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/policy", get(list_policies_handler).post(set_policy_handler))
         .route("/api/v1/policy/:agent_id", delete(delete_policy_handler))
         .route("/api/v1/policy/evaluate", post(evaluate_policy_handler))
+        .route("/api/v1/zones", get(list_zones_handler).post(upsert_zone_handler))
+        .route("/api/v1/zones/:zone_id", delete(delete_zone_handler))
+        .route("/api/v1/zones/confine", post(confine_playground_handler))
         // AI Agent Control, MCP & Dynamic Delegation Endpoints
         .route("/api/v1/agent/tools", get(agent_interface::get_agent_tools))
         .route("/api/v1/agent/action", post(agent_interface::handle_agent_action).with_state(agent_state.clone()))
@@ -321,6 +324,56 @@ pub async fn evaluate_policy_handler(
     let guard = state.policy.read().await;
     let decision = guard.evaluate(agent_id, act, &req.target);
     Ok(Json(decision))
+}
+
+pub async fn list_zones_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<crate::zones::ContainmentZone>>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let guard = state.policy.read().await;
+    Ok(Json(guard.list_zones()))
+}
+
+pub async fn upsert_zone_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(zone): Json<crate::zones::ContainmentZone>,
+) -> Result<Json<crate::zones::ContainmentZone>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut guard = state.policy.write().await;
+    let saved = guard.upsert_zone(zone);
+    Ok(Json(saved))
+}
+
+pub async fn delete_zone_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(zone_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut guard = state.policy.write().await;
+    let removed = guard.remove_zone(&zone_id);
+    Ok(Json(serde_json::json!({ "zone_id": zone_id, "removed": removed })))
+}
+
+pub async fn confine_playground_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<crate::zones::PlaygroundConfinementRequest>,
+) -> Result<Json<policy::AgentAccessPolicy>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let mut guard = state.policy.write().await;
+    let updated = guard.set_playground_confinement(&req.agent_id, req.confined);
+    Ok(Json(updated))
 }
 
 #[derive(serde::Deserialize)]
