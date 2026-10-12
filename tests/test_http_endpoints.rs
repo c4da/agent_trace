@@ -779,3 +779,120 @@ async fn test_http_auth_token_enforcement_and_bypass() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn test_http_workgroups_and_markdown_rules_lifecycle() {
+    let (app, _db, _tmp) = create_test_app(None);
+
+    // 1. GET /api/v1/workgroups -> verify default groups (wg-coding, wg-image-gen) and available agents
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/workgroups")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body_bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let list_json: Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert!(list_json["workgroups"].as_array().unwrap().len() >= 4);
+    assert!(list_json["available_agents"].as_array().unwrap().len() >= 6);
+
+    // 2. POST /api/v1/workgroups -> create a custom Problem Workgroup
+    let create_payload = json!({
+        "id": "wg-test-image-copilot",
+        "name": "Custom Image Generation Squad",
+        "problem_domain": "image_generation",
+        "icon": "🎨",
+        "color": "#bc8cff",
+        "description": "DeepSeek + Copilot CLI image synthesis group",
+        "execution_strategy": "pipeline",
+        "members": [
+            {
+                "agent_id": "deepseek-r1:1.5b",
+                "display_name": "DeepSeek-R1 (1.5B CUDA)",
+                "node_id": "PC-2",
+                "role": "LeadArchitect"
+            },
+            {
+                "agent_id": "copilot-cli",
+                "display_name": "GitHub Copilot CLI",
+                "node_id": "PC-1-Copilot",
+                "role": "PrimaryBuilder"
+            }
+        ],
+        "trigger_keywords": ["banner", "poster"]
+    });
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/workgroups")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&create_payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 3. POST /api/v1/workgroups/wg-test-image-copilot/rules -> attach a Markdown (.md) rule
+    let rule_payload = json!({
+        "title": "Strict SVG & Palette Rules",
+        "file_path": "README.md",
+        "inline_markdown": "- Always use dark #0d1117 background.\n- No laptop/phone frames.",
+        "enforce_strict": true
+    });
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/workgroups/wg-test-image-copilot/rules")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&rule_payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // 4. GET /api/v1/workgroups/wg-test-image-copilot/preview -> verify compiled prompt contains attached .md rule
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/workgroups/wg-test-image-copilot/preview")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body_bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let preview_json: Value = serde_json::from_slice(&body_bytes).unwrap();
+    let compiled = preview_json["compiled_system_prompt"].as_str().unwrap();
+    assert!(compiled.contains("Strict SVG & Palette Rules"));
+    assert!(compiled.contains("Always use dark #0d1117 background"));
+    assert!(compiled.contains("GitHub Copilot CLI"));
+
+    // 5. DELETE /api/v1/workgroups/wg-test-image-copilot -> cleanup
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/workgroups/wg-test-image-copilot")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+}
+

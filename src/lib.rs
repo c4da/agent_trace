@@ -16,4 +16,5 @@ pub mod router;
 pub mod schema;
 pub mod secrets;
 pub mod services;
+pub mod workgroups;
 pub mod zones;

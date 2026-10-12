@@ -1,6 +1,41 @@
-# 🧠 How to Use the Central Prompt Hub & Multi-Agent Contribution Graph
+# 🧠 How to Use Problem Workgroups, `.MD` Rules, the Central Prompt Hub & Contribution Graph
 
-Stop manually deciding which node IP (`127.0.0.1:11434` vs `192.168.1.102:8642`) or which model (`qwen3.8:27b` vs `qwen3.5:9b` vs `deepseek-r1:1.5b`) should handle each task—and see exactly how much each agent contributed to solving your engineering problems.
+Stop manually deciding which node IP (`127.0.0.1:11434` vs `192.168.1.102:8642`) or which model (`qwen3.8:27b` vs `qwen3.5:9b` vs `deepseek-r1:1.5b` vs `copilot-cli`) should handle each task—graphically define **Problem Workgroups**, attach **Markdown (`.md`) rule files**, and inspect each agent's contribution in `/graph`.
+
+---
+
+## Part 0: Graphical Problem Workgroups & `.MD` Rules Studio (`/dashboard`)
+
+You can graphically group specific cluster agents around a problem domain and attach `.md` rule files that are automatically compiled and injected into every prompt sent to that workgroup:
+
+| Preset Workgroup ID | Problem Domain | Assigned Agent Roster | Default Attached `.MD` Rule Files |
+| :--- | :--- | :--- | :--- |
+| **`wg-image-gen`** | 🎨 **Image & SVG Generation** | `DeepSeek-R1 (1.5B CUDA)` (`LeadArchitect`) $\rightarrow$ `GitHub Copilot CLI` (`PrimaryBuilder`) | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md` (*No device frames, dark `#0d1117` palette, crisp SVG geometry*) |
+| **`wg-coding`** | 💻 **Coding & Architecture** | `Qwen 3.5 (9B)` (`PrimaryBuilder`) $\rightarrow$ `Gemini / Antigravity` (`LeadArchitect`) + `Qwen 3.8 (27B)` (`SanityVerifier`) | `docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md` (*Anti-Monolith SRP, $\le 3$ args, $\ge 85\%$ test coverage*) |
+| **`wg-security-audit`** | 🛡️ **Security & Zone Audit** | `DeepSeek-R1 (1.5B)` + `Qwen 3.5 (9B)` + `GitHub Copilot CLI` | `docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md` (*Vault protection & lexical `..` traversal collapse*) |
+| **`wg-ui-workfirst`** | 🖥️ **Work-First UI & TUI** | `Gemini / Antigravity` + `Qwen 3.5 (9B)` + `DeepSeek-R1 (1.5B)` | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md` (*30–50 rows visible, keyboard-first `j`/`k`/`P`/`M`/`F`*) |
+
+### How to Create or Edit a Workgroup Graphically in the UI
+1. Open **`http://localhost:8080/dashboard`** and click **`[👥 Workgroups & .MD Rules (W)]`** in the top toolbar.
+2. Click **`[➕ New Blank Workgroup]`** (or select an existing card on the left).
+3. **Assign Agents Graphically**: Click the agent tiles (`Qwen 3.5 9B`, `Qwen 3.8 27B`, `DeepSeek-R1 1.5B CUDA`, `GitHub Copilot CLI`, `Gemini / Antigravity`, `Hermes Daemon`) to toggle them into the group and select each agent's role (`PrimaryBuilder`, `LeadArchitect`, `SanityVerifier`, `ToolExecutor`).
+4. **Attach `.MD` Rule Files (3 Ways)**:
+   - **Workspace `.md` Dropdown**: Pick any discovered `.md` file in your repo and click **`[📎 Attach Workspace .MD]`**.
+   - **Upload Local `.md` File**: Click **`[📂 Upload Local .MD File]`** to attach a `.md` file directly from your computer.
+   - **Inline Markdown Rule**: Type or paste Markdown rules directly and click **`[➕ Add .MD Rule]`**.
+5. Click **`[💾 Save Workgroup]`**, inspect the live **`🔍 Compiled System Prompt & Injected .MD Rules Preview`**, and click **`[🚀 Run Task in Group]`**!
+
+### How to Manage Workgroups & `.MD` Rules via CLI / REST API
+```bash
+# List all Problem Workgroups, assigned agents, and discovered workspace .md files
+python sdk/agent_trace_client.py --workgroups
+
+# Attach a .md rule file to an existing workgroup
+python sdk/agent_trace_client.py --attach-rule wg-coding docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md
+
+# Dispatch a prompt directly to a specific Problem Workgroup (auto-injects its .md rules!)
+python sdk/agent_trace_client.py --workgroup wg-image-gen --ask "Create a crisp SVG topology icon for a GPU worker node"
+```
 
 ---
 

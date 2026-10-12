@@ -87,6 +87,12 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/zones", get(list_zones_handler).post(upsert_zone_handler))
         .route("/api/v1/zones/:zone_id", delete(delete_zone_handler))
         .route("/api/v1/zones/confine", post(confine_playground_handler))
+        // Problem Workgroups & Attached Markdown (.md) Rules Endpoints
+        .route("/api/v1/workgroups", get(crate::workgroups::list_workgroups_handler).post(crate::workgroups::upsert_workgroup_handler))
+        .route("/api/v1/workgroups/:workgroup_id", delete(crate::workgroups::delete_workgroup_handler))
+        .route("/api/v1/workgroups/:workgroup_id/rules", post(crate::workgroups::attach_markdown_rule_handler))
+        .route("/api/v1/workgroups/:workgroup_id/rules/:rule_id", delete(crate::workgroups::remove_markdown_rule_handler))
+        .route("/api/v1/workgroups/:workgroup_id/preview", get(crate::workgroups::preview_workgroup_prompt_handler))
         // AI Agent Control, MCP & Dynamic Delegation Endpoints
         .route("/api/v1/agent/handoff", get(agent_interface::handle_agent_handoff).with_state(agent_state.clone()))
         .route("/api/v1/agent/tools", get(agent_interface::get_agent_tools))

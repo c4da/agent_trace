@@ -614,6 +614,7 @@
       <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setFilter('PC-2')">🔥 PC-2 CUDA</button>
     </div>
     <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <button class="copy-btn" style="border-color: #3fb950; color: #7ee787; background: rgba(63,185,80,0.12); font-size: 11px; font-weight: bold;" onclick="toggleWorkgroupsStudio()" title="Graphically create Problem Workgroups (e.g. Image Gen -> DeepSeek + Copilot, Coding -> Qwen + Gemini) & attach .MD rule files (Shortcut: W)">👥 Workgroups &amp; .MD Rules (W)</button>
       <button class="copy-btn" style="border-color: #a371f7; color: #d2a8ff; background: rgba(163,113,247,0.12); font-size: 11px; font-weight: bold;" onclick="togglePromptHub()" title="Open Central Prompt Hub — type once, auto-route or pipeline across Qwen & DeepSeek (Shortcut: H)">🧠 Prompt Hub (H)</button>
       <button class="copy-btn" id="btn-dash-pause" style="border-color: #d29922; color: #e3b341; font-size: 11px;" onclick="toggleDashboardPause()" title="Freeze stream so table doesn't scroll while investigating (Shortcut: P)">⏸ Pause (P)</button>
       <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff; font-size: 11px;" onclick="openGovernanceModal('simulator')" title="Test 'What If?' rules manually before running agents (Shortcut: M)">🛡️ Sandbox (M)</button>
@@ -621,7 +622,131 @@
       <button class="copy-btn" style="font-size: 11px;" onclick="exportDashboardEvents('json')" title="Export filtered events as raw JSON">💾 JSON</button>
       <button class="copy-btn" style="font-size: 11px;" onclick="exportDashboardEvents('csv')" title="Export filtered events as CSV">💾 CSV</button>
       <button class="copy-btn" style="border-color: #f85149; color: #ff7b72; font-size: 11px;" onclick="openAlertsModal()">🚨 Triage / Reset</button>
-      <input type="text" id="search-input" class="search-input" style="width: 240px; padding: 4px 10px; font-size: 12px; font-family: var(--font-mono);" placeholder="/ grep (verdict:Blocked target:.env)" oninput="renderFilteredEvents()">
+      <input type="text" id="search-input" class="search-input" style="width: 220px; padding: 4px 10px; font-size: 12px; font-family: var(--font-mono);" placeholder="/ grep (verdict:Blocked target:.env)" oninput="renderFilteredEvents()">
+    </div>
+  </div>
+
+  <!-- GRAPHICAL PROBLEM WORKGROUPS & MARKDOWN (.MD) RULES STUDIO -->
+  <div id="dash-workgroups-studio" style="display: none; background: #0d131d; border: 1px solid #3fb950; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.6);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #21262d; padding-bottom: 8px;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <strong style="color: #7ee787; font-size: 13px; font-family: var(--font-mono);">👥 GRAPHICAL PROBLEM WORKGROUPS &amp; MARKDOWN (.MD) RULES STUDIO</strong>
+          <span class="badge" style="background: rgba(63,185,80,0.15); color: #7ee787; border: 1px solid #3fb950; font-family: var(--font-mono);">AUTO-INJECTS .MD RULES</span>
+        </div>
+        <div style="font-size: 11px; color: #8b949e; margin-top: 2px;">
+          Graphically assign cluster agents (Qwen, Copilot CLI, DeepSeek-R1, Gemini) to specific problem domains and attach <code style="color:#79c0ff;">.md</code> rule files that are automatically enforced on every prompt.
+        </div>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+        <span style="font-size: 10px; color: #8b949e;">1-Click Templates:</span>
+        <button class="copy-btn" style="font-size: 10px; border-color: #bc8cff; color: #d2a8ff;" onclick="loadWorkgroupTemplate('image_gen')">🎨 Image Gen (DeepSeek + Copilot CLI)</button>
+        <button class="copy-btn" style="font-size: 10px; border-color: #58a6ff; color: #79c0ff;" onclick="loadWorkgroupTemplate('coding')">💻 Coding (Qwen + Gemini + Rules)</button>
+        <button class="copy-btn" style="font-size: 10px; border-color: #3fb950; color: #7ee787;" onclick=" startNewWorkgroup()">➕ New Blank Workgroup</button>
+        <button class="copy-btn" style="font-size: 10px;" onclick="toggleWorkgroupsStudio()">✕ Close</button>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1.05fr 1.25fr; gap: 14px; align-items: start;">
+      <!-- LEFT COLUMN: Visual Workgroup Cards & Graphical Topology -->
+      <div>
+        <div style="font-size: 11px; font-weight: bold; color: #c9d1d9; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span>ACTIVE PROBLEM WORKGROUPS (Click to Edit or Run)</span>
+          <span id="wg-count-badge" style="font-family: var(--font-mono); font-size: 10px; color: #7ee787;">4 Groups</span>
+        </div>
+        <div id="wg-cards-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 460px; overflow-y: auto; padding-right: 4px;"></div>
+      </div>
+
+      <!-- RIGHT COLUMN: Graphical Workgroup Designer & .MD Rules Attacher -->
+      <div style="background: #090d13; border: 1px solid #30363d; border-radius: 8px; padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <strong id="wg-editor-heading" style="font-size: 12px; color: #58a6ff; font-family: var(--font-mono);">✏️ DESIGN WORKGROUP: Coding &amp; Architecture</strong>
+          <div style="display: flex; gap: 6px;">
+            <button class="copy-btn" style="background: #238636; color: #fff; border-color: #2ea043; font-weight: bold; font-size: 11px; padding: 4px 10px;" onclick="saveCurrentWorkgroup()">💾 Save Workgroup</button>
+            <button class="copy-btn" style="background: #8957e5; color: #fff; border-color: #a371f7; font-weight: bold; font-size: 11px; padding: 4px 10px;" onclick="launchPromptForCurrentWorkgroup()">🚀 Run Task in Group</button>
+          </div>
+        </div>
+
+        <!-- Step 1: Problem Identity & Execution Strategy -->
+        <div style="display: grid; grid-template-columns: 52px 1.2fr 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+          <div>
+            <label style="font-size: 9.5px; color: #8b949e; display: block; margin-bottom: 2px;">Icon</label>
+            <input type="text" id="wg-edit-icon" value="💻" style="width: 100%; background: #161b22; color: #fff; border: 1px solid #30363d; border-radius: 4px; padding: 4px 6px; font-size: 12px; text-align: center;">
+          </div>
+          <div>
+            <label style="font-size: 9.5px; color: #8b949e; display: block; margin-bottom: 2px;">Problem / Workgroup Name</label>
+            <input type="text" id="wg-edit-name" placeholder="e.g. Image Generation or Rust Coding" style="width: 100%; background: #161b22; color: #fff; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+            <input type="hidden" id="wg-edit-id" value="wg-coding">
+          </div>
+          <div>
+            <label style="font-size: 9.5px; color: #8b949e; display: block; margin-bottom: 2px;">Problem Domain Slug</label>
+            <input type="text" id="wg-edit-domain" placeholder="e.g. image_generation, coding" style="width: 100%; background: #161b22; color: #79c0ff; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: var(--font-mono);">
+          </div>
+          <div>
+            <label style="font-size: 9.5px; color: #8b949e; display: block; margin-bottom: 2px;">Multi-Agent Strategy</label>
+            <select id="wg-edit-strategy" style="width: 100%; background: #161b22; color: #fff; border: 1px solid #30363d; border-radius: 4px; padding: 4px 6px; font-size: 11px;">
+              <option value="pipeline">🔗 Pipeline (Agent 1 ➔ Agent 2)</option>
+              <option value="swarm">🐝 Parallel Swarm (Simultaneous)</option>
+              <option value="auto">⚡ Auto Single Best Member</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; margin-bottom: 10px;">
+          <div>
+            <label style="font-size: 9.5px; color: #8b949e; display: block; margin-bottom: 2px;">Problem Description</label>
+            <input type="text" id="wg-edit-desc" placeholder="What problem does this group solve?" style="width: 100%; background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 11px;">
+          </div>
+          <div>
+            <label style="font-size: 9.5px; color: #8b949e; display: block; margin-bottom: 2px;">Auto-Match Trigger Keywords (comma-separated)</label>
+            <input type="text" id="wg-edit-keywords" placeholder="image, svg, mockup, icon" style="width: 100%; background: #161b22; color: #e3b341; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: var(--font-mono);">
+          </div>
+        </div>
+
+        <!-- Step 2: Graphical Agent Roster Selector (Click to Assign / Unassign & Set Role) -->
+        <div style="margin-bottom: 10px;">
+          <div style="font-size: 10.5px; font-weight: bold; color: #79c0ff; margin-bottom: 5px; display: flex; justify-content: space-between;">
+            <span>1️⃣ ASSIGN AGENTS TO THIS PROBLEM (Click tiles to toggle &amp; choose role)</span>
+            <span id="wg-assigned-summary" style="color: #8b949e; font-family: var(--font-mono); font-weight: normal;"></span>
+          </div>
+          <div id="wg-agent-tiles" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 6px;"></div>
+        </div>
+
+        <!-- Step 3: Attach Markdown (.md) Rule Files -->
+        <div style="background: #101620; border: 1px solid #21262d; border-radius: 6px; padding: 9px; margin-bottom: 8px;">
+          <div style="font-size: 10.5px; font-weight: bold; color: #d2a8ff; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+            <span>2️⃣ ATTACH MARKDOWN (.MD) RULE FILES (Auto-injected into group prompts)</span>
+            <label class="copy-btn" style="font-size: 10px; padding: 2px 7px; border-color: #a371f7; color: #d2a8ff; cursor: pointer; margin: 0;">
+              📂 Upload Local .MD File
+              <input type="file" accept=".md,.markdown,.txt" style="display: none;" onchange="handleWorkgroupMdFileUpload(event)">
+            </label>
+          </div>
+
+          <!-- Currently Attached .MD Rules -->
+          <div id="wg-attached-rules-list" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;"></div>
+
+          <!-- Quick Attach from Workspace .MD Files or Inline Rule -->
+          <div style="display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-bottom: 6px;">
+            <select id="wg-workspace-md-select" style="background: #090d13; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: var(--font-mono);">
+              <option value="">-- Select discovered workspace .md rule file to attach --</option>
+            </select>
+            <button class="copy-btn" style="border-color: #58a6ff; color: #79c0ff; font-size: 10.5px; padding: 3px 9px;" onclick="attachSelectedWorkspaceMd()">📎 Attach Workspace .MD</button>
+          </div>
+
+          <!-- Inline Custom .MD Rule Input -->
+          <div style="display: grid; grid-template-columns: 150px 1fr auto; gap: 6px; align-items: center;">
+            <input type="text" id="wg-inline-rule-title" placeholder="Rule Title (e.g. SVG Style)" style="background: #090d13; color: #fff; border: 1px solid #30363d; border-radius: 4px; padding: 4px 7px; font-size: 10.5px;">
+            <input type="text" id="wg-inline-rule-body" placeholder="Or type/paste Markdown rules here (e.g. - Never use >3 args per fn  - Use dark #0d1117 bg)..." style="background: #090d13; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 4px 7px; font-size: 10.5px; font-family: var(--font-mono);">
+            <button class="copy-btn" style="border-color: #3fb950; color: #7ee787; font-size: 10.5px; padding: 3px 9px;" onclick="attachInlineMdRule()">➕ Add .MD Rule</button>
+          </div>
+        </div>
+
+        <!-- Live Compiled System Prompt & .MD Rules Preview -->
+        <details style="font-size: 11px; color: #8b949e;">
+          <summary style="cursor: pointer; color: #79c0ff; font-family: var(--font-mono); font-size: 10.5px;">🔍 Inspect Compiled System Prompt &amp; Injected .MD Rules Preview</summary>
+          <pre id="wg-compiled-preview" style="margin-top: 6px; background: #06090e; border: 1px solid #21262d; border-radius: 4px; padding: 8px; color: #a5d6ff; font-family: var(--font-mono); font-size: 10px; max-height: 150px; overflow-y: auto; white-space: pre-wrap;"></pre>
+        </details>
+      </div>
     </div>
   </div>
 
@@ -640,12 +765,19 @@
         <button class="copy-btn" style="font-size: 10px; padding: 2px 7px;" onclick="togglePromptHub()">✕ Close</button>
       </div>
     </div>
-    <div style="display: grid; grid-template-columns: 1fr 270px; gap: 10px; align-items: start;">
-      <textarea id="hub-prompt-input" rows="3" oninput="previewPromptHubIntent()" style="width: 100%; background: #090d13; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font-family: var(--font-mono); font-size: 12px; resize: vertical;" placeholder="Type any task or prompt once — no need to pick a node or model. The Hub classifies intent and dispatches automatically..."></textarea>
+    <div style="display: grid; grid-template-columns: 1fr 295px; gap: 10px; align-items: start;">
+      <textarea id="hub-prompt-input" rows="3" oninput="previewPromptHubIntent()" style="width: 100%; background: #090d13; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font-family: var(--font-mono); font-size: 12px; resize: vertical;" placeholder="Type any task or prompt once — no need to pick a node or model. The Hub classifies intent, matches your Problem Workgroup & .MD rules, and dispatches automatically..."></textarea>
       <div style="display: flex; flex-direction: column; gap: 6px;">
-        <select id="hub-mode-select" style="background: #090d13; color: #e6edf3; border: 1px solid #30363d; border-radius: 5px; padding: 6px 8px; font-size: 11px; font-family: var(--font-mono);">
+        <select id="hub-workgroup-select" style="background: #090d13; color: #7ee787; border: 1px solid #2ea043; border-radius: 5px; padding: 5px 8px; font-size: 11px; font-family: var(--font-mono);" title="Select a Problem Workgroup (injects its .md rules and routes to its assigned agents)">
+          <option value="auto">👥 Workgroup: Auto-Match by Problem</option>
+          <option value="wg-coding">💻 Coding (Qwen + Gemini + .MD Rules)</option>
+          <option value="wg-image-gen">🎨 Image Gen (DeepSeek + Copilot CLI)</option>
+          <option value="wg-security-audit">🛡️ Security Audit (DeepSeek + Qwen)</option>
+          <option value="wg-ui-workfirst">🖥️ Work-First UI (Gemini + Qwen)</option>
+        </select>
+        <select id="hub-mode-select" style="background: #090d13; color: #e6edf3; border: 1px solid #30363d; border-radius: 5px; padding: 5px 8px; font-size: 11px; font-family: var(--font-mono);">
           <option value="auto">⚡ Auto-Route (Best Single Model)</option>
-          <option value="pipeline">🔗 Pipeline (Qwen Draft ➔ DeepSeek Verify)</option>
+          <option value="pipeline">🔗 Pipeline (Builder ➔ Verifier)</option>
           <option value="swarm">🐝 Parallel Swarm (Qwen + DeepSeek)</option>
         </select>
         <label style="font-size: 10px; color: #8b949e; display: flex; align-items: center; gap: 6px; cursor: pointer;">
@@ -3617,12 +3749,413 @@
       }
     }
 
+    // --- GRAPHICAL PROBLEM WORKGROUPS & MARKDOWN (.MD) RULES STUDIO ---
+    let cachedWorkgroups = [];
+    let cachedAvailableAgents = [];
+    let cachedWorkspaceMdFiles = [];
+    let currentEditingWorkgroup = null;
+
+    async function toggleWorkgroupsStudio() {
+      const el = document.getElementById('dash-workgroups-studio');
+      if (!el) return;
+      const isHidden = el.style.display === 'none' || !el.style.display;
+      el.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) {
+        await loadWorkgroupsStudioData();
+      }
+    }
+
+    async function loadWorkgroupsStudioData(selectId = null) {
+      try {
+        const res = await fetch('/api/v1/workgroups', { headers: getGovHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        cachedWorkgroups = data.workgroups || [];
+        cachedAvailableAgents = data.available_agents || [];
+        cachedWorkspaceMdFiles = data.discovered_markdown_files || [];
+
+        // Populate Workspace .MD dropdown
+        const mdSelect = document.getElementById('wg-workspace-md-select');
+        if (mdSelect) {
+          mdSelect.innerHTML = '<option value="">-- Select discovered workspace .md rule file to attach --</option>' +
+            cachedWorkspaceMdFiles.map(f => `<option value="${escapeHtml(f.path)}">📄 ${escapeHtml(f.path)} — ${escapeHtml(f.title)} (${Math.round(f.size_bytes/1024*10)/10} KB)</option>`).join('');
+        }
+
+        // Populate Prompt Hub Workgroup Selector
+        const hubWgSel = document.getElementById('hub-workgroup-select');
+        if (hubWgSel) {
+          const prevVal = hubWgSel.value || 'auto';
+          hubWgSel.innerHTML = '<option value="auto">👥 Workgroup: Auto-Match by Problem</option>' +
+            cachedWorkgroups.map(wg => {
+              const memberNames = (wg.members || []).map(m => m.agent_id.split(':')[0]).join(' + ');
+              const ruleCount = (wg.markdown_rules || []).length;
+              return `<option value="${escapeHtml(wg.id)}">${escapeHtml(wg.icon || '⚡')} ${escapeHtml(wg.name)} [${escapeHtml(memberNames)} · ${ruleCount} .MD]</option>`;
+            }).join('');
+          hubWgSel.value = prevVal;
+        }
+
+        const badge = document.getElementById('wg-count-badge');
+        if (badge) badge.textContent = `${cachedWorkgroups.length} Groups`;
+
+        renderWorkgroupCards();
+
+        const targetId = selectId || (currentEditingWorkgroup && currentEditingWorkgroup.id) || (cachedWorkgroups[0] && cachedWorkgroups[0].id);
+        if (targetId) {
+          selectWorkgroupForEdit(targetId);
+        }
+      } catch (e) {
+        console.error('Error loading workgroups:', e);
+      }
+    }
+
+    function renderWorkgroupCards() {
+      const container = document.getElementById('wg-cards-container');
+      if (!container) return;
+      if (cachedWorkgroups.length === 0) {
+        container.innerHTML = '<div style="color:#8b949e; font-size:11px; padding:12px;">No workgroups configured yet. Click + New Blank Workgroup.</div>';
+        return;
+      }
+
+      container.innerHTML = cachedWorkgroups.map(wg => {
+        const isSelected = currentEditingWorkgroup && currentEditingWorkgroup.id === wg.id;
+        const borderCol = isSelected ? (wg.color || '#3fb950') : '#30363d';
+        const bgCol = isSelected ? 'rgba(56,139,253,0.08)' : '#090d13';
+
+        const memberPills = (wg.members || []).map(m => `
+          <span style="display:inline-flex; align-items:center; gap:4px; background:#161b22; border:1px solid #30363d; border-radius:4px; padding:2px 6px; font-size:10px; font-family:var(--font-mono); color:#e6edf3;">
+            <strong style="color:#79c0ff;">${escapeHtml(m.display_name)}</strong>
+            <span style="color:#8b949e; font-size:9px;">(${escapeHtml(m.role)})</span>
+          </span>
+        `).join('<span style="color:#8b949e; font-size:10px; margin:0 2px;">➔</span>');
+
+        const ruleBadges = (wg.markdown_rules || []).map(r => `
+          <span style="display:inline-flex; align-items:center; gap:3px; background:rgba(163,113,247,0.14); border:1px solid rgba(163,113,247,0.4); color:#d2a8ff; border-radius:3px; padding:1px 6px; font-size:9.5px; font-family:var(--font-mono);">
+            📄 ${escapeHtml(r.file_path || r.title)}
+          </span>
+        `).join(' ');
+
+        return `
+          <div onclick="selectWorkgroupForEdit('${escapeHtml(wg.id)}')" style="cursor:pointer; background:${bgCol}; border:1.5px solid ${borderCol}; border-radius:7px; padding:9px 11px; transition:all 0.15s;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; gap:6px;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:15px;">${escapeHtml(wg.icon || '⚡')}</span>
+                <strong style="color:#fff; font-size:12px;">${escapeHtml(wg.name)}</strong>
+                <span class="badge" style="background:#161b22; color:#79c0ff; border:1px solid #30363d; font-family:var(--font-mono); font-size:9px;">${escapeHtml(wg.problem_domain)}</span>
+                <span class="badge" style="background:rgba(63,185,80,0.14); color:#7ee787; font-size:9px;">${escapeHtml(wg.execution_strategy)}</span>
+              </div>
+              <div style="display:flex; gap:4px; align-items:center;" onclick="event.stopPropagation()">
+                <span style="font-size:9.5px; color:#8b949e; font-family:var(--font-mono);">${wg.tasks_completed || 0} runs</span>
+                <button class="copy-btn" style="padding:1px 6px; font-size:9.5px; border-color:#8957e5; color:#d2a8ff;" onclick="quickDispatchWorkgroup('${escapeHtml(wg.id)}')">🚀 Run</button>
+                <button class="copy-btn" style="padding:1px 5px; font-size:9.5px; border-color:#f85149; color:#ff7b72;" onclick="deleteWorkgroupById('${escapeHtml(wg.id)}')">🗑️</button>
+              </div>
+            </div>
+            <div style="font-size:10.5px; color:#8b949e; margin-bottom:6px;">${escapeHtml(wg.description || '')}</div>
+            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-bottom:5px;">
+              <span style="font-size:9.5px; color:#7ee787; font-family:var(--font-mono); font-weight:bold;">AGENTS:</span>
+              ${memberPills || '<span style="font-size:10px; color:#8b949e;">None assigned</span>'}
+            </div>
+            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+              <span style="font-size:9.5px; color:#d2a8ff; font-family:var(--font-mono); font-weight:bold;">.MD RULES:</span>
+              ${ruleBadges || '<span style="font-size:10px; color:#8b949e;">No .md rules attached</span>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function selectWorkgroupForEdit(wgId) {
+      const found = cachedWorkgroups.find(w => w.id === wgId);
+      if (!found) return;
+      currentEditingWorkgroup = JSON.parse(JSON.stringify(found));
+      populateWorkgroupEditorForm();
+      renderWorkgroupCards();
+      await refreshWorkgroupCompiledPreview(wgId);
+    }
+
+    function populateWorkgroupEditorForm() {
+      const wg = currentEditingWorkgroup;
+      if (!wg) return;
+      const heading = document.getElementById('wg-editor-heading');
+      if (heading) heading.textContent = `✏️ DESIGN WORKGROUP: ${wg.name} (${wg.id || 'new'})`;
+      document.getElementById('wg-edit-id').value = wg.id || '';
+      document.getElementById('wg-edit-icon').value = wg.icon || '⚡';
+      document.getElementById('wg-edit-name').value = wg.name || '';
+      document.getElementById('wg-edit-domain').value = wg.problem_domain || '';
+      document.getElementById('wg-edit-strategy').value = wg.execution_strategy || 'pipeline';
+      document.getElementById('wg-edit-desc').value = wg.description || '';
+      document.getElementById('wg-edit-keywords').value = (wg.trigger_keywords || []).join(', ');
+
+      renderWorkgroupAgentTiles();
+      renderWorkgroupAttachedRules();
+    }
+
+    function renderWorkgroupAgentTiles() {
+      const container = document.getElementById('wg-agent-tiles');
+      const summary = document.getElementById('wg-assigned-summary');
+      if (!container || !currentEditingWorkgroup) return;
+
+      const members = currentEditingWorkgroup.members || [];
+      if (summary) {
+        summary.textContent = `${members.length} agent(s) assigned: ` + members.map(m => m.display_name).join(' + ');
+      }
+
+      const roles = ['PrimaryBuilder', 'LeadArchitect', 'SanityVerifier', 'ToolExecutor'];
+      container.innerHTML = cachedAvailableAgents.map(ag => {
+        const assigned = members.find(m => m.agent_id === ag.agent_id);
+        const isAssigned = !!assigned;
+        const currentRole = assigned ? assigned.role : (ag.default_role || 'PrimaryBuilder');
+        const border = isAssigned ? ag.badge_color : '#21262d';
+        const bg = isAssigned ? 'rgba(56,139,253,0.12)' : '#10151e';
+
+        return `
+          <div style="background:${bg}; border:1.5px solid ${border}; border-radius:6px; padding:6px 8px; display:flex; flex-direction:column; gap:4px;">
+            <div onclick="toggleAgentInWorkgroup('${escapeHtml(ag.agent_id)}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:5px;">
+                <input type="checkbox" ${isAssigned ? 'checked' : ''} style="pointer-events:none;">
+                <strong style="font-size:10.5px; color:${isAssigned ? '#fff' : '#8b949e'}; font-family:var(--font-mono);">${escapeHtml(ag.display_name)}</strong>
+              </div>
+              <span style="font-size:9px; color:${ag.badge_color}; font-family:var(--font-mono);">${escapeHtml(ag.node_id)}</span>
+            </div>
+            <div style="font-size:9.5px; color:#8b949e; line-height:1.25;">${escapeHtml(ag.specialty)}</div>
+            ${isAssigned ? `
+              <select onchange="changeAgentRoleInWorkgroup('${escapeHtml(ag.agent_id)}', this.value)" style="background:#090d13; color:#7ee787; border:1px solid #30363d; border-radius:3px; padding:2px 4px; font-size:9.5px; font-family:var(--font-mono);">
+                ${roles.map(r => `<option value="${r}" ${currentRole === r ? 'selected' : ''}>Role: ${r}</option>`).join('')}
+              </select>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleAgentInWorkgroup(agentId) {
+      if (!currentEditingWorkgroup) return;
+      currentEditingWorkgroup.members = currentEditingWorkgroup.members || [];
+      const idx = currentEditingWorkgroup.members.findIndex(m => m.agent_id === agentId);
+      if (idx >= 0) {
+        currentEditingWorkgroup.members.splice(idx, 1);
+      } else {
+        const meta = cachedAvailableAgents.find(a => a.agent_id === agentId);
+        if (meta) {
+          currentEditingWorkgroup.members.push({
+            agent_id: meta.agent_id,
+            display_name: meta.display_name,
+            node_id: meta.node_id,
+            role: meta.default_role || 'PrimaryBuilder'
+          });
+        }
+      }
+      renderWorkgroupAgentTiles();
+    }
+
+    function changeAgentRoleInWorkgroup(agentId, newRole) {
+      if (!currentEditingWorkgroup || !currentEditingWorkgroup.members) return;
+      const member = currentEditingWorkgroup.members.find(m => m.agent_id === agentId);
+      if (member) {
+        member.role = newRole;
+      }
+    }
+
+    function renderWorkgroupAttachedRules() {
+      const container = document.getElementById('wg-attached-rules-list');
+      if (!container || !currentEditingWorkgroup) return;
+      const rules = currentEditingWorkgroup.markdown_rules || [];
+      if (rules.length === 0) {
+        container.innerHTML = '<div style="font-size:10px; color:#8b949e; padding:4px;">No .md rule files attached yet. Attach a workspace .md file, upload a local .md file, or add an inline rule below.</div>';
+        return;
+      }
+      container.innerHTML = rules.map((r, i) => `
+        <div style="background:#090d13; border:1px solid #30363d; border-radius:4px; padding:5px 8px; display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:10.5px;">
+          <div style="display:flex; align-items:center; gap:6px; overflow:hidden;">
+            <span class="badge" style="background:rgba(163,113,247,0.18); color:#d2a8ff; font-size:9px;">.MD RULE</span>
+            <strong style="color:#fff;">${escapeHtml(r.title)}</strong>
+            ${r.file_path ? `<code style="color:#79c0ff; font-size:10px;">[${escapeHtml(r.file_path)}]</code>` : '<span style="color:#8b949e; font-size:9.5px;">(Inline / Uploaded .md)</span>'}
+          </div>
+          <button class="copy-btn" style="padding:1px 6px; font-size:9.5px; border-color:#f85149; color:#ff7b72;" onclick="removeRuleFromCurrentWorkgroup(${i})">✕ Detach</button>
+        </div>
+      `).join('');
+    }
+
+    function removeRuleFromCurrentWorkgroup(index) {
+      if (!currentEditingWorkgroup || !currentEditingWorkgroup.markdown_rules) return;
+      currentEditingWorkgroup.markdown_rules.splice(index, 1);
+      renderWorkgroupAttachedRules();
+    }
+
+    function attachSelectedWorkspaceMd() {
+      const sel = document.getElementById('wg-workspace-md-select');
+      if (!sel || !sel.value || !currentEditingWorkgroup) return;
+      const path = sel.value;
+      const meta = cachedWorkspaceMdFiles.find(f => f.path === path);
+      currentEditingWorkgroup.markdown_rules = currentEditingWorkgroup.markdown_rules || [];
+      currentEditingWorkgroup.markdown_rules.push({
+        id: 'rule-' + Date.now(),
+        title: meta ? meta.title : path,
+        file_path: path,
+        inline_markdown: null,
+        enforce_strict: true
+      });
+      sel.value = '';
+      renderWorkgroupAttachedRules();
+    }
+
+    function attachInlineMdRule() {
+      const titleInp = document.getElementById('wg-inline-rule-title');
+      const bodyInp = document.getElementById('wg-inline-rule-body');
+      if (!bodyInp || !bodyInp.value.trim() || !currentEditingWorkgroup) return;
+      const title = (titleInp && titleInp.value.trim()) ? titleInp.value.trim() : 'Custom Markdown Rule';
+      currentEditingWorkgroup.markdown_rules = currentEditingWorkgroup.markdown_rules || [];
+      currentEditingWorkgroup.markdown_rules.push({
+        id: 'rule-' + Date.now(),
+        title: title,
+        file_path: null,
+        inline_markdown: bodyInp.value.trim(),
+        enforce_strict: true
+      });
+      if (titleInp) titleInp.value = '';
+      bodyInp.value = '';
+      renderWorkgroupAttachedRules();
+    }
+
+    function handleWorkgroupMdFileUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file || !currentEditingWorkgroup) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result || '';
+        currentEditingWorkgroup.markdown_rules = currentEditingWorkgroup.markdown_rules || [];
+        currentEditingWorkgroup.markdown_rules.push({
+          id: 'rule-' + Date.now(),
+          title: file.name,
+          file_path: null,
+          inline_markdown: String(content),
+          enforce_strict: true
+        });
+        renderWorkgroupAttachedRules();
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function startNewWorkgroup() {
+      currentEditingWorkgroup = {
+        id: '',
+        name: 'Custom Problem Workgroup',
+        problem_domain: 'custom_problem',
+        icon: '🚀',
+        color: '#3fb950',
+        description: 'Custom multi-agent workgroup with attached Markdown rules',
+        execution_strategy: 'pipeline',
+        members: [
+          { agent_id: 'qwen3.5:9b', display_name: 'Qwen 3.5 (9B Fast Code)', node_id: 'PC-1', role: 'PrimaryBuilder' },
+          { agent_id: 'deepseek-r1:1.5b', display_name: 'DeepSeek-R1 (1.5B CUDA)', node_id: 'PC-2', role: 'SanityVerifier' }
+        ],
+        markdown_rules: [],
+        trigger_keywords: ['custom']
+      };
+      populateWorkgroupEditorForm();
+    }
+
+    function loadWorkgroupTemplate(kind) {
+      if (kind === 'image_gen') {
+        selectWorkgroupForEdit('wg-image-gen');
+      } else if (kind === 'coding') {
+        selectWorkgroupForEdit('wg-coding');
+      }
+    }
+
+    async function saveCurrentWorkgroup() {
+      if (!currentEditingWorkgroup) return;
+      const kwRaw = document.getElementById('wg-edit-keywords').value || '';
+      const payload = {
+        id: document.getElementById('wg-edit-id').value.trim() || null,
+        name: document.getElementById('wg-edit-name').value.trim() || 'Unnamed Workgroup',
+        problem_domain: document.getElementById('wg-edit-domain').value.trim() || 'general',
+        icon: document.getElementById('wg-edit-icon').value.trim() || '⚡',
+        color: currentEditingWorkgroup.color || '#58a6ff',
+        description: document.getElementById('wg-edit-desc').value.trim(),
+        execution_strategy: document.getElementById('wg-edit-strategy').value,
+        members: currentEditingWorkgroup.members || [],
+        markdown_rules: currentEditingWorkgroup.markdown_rules || [],
+        trigger_keywords: kwRaw.split(',').map(s => s.trim()).filter(Boolean)
+      };
+
+      try {
+        const res = await fetch('/api/v1/workgroups', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const savedId = data.workgroup && data.workgroup.id;
+          await loadWorkgroupsStudioData(savedId);
+        }
+      } catch (e) {
+        console.error('Error saving workgroup:', e);
+      }
+    }
+
+    async function deleteWorkgroupById(wgId) {
+      try {
+        const res = await fetch(`/api/v1/workgroups/${encodeURIComponent(wgId)}`, {
+          method: 'DELETE',
+          headers: getGovHeaders()
+        });
+        if (res.ok) {
+          currentEditingWorkgroup = null;
+          await loadWorkgroupsStudioData();
+        }
+      } catch (e) {
+        console.error('Error deleting workgroup:', e);
+      }
+    }
+
+    async function refreshWorkgroupCompiledPreview(wgId) {
+      const pre = document.getElementById('wg-compiled-preview');
+      if (!pre || !wgId) return;
+      try {
+        const res = await fetch(`/api/v1/workgroups/${encodeURIComponent(wgId)}/preview`, { headers: getGovHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          pre.textContent = data.compiled_system_prompt || '';
+        }
+      } catch (e) {
+        console.error('Preview error:', e);
+      }
+    }
+
+    function launchPromptForCurrentWorkgroup() {
+      if (!currentEditingWorkgroup || !currentEditingWorkgroup.id) return;
+      quickDispatchWorkgroup(currentEditingWorkgroup.id);
+    }
+
+    function quickDispatchWorkgroup(wgId) {
+      const hub = document.getElementById('dash-prompt-hub');
+      if (hub) hub.style.display = 'block';
+      const wgSel = document.getElementById('hub-workgroup-select');
+      if (wgSel) wgSel.value = wgId;
+      const inp = document.getElementById('hub-prompt-input');
+      if (inp) {
+        if (!inp.value.trim()) {
+          if (wgId === 'wg-image-gen') {
+            inp.value = 'Design a crisp dark-mode SVG network node icon and provide the Copilot CLI generation script.';
+          } else if (wgId === 'wg-coding') {
+            inp.value = 'Implement a pure Rust function with <= 3 arguments and a unit test verifying path normalization.';
+          } else {
+            inp.value = `Execute task using workgroup ${wgId} and enforce all attached .md rules.`;
+          }
+        }
+        inp.focus();
+      }
+    }
+
     function togglePromptHub() {
       const el = document.getElementById('dash-prompt-hub');
       if (!el) return;
       const isHidden = el.style.display === 'none' || !el.style.display;
       el.style.display = isHidden ? 'block' : 'none';
       if (isHidden) {
+        loadWorkgroupsStudioData();
         const inp = document.getElementById('hub-prompt-input');
         if (inp) inp.focus();
         previewPromptHubIntent();
@@ -3639,11 +4172,14 @@
         badge.style.color = '#79c0ff';
         return;
       }
-      if (text.includes('architect') || text.includes('refactor') || text.includes('proof') || text.includes('physics') || text.includes('math') || text.includes('algorithm') || text.includes('invariant') || text.includes('plan') || text.length > 1000) {
-        badge.textContent = '🎯 ComplexReasoning ➔ PC-1 (qwen3.8:27b)';
+      if (text.includes('image') || text.includes('svg') || text.includes('icon') || text.includes('mockup')) {
+        badge.textContent = '🎨 Workgroup Match: Image Gen ➔ DeepSeek-R1 + Copilot CLI (+ .MD Rules)';
         badge.style.color = '#d2a8ff';
-      } else if (text.includes('unit test') || text.includes('cargo test') || text.includes('boilerplate') || text.includes('docstring') || text.includes('parser') || text.includes('generate') || text.includes('scaffold')) {
-        badge.textContent = '⚡ FastCodeGeneration ➔ PC-1 (qwen3.5:9b)';
+      } else if (text.includes('architect') || text.includes('refactor') || text.includes('proof') || text.includes('physics') || text.includes('math') || text.includes('algorithm') || text.includes('invariant') || text.includes('plan') || text.length > 1000) {
+        badge.textContent = '🎯 ComplexReasoning ➔ Coding Workgroup (Qwen + Gemini + .MD Rules)';
+        badge.style.color = '#d2a8ff';
+      } else if (text.includes('unit test') || text.includes('cargo test') || text.includes('boilerplate') || text.includes('docstring') || text.includes('parser') || text.includes('generate') || text.includes('scaffold') || text.includes('rust')) {
+        badge.textContent = '⚡ FastCodeGeneration ➔ Coding Workgroup (Qwen 9B + Gemini + .MD Rules)';
         badge.style.color = '#7ee787';
       } else if (text.includes('verify') || text.includes('regex') || text.includes('assertion') || text.includes('sanity') || text.includes('validate') || text.includes('lint') || text.length < 60) {
         badge.textContent = '🔍 SanityVerification ➔ PC-2 / PC-1 (deepseek-r1:1.5b)';
@@ -3673,6 +4209,7 @@
 
     async function dispatchPromptHub() {
       const inp = document.getElementById('hub-prompt-input');
+      const wgSel = document.getElementById('hub-workgroup-select');
       const modeSel = document.getElementById('hub-mode-select');
       const unloadChk = document.getElementById('hub-unload-vram');
       const btn = document.getElementById('hub-dispatch-btn');
@@ -3680,6 +4217,7 @@
       if (!inp || !inp.value.trim()) return;
 
       const promptText = inp.value.trim();
+      const wgVal = wgSel ? wgSel.value : 'auto';
       const modeVal = modeSel ? modeSel.value : 'auto';
       const unloadVal = unloadChk ? unloadChk.checked : true;
 
@@ -3689,7 +4227,7 @@
       }
       if (out) {
         out.style.display = 'block';
-        out.innerHTML = `<div style="color:#8b949e; font-size:12px; font-family:var(--font-mono);">Arbitrating route &amp; dispatching across cluster (${escapeHtml(modeVal)} mode)...</div>`;
+        out.innerHTML = `<div style="color:#8b949e; font-size:12px; font-family:var(--font-mono);">Arbitrating workgroup (${escapeHtml(wgVal)}), injecting .MD rules &amp; dispatching across cluster...</div>`;
       }
 
       try {
@@ -3698,6 +4236,7 @@
           headers: getGovHeaders(),
           body: JSON.stringify({
             prompt: promptText,
+            workgroup_id: wgVal,
             mode: modeVal,
             agent_id: 'Dashboard-Prompt-Hub',
             unload_heavy_after: unloadVal
@@ -3705,6 +4244,9 @@
         });
         const data = await res.json();
         if (out) {
+          const wgPill = data.matched_workgroup
+            ? `<span class="badge" style="background:rgba(63,185,80,0.18); color:#7ee787; border:1px solid #3fb950;">Workgroup: ${escapeHtml(data.matched_workgroup)} (${data.injected_rules_count || 0} .MD rules injected)</span>`
+            : '';
           const stagesHtml = (data.stages || []).map(st => `
             <div style="background:#090d13; border:1px solid #30363d; border-radius:6px; padding:10px; margin-top:6px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px; font-size:11px; font-family:var(--font-mono);">
@@ -3721,14 +4263,16 @@
             </div>
           `).join('');
           out.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; font-size:11px; color:#8b949e;">
               <span>✅ Completed in <strong>${Math.round(data.total_duration_ms || 0)} ms</strong> · Classified Intent: <strong style="color:#d2a8ff;">${escapeHtml(data.classified_intent)}</strong> · Signed &amp; Logged to Ledger</span>
+              ${wgPill}
             </div>
             ${stagesHtml}
           `;
         }
         fetchEvents();
         fetchSummary();
+        loadWorkgroupsStudioData();
       } catch (e) {
         if (out) {
           out.innerHTML = `<div style="color:#ff7b72; font-size:12px;">Error dispatching prompt: ${escapeHtml(String(e))}</div>`;
@@ -3748,6 +4292,7 @@
     fetchPolicies();
     loadGovDelegationConfig();
     loadDownloadedClusterModels();
+    loadWorkgroupsStudioData();
     initSSE();
     const savedTopoView = localStorage.getItem('agenttrace_topo_view') || 'diagram';
     switchTopoView(savedTopoView);

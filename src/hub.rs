@@ -26,8 +26,10 @@ use std::{sync::Arc, time::Duration};
 #[derive(Debug, Clone, Deserialize)]
 pub struct HubDispatchRequest {
     pub prompt: String,
-    /// `"auto"` (default single-shot smart route), `"pipeline"` (Qwen Draft -> DeepSeek Verify), or `"swarm"` (Parallel Qwen + DeepSeek).
+    /// `"auto"` (default single-shot smart route), `"pipeline"` (Qwen Draft -> DeepSeek Verify), `"swarm"` (Parallel Qwen + DeepSeek), or `"workgroup"`.
     pub mode: Option<String>,
+    /// Optional Problem Workgroup ID (e.g. `"wg-coding"`, `"wg-image-gen"`). If `"auto"` or omitted, matches by prompt keywords.
+    pub workgroup_id: Option<String>,
     /// Optional explicit model override (defaults to `"auto"`).
     pub requested_model: Option<String>,
     /// Optional caller agent ID for ledger attribution.
@@ -58,6 +60,10 @@ pub struct HubDispatchResponse {
     pub mode: String,
     pub prompt: String,
     pub classified_intent: RoutingIntent,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub matched_workgroup: Option<String>,
+    #[serde(default)]
+    pub injected_rules_count: usize,
     pub primary_response: String,
     pub verification_notes: Option<String>,
     pub stages: Vec<HubStageResult>,
@@ -286,15 +292,148 @@ pub async fn handle_hub_dispatch(
     }
 
     let t0 = std::time::Instant::now();
+    let explicit_wg_id = req
+        .workgroup_id
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty() && *s != "none");
+
+    // Resolve Problem Workgroup (explicit ID or automatic keyword match)
+    let resolved_wg = {
+        let wg_reg = crate::workgroups::global_workgroups();
+        let mut guard = wg_reg.write().await;
+        let found = if let Some(id) = explicit_wg_id {
+            if id == "auto" {
+                guard.match_workgroup_by_prompt(&req.prompt)
+            } else {
+                guard.get(id)
+            }
+        } else {
+            guard.match_workgroup_by_prompt(&req.prompt)
+        };
+        if let Some(ref wg) = found {
+            guard.increment_tasks(&wg.id);
+        }
+        found
+    };
+
+    let matched_workgroup = resolved_wg.as_ref().map(|w| w.id.clone());
+    let injected_rules_count = resolved_wg
+        .as_ref()
+        .map(|w| w.markdown_rules.len())
+        .unwrap_or(0);
+
+    // Merge attached .md rule files with any caller-supplied system prompt
+    let merged_system_prompt = match (&resolved_wg, &req.system_prompt) {
+        (Some(wg), Some(custom_sys)) if !custom_sys.trim().is_empty() => {
+            Some(format!("{}\n\n{}", wg.compile_system_prompt(), custom_sys))
+        }
+        (Some(wg), _) => Some(wg.compile_system_prompt()),
+        (None, Some(custom_sys)) => Some(custom_sys.clone()),
+        (None, None) => None,
+    };
+
     let mode = req
         .mode
         .as_deref()
-        .unwrap_or("auto")
+        .unwrap_or_else(|| {
+            if explicit_wg_id.is_some() {
+                resolved_wg
+                    .as_ref()
+                    .map(|w| w.execution_strategy.as_str())
+                    .unwrap_or("auto")
+            } else {
+                "auto"
+            }
+        })
         .trim()
         .to_lowercase();
+
     let agent_id = req.agent_id.as_deref().unwrap_or("Lead-Hub-Client");
     let unload_heavy = req.unload_heavy_after.unwrap_or(true);
     let classified_intent = classify_intent(&req.prompt);
+
+    // If an explicit Problem Workgroup with assigned members was selected, run its assigned roster!
+    if let Some(ref wg) = resolved_wg {
+        if explicit_wg_id.is_some() && explicit_wg_id != Some("auto") && !wg.members.is_empty() {
+            let mut stages: Vec<HubStageResult> = Vec::new();
+            let active_members: Vec<_> = wg.members.iter().take(2).collect();
+
+            for (idx, member) in active_members.iter().enumerate() {
+                let (target_node, target_model, target_upstream) =
+                    crate::workgroups::ProblemWorkgroup::resolve_executable_target(
+                        member,
+                        &cfg.upstream_url,
+                    );
+                let stage_label = format!(
+                    "{}. {} [{} · {}]",
+                    idx + 1,
+                    member.display_name,
+                    member.role.label(),
+                    wg.name
+                );
+                let stage_prompt = if idx == 0 || stages.is_empty() {
+                    req.prompt.clone()
+                } else {
+                    let prev_resp: & str = &stages[0].response;
+                    format!(
+                        "Workgroup '{}' Stage {} ({} - {}):\nReview, refine, or build upon Stage 1's output while strictly enforcing all attached .md rules.\n\nOriginal Task: {}\n\nStage 1 Output:\n{}",
+                        wg.name,
+                        idx + 1,
+                        member.display_name,
+                        member.role.label(),
+                        req.prompt,
+                        prev_resp
+                    )
+                };
+
+                let stage_res = execute_stage_call(
+                    &cfg,
+                    &stage_label,
+                    &stage_prompt,
+                    merged_system_prompt.as_deref(),
+                    classified_intent.clone(),
+                    &target_node,
+                    &target_model,
+                    &target_upstream,
+                    &format!(
+                        "Workgroup '{}' ({}) assigned member {} ({}) with {} attached .md rule(s)",
+                        wg.name,
+                        wg.id,
+                        member.display_name,
+                        member.role.label(),
+                        injected_rules_count
+                    ),
+                    &member.agent_id,
+                    unload_heavy,
+                )
+                .await;
+                stages.push(stage_res);
+            }
+
+            let primary = stages
+                .first()
+                .map(|s| s.response.clone())
+                .unwrap_or_default();
+            let verif = if stages.len() > 1 {
+                Some(stages[1].response.clone())
+            } else {
+                None
+            };
+
+            return Ok(Json(HubDispatchResponse {
+                mode: format!("workgroup:{}", wg.id),
+                prompt: req.prompt,
+                classified_intent,
+                matched_workgroup,
+                injected_rules_count,
+                primary_response: primary,
+                verification_notes: verif,
+                stages,
+                total_duration_ms: t0.elapsed().as_secs_f64() * 1000.0,
+            }));
+        }
+    }
 
     if mode == "pipeline" {
         // Stage 1: Draft / Code / Architecture on the best primary model
@@ -318,7 +457,7 @@ pub async fn handle_hub_dispatch(
             &cfg,
             "1. Primary Architect / Code Builder",
             &req.prompt,
-            req.system_prompt.as_deref(),
+            merged_system_prompt.as_deref(),
             draft_intent,
             &draft_dec.node_id,
             &draft_dec.selected_model,
@@ -349,7 +488,9 @@ pub async fn handle_hub_dispatch(
             &cfg,
             "2. Sanity & Security Verifier (DeepSeek-R1)",
             &verify_prompt,
-            Some("You are a fast security and logic verifier. Output concise bullet points only."),
+            merged_system_prompt
+                .as_deref()
+                .or(Some("You are a fast security and logic verifier. Output concise bullet points only.")),
             RoutingIntent::SanityVerification,
             &verify_dec.node_id,
             &verify_dec.selected_model,
@@ -366,6 +507,8 @@ pub async fn handle_hub_dispatch(
             mode: "pipeline".to_string(),
             prompt: req.prompt,
             classified_intent,
+            matched_workgroup,
+            injected_rules_count,
             primary_response: primary,
             verification_notes: verif,
             stages: vec![stage1, stage2],
@@ -405,7 +548,7 @@ pub async fn handle_hub_dispatch(
                 &cfg,
                 "Swarm Node A (Qwen Builder/Architect)",
                 &req.prompt,
-                req.system_prompt.as_deref(),
+                merged_system_prompt.as_deref(),
                 classified_intent.clone(),
                 &dec_qwen.node_id,
                 &dec_qwen.selected_model,
@@ -418,7 +561,9 @@ pub async fn handle_hub_dispatch(
                 &cfg,
                 "Swarm Node B (DeepSeek-R1 Critic/Verifier)",
                 &req.prompt,
-                Some("Provide a concise second opinion, edge-case check, or alternative angle in 4 bullet points."),
+                merged_system_prompt
+                    .as_deref()
+                    .or(Some("Provide a concise second opinion, edge-case check, or alternative angle in 4 bullet points.")),
                 RoutingIntent::SanityVerification,
                 &dec_ds.node_id,
                 &dec_ds.selected_model,
@@ -435,6 +580,8 @@ pub async fn handle_hub_dispatch(
             mode: "swarm".to_string(),
             prompt: req.prompt,
             classified_intent,
+            matched_workgroup,
+            injected_rules_count,
             primary_response: primary,
             verification_notes: verif,
             stages: vec![stage_qwen, stage_ds],
@@ -458,7 +605,7 @@ pub async fn handle_hub_dispatch(
         &cfg,
         "Auto-Routed Execution",
         &req.prompt,
-        req.system_prompt.as_deref(),
+        merged_system_prompt.as_deref(),
         decision.intent.clone(),
         &decision.node_id,
         &decision.selected_model,
@@ -473,6 +620,8 @@ pub async fn handle_hub_dispatch(
         mode: "auto".to_string(),
         prompt: req.prompt,
         classified_intent: decision.intent,
+        matched_workgroup,
+        injected_rules_count,
         primary_response: stage.response.clone(),
         verification_notes: None,
         stages: vec![stage],

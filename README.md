@@ -2,7 +2,7 @@
 
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.78%2B-orange.svg)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-75%20Passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-80%20Passed-brightgreen.svg)](tests/)
 [![Ledger](https://img.shields.io/badge/Ledger-Ed25519%20Signed%20%2B%20SHA--256-green.svg)](src/ledger.rs)
 [![Architecture](https://img.shields.io/badge/Architecture-Actor%20Model%20(MPSC)-blueviolet.svg)](src/ledger_writer.rs)
 [![MCP](https://img.shields.io/badge/Protocol-MCP%20JSON--RPC%202.0-blue.svg)](src/agent_interface/mcp.rs)
@@ -16,10 +16,11 @@ Jump straight into installing, running scenarios, locking down agent directories
 | **1. Install & Run in 60 Seconds**<br>Build from source or run the 1-command bootstrap script | 📄 **[How to Install & Set Up](docs/HOW_TO_INSTALL_AND_SETUP.md)**<br>📄 [Worker Node Setup](docs/WORKER_NODE_SETUP.md) · [Cluster Guide](docs/CLUSTER_DEPLOYMENT_GUIDE.md) | `cargo run --release`<br>*(or `curl -sSL http://localhost:8080/install.py \| python3 -`)* |
 | **2. Run & Verify the 6 Live Security Scenarios**<br>Test `.env` leak blocking, live code diffs, token routing, hash proof, freeze, and zones | 📄 **[How to Run the 6 Scenarios](docs/HOW_TO_RUN_SCENARIOS.md)**<br>📄 [Why AgentTrace & Scenarios](docs/WHY_AGENTTRACE_SCENARIOS_AND_VALUE_PROPOSITION.md) | Open `http://localhost:8080/dashboard` or `/console` and click **`[⚡ Live Scenario Demos 1–6]`** |
 | **3. Set Up Safe Zones (Vault) vs. Agent Playground**<br>Guard `.secrets` & core repos while confining untrusted agents to a sandbox directory | 📄 **[How to Configure Safe Zones & Playgrounds](docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md)** | Press <kbd>Z</kbd> in `/dashboard` or run:<br>`python sdk/agent_trace_client.py --confine untrusted-bot` |
-| **4. Use the Central Prompt Hub (`auto` / `pipeline` / `swarm`)**<br>Stop manually choosing models/IPs—auto-route or chain Qwen $\rightarrow$ DeepSeek-R1 | 📄 **[How to Use Prompt Hub & Contribution Graph](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md)** | Press <kbd>H</kbd> in `/dashboard` or run:<br>`python sdk/agent_trace_client.py --pipeline "Audit this code"` |
-| **5. Inspect Multi-Agent Problem Contributions (`/graph`)**<br>See which agent solved which problem across 4 metrics & 2 topic modes | 📄 **[How to Use Contribution Graph (`/graph`)](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md#part-2-multi-agent-problem-contribution-graph-graph)** | Open `http://localhost:8080/graph` (press <kbd>1</kbd>–<kbd>4</kbd> to switch metrics) |
-| **6. Connect Another AI Agent to Pick Up Telemetry**<br>1-call handoff briefing, 17 MCP tools, and zero-dependency Python SDK | 📄 **[How to Connect Agents & Pick Up Telemetry](docs/AGENT_TELEMETRY_PICKUP.md)** | `python sdk/agent_trace_client.py --briefing`<br>*(or `GET /api/v1/agent/handoff`)* |
-| **7. Audit, Pause, & Filter Telemetry Manually**<br>Keyboard-driven forensics (`j`/`k`, `P` freeze, `M` What-If policy tester, `F` flag) | 📄 **[Manual-First Operator Guide](docs/MANUAL_FIRST_OPERATOR_GUIDE.md)**<br>📄 [Terminal Console TUI Design](docs/TERMINAL_CONSOLE_DESIGN_AND_SCENARIOS.md) | Open `http://localhost:8080/console` and press <kbd>?</kbd> for shortcuts |
+| **4. Graphically Create Problem Workgroups & Attach `.MD` Rules**<br>Assign e.g. `DeepSeek + Copilot CLI` to Image Gen or `Qwen + Gemini` to Coding with `.md` rules | 📄 **[How to Use Workgroups, Prompt Hub & Graph](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md)** | Click **`[👥 Workgroups & .MD Rules (W)]`** in `/dashboard` or run:<br>`python sdk/agent_trace_client.py --workgroups` |
+| **5. Use the Central Prompt Hub (`auto` / `pipeline` / `swarm`)**<br>Stop manually choosing models/IPs—auto-route or chain Qwen $\rightarrow$ DeepSeek-R1 | 📄 **[How to Use Prompt Hub & Contribution Graph](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md)** | Press <kbd>H</kbd> in `/dashboard` or run:<br>`python sdk/agent_trace_client.py --workgroup wg-coding --ask "Write tests"` |
+| **6. Inspect Multi-Agent Problem Contributions (`/graph`)**<br>See which agent solved which problem across 4 metrics & 2 topic modes | 📄 **[How to Use Contribution Graph (`/graph`)](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md#part-2-multi-agent-problem-contribution-graph-graph)** | Open `http://localhost:8080/graph` (press <kbd>1</kbd>–<kbd>4</kbd> to switch metrics) |
+| **7. Connect Another AI Agent to Pick Up Telemetry**<br>1-call handoff briefing, 17 MCP tools, and zero-dependency Python SDK | 📄 **[How to Connect Agents & Pick Up Telemetry](docs/AGENT_TELEMETRY_PICKUP.md)** | `python sdk/agent_trace_client.py --briefing`<br>*(or `GET /api/v1/agent/handoff`)* |
+| **8. Audit, Pause, & Filter Telemetry Manually**<br>Keyboard-driven forensics (`j`/`k`, `P` freeze, `M` What-If policy tester, `F` flag) | 📄 **[Manual-First Operator Guide](docs/MANUAL_FIRST_OPERATOR_GUIDE.md)**<br>📄 [Terminal Console TUI Design](docs/TERMINAL_CONSOLE_DESIGN_AND_SCENARIOS.md) | Open `http://localhost:8080/console` and press <kbd>?</kbd> for shortcuts |
 
 ### ⚡ 30-Second Copy-Paste Quick Recipes
 
@@ -27,9 +28,10 @@ Jump straight into installing, running scenarios, locking down agent directories
 # 1. Start the Gateway (:8080) — serves /dashboard, /console, /graph, /v1/chat/completions, and /api/v1/mcp
 cargo run --release
 
-# 2. Send a prompt to the Central Prompt Hub (auto-selects best local model or runs Qwen -> DeepSeek-R1 pipeline)
-python sdk/agent_trace_client.py --ask "Write a Rust unit test for SHA-256 chain continuity"
-python sdk/agent_trace_client.py --pipeline "Check this function for path traversal bugs"
+# 2. List Problem Workgroups, attach a .md rule file, or dispatch a prompt to a specific Workgroup
+python sdk/agent_trace_client.py --workgroups
+python sdk/agent_trace_client.py --attach-rule wg-coding docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md
+python sdk/agent_trace_client.py --workgroup wg-image-gen --ask "Generate a dark-mode SVG network icon"
 
 # 3. Lock an untrusted agent strictly inside ./playground (blocks .secrets Vault and makes src/ Read-Only)
 python sdk/agent_trace_client.py --confine experimental-agent-01
