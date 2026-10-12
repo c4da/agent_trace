@@ -15,7 +15,7 @@ pub fn get_cluster_summary(conn: &Connection) -> SqliteResult<ClusterSummary> {
     let total_reads: u64 = conn.query_row("SELECT count(*) FROM events WHERE event_type = 'FileRead'", [], |r| r.get(0)).unwrap_or(0);
     let total_writes: u64 = conn.query_row("SELECT count(*) FROM events WHERE event_type = 'FileWrite'", [], |r| r.get(0)).unwrap_or(0);
     let total_commands: u64 = conn.query_row("SELECT count(*) FROM events WHERE event_type = 'CommandRun'", [], |r| r.get(0)).unwrap_or(0);
-    let security_alerts: u64 = conn.query_row("SELECT count(*) FROM events WHERE security_verdict != 'Allowed'", [], |r| r.get(0)).unwrap_or(0);
+    let security_alerts: u64 = super::alerts::count_active_alerts(conn);
 
     let blast_radius_score = ((total_writes * 10 + total_commands * 5 + security_alerts * 25).min(100)) as f64;
 

@@ -3,6 +3,7 @@
 //! Provides thread-safe, WAL-enabled persistence for the cryptographic ledger,
 //! node registrations, policy telemetry, and analytics queries.
 
+pub mod alerts;
 pub mod analytics;
 pub mod events;
 pub mod nodes;
@@ -107,6 +108,30 @@ impl Database {
     pub fn get_telemetry_analytics(&self) -> SqliteResult<crate::analytics::TelemetryAnalyticsReport> {
         let conn = self.conn.lock().unwrap();
         analytics::get_telemetry_analytics(&conn)
+    }
+
+    /// Lists security alerts (active only or including acknowledged history).
+    pub fn list_security_alerts(&self, include_acked: bool) -> SqliteResult<Vec<Value>> {
+        let conn = self.conn.lock().unwrap();
+        alerts::list_security_alerts(&conn, include_acked)
+    }
+
+    /// Acknowledges/dismisses a single security alert by event_id.
+    pub fn acknowledge_alert(&self, event_id: &str) -> SqliteResult<usize> {
+        let conn = self.conn.lock().unwrap();
+        alerts::acknowledge_alert(&conn, event_id)
+    }
+
+    /// Acknowledges/resets all active security alerts.
+    pub fn acknowledge_all_alerts(&self) -> SqliteResult<usize> {
+        let conn = self.conn.lock().unwrap();
+        alerts::acknowledge_all_alerts(&conn)
+    }
+
+    /// Restores acknowledged security alerts back to active view.
+    pub fn restore_all_alerts(&self) -> SqliteResult<usize> {
+        let conn = self.conn.lock().unwrap();
+        alerts::restore_all_alerts(&conn)
     }
 }
 
@@ -299,4 +324,57 @@ mod tests {
         assert_eq!(report.security_anomalies[0].verdict, SecurityVerdict::Blocked);
         assert_eq!(report.security_anomalies[0].reason, "Blacklisted sensitive file");
     }
+
+    #[test]
+    fn test_security_alerts_lifecycle_ack_reset_and_restore() {
+        let tmp = NamedTempFile::new().unwrap();
+        let db = Database::new(tmp.path().to_str().unwrap()).unwrap();
+
+        let make_ev = |id: &str, verdict: SecurityVerdict, target: &str| TraceEvent {
+            event_id: id.to_string(),
+            node_id: "PC-1-Copilot".to_string(),
+            session_id: "sess_alert".to_string(),
+            timestamp: "2026-10-12T18:00:00Z".to_string(),
+            event_type: EventType::FileRead,
+            target: target.to_string(),
+            action_details: serde_json::json!({}),
+            diff: None,
+            provenance_sources: vec![],
+            security_verdict: verdict,
+            security_reasons: vec!["Blocked pattern".to_string()],
+            duration_ms: 1.5,
+            prev_hash: String::new(),
+            event_hash: String::new(),
+            signature: None,
+            public_key: None,
+        };
+
+        let mut ev1 = make_ev("alert_1", SecurityVerdict::Blocked, ".env");
+        let mut ev2 = make_ev("alert_2", SecurityVerdict::Flagged, ".secrets/key");
+        let mut ev3 = make_ev("ok_1", SecurityVerdict::Allowed, "src/main.rs");
+        db.insert_event_signed(&mut ev1, None).unwrap();
+        db.insert_event_signed(&mut ev2, None).unwrap();
+        db.insert_event_signed(&mut ev3, None).unwrap();
+
+        // 1. Two active alerts initially
+        assert_eq!(db.get_cluster_summary().unwrap().security_alerts, 2);
+        assert_eq!(db.list_security_alerts(false).unwrap().len(), 2);
+
+        // 2. Acknowledge single alert
+        db.acknowledge_alert("alert_1").unwrap();
+        assert_eq!(db.get_cluster_summary().unwrap().security_alerts, 1);
+        assert_eq!(db.list_security_alerts(false).unwrap().len(), 1);
+        assert_eq!(db.list_security_alerts(true).unwrap().len(), 2);
+
+        // 3. Reset all alerts -> 0 active alerts, ledger remains 100% valid
+        db.acknowledge_all_alerts().unwrap();
+        assert_eq!(db.get_cluster_summary().unwrap().security_alerts, 0);
+        assert_eq!(db.list_security_alerts(false).unwrap().len(), 0);
+        assert!(db.verify_ledger().unwrap().is_valid);
+
+        // 4. Restore dismissed alerts -> 2 active alerts again
+        db.restore_all_alerts().unwrap();
+        assert_eq!(db.get_cluster_summary().unwrap().security_alerts, 2);
+    }
 }
+

@@ -535,9 +535,18 @@
       <h3>Shell Commands</h3>
       <div class="val" id="m-commands">0</div>
     </div>
-    <div class="metric-card">
-      <h3>Security Violations</h3>
-      <div class="val" style="color: var(--accent-red);" id="m-alerts">0</div>
+    <div class="metric-card" style="border-color: rgba(248, 81, 73, 0.5); cursor: pointer; position: relative;" onclick="openAlertsModal()" title="Click to inspect, triage, or reset security alerts">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Security Violations</h3>
+        <span style="font-size: 10px; color: #ff7b72; text-decoration: underline;">Inspect ➔</span>
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 2px;">
+        <div class="val" style="color: var(--accent-red);" id="m-alerts">0</div>
+        <div style="display: flex; gap: 4px;" onclick="event.stopPropagation()">
+          <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; border-color: #f85149; color: #ff7b72;" onclick="openAlertsModal()">🔍 Triage</button>
+          <button class="copy-btn" style="padding: 2px 6px; font-size: 10px; border-color: #3fb950; color: #3fb950;" onclick="resetAllAlertsNow()">✓ Reset</button>
+        </div>
+      </div>
     </div>
     <div class="metric-card" style="border-color: #3fb950;">
       <h3>Ledger Cryptography</h3>
@@ -1352,12 +1361,14 @@
   <div class="filter-bar">
     <div class="filter-pills" id="node-filters">
       <button class="filter-pill active" onclick="setFilter('ALL')">All Events</button>
+      <button class="filter-pill" style="border-color: rgba(248,81,73,0.5); color: #ff7b72;" onclick="filterAlertsInStream()">🚨 Security Alerts</button>
       <button class="filter-pill" onclick="setFilter('PC-1-Antigravity')">✦ PC-1 Gemini (Antigravity)</button>
       <button class="filter-pill" onclick="setFilter('PC-1-Copilot')">🐙 PC-1 Copilot CLI</button>
       <button class="filter-pill" onclick="setFilter('PC-1')">🤖 PC-1 Hermes (Local)</button>
       <button class="filter-pill" onclick="setFilter('PC-2')">🔥 PC-2 Hermes (Worker)</button>
     </div>
-    <div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button class="copy-btn" style="border-color: #f85149; color: #ff7b72; font-size: 11px;" onclick="openAlertsModal()">🚨 Manage / Reset Alerts</button>
       <input type="text" id="search-input" class="search-input" placeholder="Search events, prompts, files..." oninput="renderFilteredEvents()">
     </div>
   </div>
@@ -1386,6 +1397,56 @@
     </table>
   </div>
 
+  <!-- Security Alerts Triage, Inspection & Reset Modal -->
+  <div class="modal" id="alerts-modal" onclick="if(event.target.id==='alerts-modal') document.getElementById('alerts-modal').classList.remove('show')">
+    <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 1020px;">
+      <div class="modal-header">
+        <div>
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+            <span class="tag tag-alert">SECURITY TRIAGE</span>
+            <strong style="color: #fff; font-size: 15px;">🚨 Security Violations &amp; Alert Remediation Center</strong>
+            <span class="badge" style="background: rgba(63,185,80,0.15); color: #3fb950; border: 1px solid #3fb950;">Ledger Hash Chain Protected</span>
+          </div>
+          <p style="font-size: 11px; color: var(--text-dim);">
+            Inspect blocked or flagged agent actions, dismiss/reset resolved alerts (without mutating the SHA-256 ledger), whitelist safe paths, or sandbox offending agents.
+          </p>
+        </div>
+        <button class="copy-btn" onclick="document.getElementById('alerts-modal').classList.remove('show')">✕ Close</button>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; background: #0d1117; padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="filter-pill active" id="btn-alerts-active" onclick="loadAlertsModalList(false)">🔴 Active Unresolved Alerts</button>
+          <button class="filter-pill" id="btn-alerts-history" onclick="loadAlertsModalList(true)">📜 All Alert History (incl. Reset)</button>
+          <span id="alerts-modal-count" style="font-size: 11px; color: var(--text-dim); margin-left: 6px;">0 alerts</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="copy-btn" style="border-color: #3fb950; color: #3fb950; font-weight: bold;" onclick="resetAllAlertsNow()">✓ Reset / Acknowledge All Active Alerts</button>
+          <button class="copy-btn" style="border-color: #8b949e; color: #c9d1d9;" onclick="restoreAllAlertsNow()">↺ Restore Dismissed History</button>
+        </div>
+      </div>
+
+      <div style="max-height: 460px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead style="background: #0d1117; position: sticky; top: 0;">
+            <tr>
+              <th style="padding: 8px 10px;">Time</th>
+              <th style="padding: 8px 10px;">Agent / Node</th>
+              <th style="padding: 8px 10px;">Action Type</th>
+              <th style="padding: 8px 10px;">Target Path / Command</th>
+              <th style="padding: 8px 10px;">Verdict &amp; Triggered Rule</th>
+              <th style="padding: 8px 10px;">Status</th>
+              <th style="padding: 8px 10px; text-align: right;">Remediation Actions</th>
+            </tr>
+          </thead>
+          <tbody id="alerts-modal-body">
+            <tr><td colspan="7" style="text-align: center; padding: 24px; color: var(--text-dim);">Loading security alerts...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Deep Inspector Modal -->
   <div class="modal" id="event-modal" onclick="closeModal(event)">
     <div class="modal-content" onclick="event.stopPropagation()">
@@ -1399,6 +1460,19 @@
           <h2 id="m-target" style="font-size: 15px; color: #fff; font-family: var(--font-mono); word-break: break-all;">Target</h2>
         </div>
         <button class="copy-btn" onclick="document.getElementById('event-modal').classList.remove('show')">✕ Close</button>
+      </div>
+
+      <!-- Alert Remediation Bar inside Event Inspector (visible when verdict != Allowed) -->
+      <div id="inspector-alert-bar" style="display: none; background: rgba(248, 81, 73, 0.1); border: 1px solid #f85149; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <strong style="color: #ff7b72; font-size: 12px;">🚨 Security Policy Violation Detected</strong>
+          <div id="inspector-alert-reason" style="color: #c9d1d9; font-size: 11px; margin-top: 2px;">Blocked by sandbox rule</div>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="copy-btn" style="border-color: #3fb950; color: #3fb950;" onclick="ackCurrentInspectedAlert()">✓ Dismiss / Ack Alert</button>
+          <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff;" onclick="whitelistCurrentInspectedAlert()">🛡️ Whitelist Path</button>
+          <button class="copy-btn" style="border-color: #d29922; color: #e3b341;" onclick="sandboxCurrentInspectedAgent()">🛑 Strict Sandbox Agent</button>
+        </div>
       </div>
 
       <!-- Navigation Tabs -->
@@ -2011,12 +2085,29 @@
       });
     }
 
+    let currentInspectedEvent = null;
+
     function inspectEvent(ev) {
+      currentInspectedEvent = ev;
       document.getElementById('m-node-id').innerText = ev.node_id;
       document.getElementById('m-target').innerText = ev.target;
       document.getElementById('m-type-badge').innerText = ev.event_type;
       document.getElementById('m-verdict-badge').innerText = ev.security_verdict;
       document.getElementById('m-verdict-badge').style.color = ev.security_verdict === 'Allowed' ? 'var(--accent-green)' : 'var(--accent-red)';
+
+      const alertBar = document.getElementById('inspector-alert-bar');
+      const alertReason = document.getElementById('inspector-alert-reason');
+      if (alertBar) {
+        if (ev.security_verdict && ev.security_verdict !== 'Allowed') {
+          alertBar.style.display = 'flex';
+          const reasons = Array.isArray(ev.security_reasons) && ev.security_reasons.length > 0
+            ? ev.security_reasons.join('; ')
+            : 'Policy rule violation (' + ev.security_verdict + ')';
+          if (alertReason) alertReason.innerText = reasons;
+        } else {
+          alertBar.style.display = 'none';
+        }
+      }
 
       document.getElementById('d-timestamp').innerText = ev.timestamp;
       document.getElementById('d-latency').innerText = ev.duration_ms ? ev.duration_ms.toFixed(2) + ' ms' : 'N/A';
@@ -2734,6 +2825,212 @@
         card.style.display = 'block';
         resModel.innerText = 'Error';
         resReasoning.innerText = 'Arbitration test failed: ' + e.message;
+      }
+    }
+
+    // --- SECURITY ALERTS TRIAGE, INSPECTION & RESET ---
+    let cachedModalAlerts = [];
+    let showingAlertHistory = false;
+
+    function openAlertsModal() {
+      const modal = document.getElementById('alerts-modal');
+      if (modal) modal.classList.add('show');
+      loadAlertsModalList(showingAlertHistory);
+    }
+
+    async function loadAlertsModalList(includeAcked) {
+      showingAlertHistory = !!includeAcked;
+      const btnAct = document.getElementById('btn-alerts-active');
+      const btnHist = document.getElementById('btn-alerts-history');
+      if (btnAct) btnAct.classList.toggle('active', !showingAlertHistory);
+      if (btnHist) btnHist.classList.toggle('active', showingAlertHistory);
+
+      const tbody = document.getElementById('alerts-modal-body');
+      const countEl = document.getElementById('alerts-modal-count');
+      if (!tbody) return;
+
+      try {
+        const res = await fetch('/api/v1/alerts?include_acked=' + (showingAlertHistory ? 'true' : 'false'));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        cachedModalAlerts = await res.json();
+        if (countEl) {
+          countEl.innerText = `${cachedModalAlerts.length} ${showingAlertHistory ? 'total historical' : 'active'} alert(s)`;
+        }
+
+        if (cachedModalAlerts.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 28px; color: #3fb950;">
+            ✓ Zero active security violations! Click <strong>"All Alert History"</strong> or <strong>"Restore Dismissed History"</strong> to view past resolved alerts.
+          </td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = cachedModalAlerts.map((ev, idx) => {
+          const ts = ev.timestamp ? (ev.timestamp.split('T')[1]?.substring(0, 8) || ev.timestamp) : '-';
+          const reasons = Array.isArray(ev.security_reasons) && ev.security_reasons.length > 0
+            ? ev.security_reasons.join('; ')
+            : 'Blocked by sandbox rule';
+          const statusBadge = ev.acknowledged
+            ? '<span class="badge" style="background: rgba(139,148,158,0.2); color: #8b949e; border: 1px solid #30363d;">✓ DISMISSED</span>'
+            : '<span class="badge" style="background: rgba(248,81,73,0.2); color: #ff7b72; border: 1px solid #f85149;">🔴 ACTIVE</span>';
+          const ackBtn = ev.acknowledged
+            ? ''
+            : `<button class="copy-btn" style="padding: 2px 7px; font-size: 10px; border-color: #3fb950; color: #3fb950;" onclick="ackAlertById('${ev.event_id}')">✓ Dismiss</button>`;
+
+          return `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05); opacity: ${ev.acknowledged ? '0.68' : '1'};">
+            <td style="padding: 8px 10px; font-family: var(--font-mono);">${ts}</td>
+            <td style="padding: 8px 10px;"><strong style="color: #58a6ff;">${ev.node_id}</strong></td>
+            <td style="padding: 8px 10px;"><span class="tag tag-cmd">${ev.event_type}</span></td>
+            <td style="padding: 8px 10px; font-family: var(--font-mono); color: #fff; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${ev.target}">${ev.target}</td>
+            <td style="padding: 8px 10px; color: #ff7b72; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${reasons}"><strong>${ev.security_verdict}:</strong> ${reasons}</td>
+            <td style="padding: 8px 10px;">${statusBadge}</td>
+            <td style="padding: 8px 10px; text-align: right; white-space: nowrap; display: flex; gap: 4px; justify-content: flex-end;">
+              <button class="copy-btn" style="padding: 2px 7px; font-size: 10px;" onclick="inspectModalAlert(${idx})">🔍 Inspect</button>
+              ${ackBtn}
+              <button class="copy-btn" style="padding: 2px 7px; font-size: 10px; border-color: #58a6ff; color: #58a6ff;" onclick="whitelistModalAlert(${idx})">🛡️ Whitelist</button>
+              <button class="copy-btn" style="padding: 2px 7px; font-size: 10px; border-color: #d29922; color: #e3b341;" onclick="sandboxAlertAgent('${ev.node_id}')">🛑 Lock Agent</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: #f85149;">Failed to load alerts: ${e.message}</td></tr>`;
+      }
+    }
+
+    function inspectModalAlert(idx) {
+      const ev = cachedModalAlerts[idx];
+      if (!ev) return;
+      inspectEvent(ev);
+    }
+
+    async function ackAlertById(eventId) {
+      if (!eventId) return;
+      try {
+        await fetch('/api/v1/alerts/ack', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify({ event_id: eventId })
+        });
+        await fetchSummary();
+        await fetchAnalytics();
+        await loadAlertsModalList(showingAlertHistory);
+      } catch (e) {
+        console.error('Ack alert error:', e);
+      }
+    }
+
+    async function resetAllAlertsNow() {
+      try {
+        const res = await fetch('/api/v1/alerts/reset', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify({ restore: false })
+        });
+        if (res.ok) {
+          await fetchSummary();
+          await fetchAnalytics();
+          const modal = document.getElementById('alerts-modal');
+          if (modal && modal.classList.contains('show')) {
+            await loadAlertsModalList(showingAlertHistory);
+          }
+        }
+      } catch (e) {
+        console.error('Reset alerts error:', e);
+      }
+    }
+
+    async function restoreAllAlertsNow() {
+      try {
+        const res = await fetch('/api/v1/alerts/reset', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify({ restore: true })
+        });
+        if (res.ok) {
+          await fetchSummary();
+          await fetchAnalytics();
+          await loadAlertsModalList(false);
+        }
+      } catch (e) {
+        console.error('Restore alerts error:', e);
+      }
+    }
+
+    async function filterAlertsInStream() {
+      document.querySelectorAll('#node-filters .filter-pill').forEach(btn => {
+        btn.classList.toggle('active', btn.innerText.includes('Security Alerts'));
+      });
+      try {
+        const res = await fetch('/api/v1/alerts?include_acked=true');
+        if (res.ok) {
+          allEvents = await res.json();
+          renderFilteredEvents();
+        }
+      } catch (e) {
+        console.error('Filter alerts error:', e);
+      }
+    }
+
+    async function ackCurrentInspectedAlert() {
+      if (!currentInspectedEvent || !currentInspectedEvent.event_id) return;
+      await ackAlertById(currentInspectedEvent.event_id);
+      document.getElementById('event-modal').classList.remove('show');
+    }
+
+    function whitelistModalAlert(idx) {
+      const ev = cachedModalAlerts[idx];
+      if (!ev) return;
+      whitelistAlertEvent(ev);
+    }
+
+    function whitelistCurrentInspectedAlert() {
+      if (!currentInspectedEvent) return;
+      whitelistAlertEvent(currentInspectedEvent);
+    }
+
+    function whitelistAlertEvent(ev) {
+      document.getElementById('event-modal').classList.remove('show');
+      document.getElementById('alerts-modal').classList.remove('show');
+      openGovernanceModal('policies');
+      setTimeout(() => {
+        const agInput = document.getElementById('gov-agent-id');
+        const readInput = document.getElementById('gov-read-whitelist');
+        const writeInput = document.getElementById('gov-write-whitelist');
+        if (agInput) agInput.value = ev.node_id || '*';
+        if (ev.event_type === 'FileWrite' && writeInput) {
+          writeInput.value = writeInput.value ? (writeInput.value + ', ' + ev.target) : ev.target;
+        } else if (readInput) {
+          readInput.value = readInput.value ? (readInput.value + ', ' + ev.target) : ev.target;
+        }
+      }, 150);
+    }
+
+    function sandboxCurrentInspectedAgent() {
+      if (!currentInspectedEvent) return;
+      sandboxAlertAgent(currentInspectedEvent.node_id);
+    }
+
+    async function sandboxAlertAgent(agentId) {
+      if (!agentId) return;
+      const payload = {
+        agent_id: agentId,
+        enforcing: true,
+        read_whitelist: ['C:/cada/projects/agent_trace_gw/src/*'],
+        write_whitelist: [],
+        network_whitelist: ['127.0.0.1', 'localhost'],
+        blocked_patterns: ['.env', '.secrets', 'id_rsa', 'id_ed25519', 'credentials', '*']
+      };
+      try {
+        const res = await fetch('/api/v1/policy', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert(`Strict sandbox policy enforced on agent "${agentId}" (write permissions revoked).`);
+          fetchPolicies();
+        }
+      } catch (e) {
+        console.error('Sandbox agent error:', e);
       }
     }
 

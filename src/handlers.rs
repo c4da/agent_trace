@@ -72,8 +72,11 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/summary", get(get_summary))
         .route("/api/v1/ledger/verify", get(verify_ledger_handler))
         .route("/api/v1/stream", get(sse_handler))
-        // Telemetry Analytics & Sandbox Policy Endpoints
+        // Telemetry Analytics, Alerts & Sandbox Policy Endpoints
         .route("/api/v1/telemetry/analytics", get(get_analytics_handler))
+        .route("/api/v1/alerts", get(get_alerts_handler))
+        .route("/api/v1/alerts/ack", post(ack_alert_handler))
+        .route("/api/v1/alerts/reset", post(reset_alerts_handler))
         .route("/api/v1/policy", get(list_policies_handler).post(set_policy_handler))
         .route("/api/v1/policy/:agent_id", delete(delete_policy_handler))
         .route("/api/v1/policy/evaluate", post(evaluate_policy_handler))
@@ -387,3 +390,67 @@ pub async fn sse_handler(
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
+
+#[derive(serde::Deserialize, Default)]
+pub struct AlertsQuery {
+    pub include_acked: Option<bool>,
+}
+
+pub async fn get_alerts_handler(
+    State(state): State<AppState>,
+    Query(q): Query<AlertsQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
+    let include_acked = q.include_acked.unwrap_or(false);
+    let alerts = state
+        .db
+        .list_security_alerts(include_acked)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(alerts))
+}
+
+#[derive(serde::Deserialize)]
+pub struct AckAlertRequest {
+    pub event_id: String,
+}
+
+pub async fn ack_alert_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<AckAlertRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let updated = state
+        .db
+        .acknowledge_alert(&req.event_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(serde_json::json!({
+        "status": "acknowledged",
+        "event_id": req.event_id,
+        "updated": updated
+    })))
+}
+
+#[derive(serde::Deserialize, Default)]
+pub struct ResetAlertsRequest {
+    pub restore: Option<bool>,
+}
+
+pub async fn reset_alerts_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<ResetAlertsRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    if req.restore.unwrap_or(false) {
+        let count = state.db.restore_all_alerts().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        Ok(Json(serde_json::json!({ "status": "restored", "restored_count": count })))
+    } else {
+        let count = state.db.acknowledge_all_alerts().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        Ok(Json(serde_json::json!({ "status": "reset", "acknowledged_count": count })))
+    }
+}
+

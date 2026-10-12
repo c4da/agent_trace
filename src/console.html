@@ -619,9 +619,10 @@
         <span class="label">BLOCKS:</span>
         <span class="value" id="stat-blocks">0</span>
       </div>
-      <div class="telemetry-item">
+      <div class="telemetry-item" style="cursor: pointer;" onclick="setScenario('blocked')" title="Click to inspect all security alerts">
         <span class="label">ALERTS:</span>
-        <span class="value alerts" id="stat-alerts">0</span>
+        <span class="value alerts" id="stat-alerts" style="text-decoration: underline;">0</span>
+        <button class="term-btn" style="padding: 1px 5px; font-size: 10px; margin-left: 4px; border-color: #3fb950; color: #3fb950;" onclick="resetConsoleAlerts(event)" title="Acknowledge & reset active alert count to 0">✓ Reset</button>
       </div>
       <div class="telemetry-item">
         <span class="label">HEAD:</span>
@@ -955,14 +956,34 @@
     let flaggedEventIds = new Set();
 
     // 4. Filter & Scenario Logic
-    function setScenario(scenario) {
+    async function setScenario(scenario) {
       activeScenario = scenario;
       document.querySelectorAll('.scenario-tab').forEach(tab => tab.classList.remove('active'));
       const activeBtn = Array.from(document.querySelectorAll('.scenario-tab')).find(b => b.textContent.toLowerCase().includes(scenario));
       if (activeBtn) activeBtn.classList.add('active');
 
       const filterInput = document.getElementById('filter-input');
-      if (scenario === 'blocked') filterInput.value = 'verdict:Blocked';
+      if (scenario === 'blocked') {
+        filterInput.value = 'verdict:Blocked';
+        try {
+          const res = await fetch('/api/v1/alerts?include_acked=true');
+          if (res.ok) {
+            const alertEvents = await res.json();
+            const existingIds = new Set(events.map(e => e.event_id));
+            alertEvents.forEach(ae => {
+              if (!existingIds.has(ae.event_id)) {
+                events.push(ae);
+              } else {
+                const idx = events.findIndex(x => x.event_id === ae.event_id);
+                if (idx >= 0) events[idx] = ae;
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error loading alerts:', err);
+        }
+        switchInspTab('policy');
+      }
       else if (scenario === 'diffs') filterInput.value = 'type:FileWrite';
       else if (scenario === 'commands') filterInput.value = 'type:CommandRun';
       else if (scenario === 'routing') filterInput.value = 'type:Route';
@@ -986,6 +1007,9 @@
 
         if (q.startsWith('verdict:')) {
           const v = q.replace('verdict:', '').trim();
+          if (v === 'blocked') {
+            return (ev.security_verdict || 'Allowed').toLowerCase() !== 'allowed';
+          }
           return (ev.security_verdict || '').toLowerCase().includes(v);
         }
         if (q.startsWith('type:')) {
@@ -1029,14 +1053,16 @@
 
         let verdictClass = 'verdict-allowed';
         if (verdict === 'Blocked') verdictClass = 'verdict-blocked';
-        else if (verdict === 'Warn') verdictClass = 'verdict-warn';
+        else if (verdict !== 'Allowed') verdictClass = 'verdict-warn';
+
+        const ackLabel = ev.acknowledged ? ' <span style="color:#8b949e;font-size:10px;">[ACK]</span>' : '';
 
         row.innerHTML = `
           <span class="col-time">${flagIcon}${timeStr}</span>
           <span class="col-node" title="${nodeStr}">${nodeStr}</span>
           <span class="col-type">${typeStr}</span>
           <span><span class="badge-verdict ${verdictClass}">${verdict}</span></span>
-          <span class="col-target" title="${escapeHtml(targetStr)}">${escapeHtml(targetStr)}</span>
+          <span class="col-target" title="${escapeHtml(targetStr)}">${escapeHtml(targetStr)}${ackLabel}</span>
           <span class="col-hash">${hashStr}</span>
         `;
 
@@ -1157,24 +1183,95 @@
       const reasons = Array.isArray(ev.security_reasons) && ev.security_reasons.length > 0 
         ? ev.security_reasons.join(', ') 
         : 'Standard Execution (No Guardrail Violations)';
+      const isAlert = ev.security_verdict && ev.security_verdict !== 'Allowed';
+      const statusText = ev.acknowledged
+        ? '✓ Acknowledged / Dismissed'
+        : (isAlert ? '🔴 Active Security Alert' : '✓ Normal');
 
       container.innerHTML = `
         <div class="proof-grid">
           <div class="proof-key">VERDICT:</div>
-          <div class="proof-val" style="font-weight: bold; color: ${ev.security_verdict === 'Blocked' ? 'var(--accent-red)' : 'var(--accent-green)'}">
+          <div class="proof-val" style="font-weight: bold; color: ${isAlert ? 'var(--accent-red)' : 'var(--accent-green)'}">
             ${escapeHtml(ev.security_verdict || 'Allowed')}
+          </div>
+
+          <div class="proof-key">TRIAGE STATUS:</div>
+          <div class="proof-val" style="color: ${ev.acknowledged ? 'var(--text-muted)' : (isAlert ? '#ff7b72' : 'var(--accent-green)')}">
+            ${statusText}
           </div>
 
           <div class="proof-key">REASONS:</div>
           <div class="proof-val">${escapeHtml(reasons)}</div>
 
-          <div class="proof-key">BLAST RADIUS:</div>
-          <div class="proof-val">${ev.duration_ms ? ev.duration_ms + ' ms runtime' : 'Controlled'}</div>
+          <div class="proof-key">TARGET:</div>
+          <div class="proof-val" style="font-family: var(--font-mono);">${escapeHtml(ev.target || '-')}</div>
         </div>
-        <div style="margin-top: 14px;">
-          <button class="term-btn" onclick="quickSetPolicy('${ev.node_id}', 'StrictSandbox')">🛡️ Enforce Strict Sandbox on ${escapeHtml(ev.node_id || 'Agent')}</button>
+        <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px;">
+          ${isAlert && !ev.acknowledged ? `<button class="term-btn" style="border-color: #3fb950; color: #3fb950;" onclick="ackConsoleAlert('${ev.event_id}')">✓ Dismiss This Alert</button>` : ''}
+          <button class="term-btn" style="border-color: #3fb950; color: #7ee787;" onclick="resetConsoleAlerts()">✓ Reset All Alerts (0)</button>
+          <button class="term-btn" onclick="restoreConsoleAlerts()">↺ Restore Dismissed</button>
+          <button class="term-btn" style="border-color: #f85149; color: #ff7b72;" onclick="quickSetPolicy('${ev.node_id}', 'StrictSandbox')">🛑 Strict Sandbox ${escapeHtml(ev.node_id || 'Agent')}</button>
         </div>
       `;
+    }
+
+    async function ackConsoleAlert(eventId) {
+      if (!eventId) return;
+      try {
+        await fetch('/api/v1/alerts/ack', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_id: eventId })
+        });
+        const ev = events.find(x => x.event_id === eventId);
+        if (ev) ev.acknowledged = true;
+        await fetchSummary();
+        renderRows();
+        if (selectedEventIndex >= 0 && filteredEvents[selectedEventIndex]) {
+          renderInspector(filteredEvents[selectedEventIndex]);
+        }
+      } catch (e) {
+        console.error('Ack alert error:', e);
+      }
+    }
+
+    async function resetConsoleAlerts(e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      try {
+        await fetch('/api/v1/alerts/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ restore: false })
+        });
+        events.forEach(ev => {
+          if (ev.security_verdict && ev.security_verdict !== 'Allowed') ev.acknowledged = true;
+        });
+        await fetchSummary();
+        renderRows();
+        if (selectedEventIndex >= 0 && filteredEvents[selectedEventIndex]) {
+          renderInspector(filteredEvents[selectedEventIndex]);
+        }
+      } catch (err) {
+        console.error('Reset alerts error:', err);
+      }
+    }
+
+    async function restoreConsoleAlerts() {
+      try {
+        await fetch('/api/v1/alerts/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ restore: true })
+        });
+        events.forEach(ev => { ev.acknowledged = false; });
+        await fetchSummary();
+        renderRows();
+        if (selectedEventIndex >= 0 && filteredEvents[selectedEventIndex]) {
+          renderInspector(filteredEvents[selectedEventIndex]);
+        }
+      } catch (err) {
+        console.error('Restore alerts error:', err);
+      }
     }
 
     // 7. Ledger Verification
@@ -1187,7 +1284,7 @@
       try {
         const res = await fetch('/api/v1/ledger/verify');
         const data = await res.json();
-        if (data.valid) {
+        if (data.valid || data.is_valid) {
           body.innerHTML = `
             <div style="color: var(--accent-green); font-size: 14px; font-weight: bold; margin-bottom: 10px;">
               ✓ LEDGER INTEGRITY VERIFIED (TAMPER-FREE)
@@ -1198,7 +1295,7 @@
               <div class="proof-key">GENESIS:</div>
               <div class="proof-val">${escapeHtml((data.genesis_hash || '').substring(0, 32))}...</div>
               <div class="proof-key">HEAD HASH:</div>
-              <div class="proof-val">${escapeHtml((data.head_hash || '').substring(0, 32))}...</div>
+              <div class="proof-val">${escapeHtml((data.head_hash || data.latest_block_hash || '').substring(0, 32))}...</div>
               <div class="proof-key">SIGNATURES:</div>
               <div class="proof-val">Ed25519 Node Signatures Verified</div>
             </div>
@@ -1207,9 +1304,9 @@
         } else {
           body.innerHTML = `
             <div style="color: var(--accent-red); font-size: 14px; font-weight: bold;">
-              ⚠ INTEGRITY CHECK FAILED (BROKEN BLOCK: ${data.broken_at_block || 'UNKNOWN'})
+              ⚠ INTEGRITY CHECK FAILED (BROKEN BLOCK: ${data.broken_at_block || data.broken_block_id || 'UNKNOWN'})
             </div>
-            <p style="color: var(--accent-red);">Hash chain mismatch detected at block ID: ${data.broken_at_block}</p>
+            <p style="color: var(--accent-red);">Hash chain mismatch detected at block ID: ${data.broken_at_block || data.broken_block_id}</p>
           `;
         }
       } catch (err) {
@@ -1242,6 +1339,14 @@
         triggerLedgerVerification();
       } else if (cmd === ':pause' || cmd === ':p') {
         togglePause();
+      } else if (cmd === ':alerts' || cmd === ':blocked') {
+        setScenario('blocked');
+      } else if (cmd === ':reset' || cmd === ':clear-alerts') {
+        resetConsoleAlerts();
+      } else if (cmd === ':restore-alerts') {
+        restoreConsoleAlerts();
+      } else if (cmd === ':ack' && selectedEventId) {
+        ackConsoleAlert(selectedEventId);
       } else if (cmd === ':tail') {
         if (filteredEvents.length > 0) selectEvent(0);
       } else if (cmd.startsWith(':filter ') || cmd.startsWith('/')) {

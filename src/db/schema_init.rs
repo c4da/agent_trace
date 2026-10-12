@@ -36,6 +36,11 @@ pub fn init_tables(conn: &Connection) -> SqliteResult<()> {
              status TEXT NOT NULL,
              last_seen TEXT NOT NULL,
              public_key TEXT
+         );
+
+         CREATE TABLE IF NOT EXISTS alert_acks (
+             event_id TEXT PRIMARY KEY,
+             acked_at TEXT NOT NULL
          );",
     )
 }
