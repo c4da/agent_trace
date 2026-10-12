@@ -156,7 +156,7 @@ pub fn default_cluster_zones() -> Vec<ContainmentZone> {
         ContainmentZone {
             zone_id: "zone-vault-ssh".to_string(),
             name: "Host SSH & Crypto Keys".to_string(),
-            path_prefix: "c:/users/milos/.ssh".to_string(),
+            path_prefix: "*.ssh*".to_string(),
             kind: ZoneKind::VaultNoAccess,
             applies_to: "*".to_string(),
             exempt_agents: vec![],
