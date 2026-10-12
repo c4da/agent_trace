@@ -105,15 +105,14 @@ pub fn infer_feature_topic(ev: &TraceEvent) -> String {
         || combined.contains("chat/completions")
     {
         "Prompt Hub, Routing & SDK".to_string()
-    } else if combined.contains("strux")
-        || combined.contains("rustcad")
+    } else if combined.contains("core-repo")
         || combined.contains("cad")
         || combined.contains("fem")
         || combined.contains("mesh")
         || combined.contains("camera.rs")
         || combined.contains("extrude")
     {
-        "CAD & Geometry Engine (Strux)".to_string()
+        "Core Engine & Math".to_string()
     } else if combined.contains("test")
         || combined.contains("cargo check")
         || combined.contains("assert")
@@ -482,8 +481,8 @@ mod tests {
         let ev_hub = make_event("PC-1", EventType::LlmInference, "src/hub.rs", "router delegation", None, 10.0);
         assert_eq!(infer_feature_topic(&ev_hub), "Prompt Hub, Routing & SDK");
 
-        let ev_cad = make_event("PC-1-Antigravity", EventType::FileWrite, "C:/cada/projects/Strux/src/cad/extrude.rs", "", None, 10.0);
-        assert_eq!(infer_feature_topic(&ev_cad), "CAD & Geometry Engine (Strux)");
+        let ev_cad = make_event("PC-1-Antigravity", EventType::FileWrite, "/workspace/core-repo/src/cad/extrude.rs", "", None, 10.0);
+        assert_eq!(infer_feature_topic(&ev_cad), "Core Engine & Math");
 
         let ev_test = make_event("PC-2", EventType::CommandRun, "cargo test --workspace", "", None, 10.0);
         assert_eq!(infer_feature_topic(&ev_test), "Tests & Invariant Verification");

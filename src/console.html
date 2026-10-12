@@ -630,13 +630,15 @@
       </div>
     </div>
     <div class="top-actions">
-      <a href="/graph" class="term-btn" style="border-color: #bc8cff; color: #bc8cff;">🕸️ Graph (/graph)</a>
-      <a href="/dashboard" class="term-btn">📊 Visual Dashboard</a>
-      <button class="term-btn accent" onclick="triggerLedgerVerification()">⛓️ Verify (V)</button>
-      <button class="term-btn" onclick="togglePolicyModal()" title="Manual policy evaluation & rule editor">🛡️ Sandbox (M)</button>
-      <button class="term-btn" onclick="exportEvents('json')" title="Manually export filtered events to JSON">💾 JSON</button>
-      <button class="term-btn" onclick="exportEvents('csv')" title="Manually export filtered events to CSV">💾 CSV</button>
-      <button class="term-btn" id="btn-toggle-flag" onclick="toggleFlagCurrentEvent()" title="Pin/Flag current event for investigation">🚩 Flag (F)</button>
+      <a href="/dashboard" class="term-btn">Dashboard</a>
+      <a href="/policies" class="term-btn">Policies</a>
+      <a href="/workgroups" class="term-btn">Workgroups</a>
+      <a href="/graph" class="term-btn">Graph</a>
+      <button class="term-btn accent" onclick="triggerLedgerVerification()">Verify (V)</button>
+      <button class="term-btn" onclick="togglePolicyModal()" title="Manual policy evaluation & rule editor">Sandbox (M)</button>
+      <button class="term-btn" onclick="exportEvents('json')" title="Manually export filtered events to JSON">JSON</button>
+      <button class="term-btn" onclick="exportEvents('csv')" title="Manually export filtered events to CSV">CSV</button>
+      <button class="term-btn" id="btn-toggle-flag" onclick="toggleFlagCurrentEvent()" title="Pin/Flag current event for investigation">Flag (F)</button>
       <button class="term-btn" onclick="toggleHelpModal()">Help (?)</button>
     </div>
   </header>
@@ -829,7 +831,7 @@
             </select>
 
             <label class="proof-key">Target Path:</label>
-            <input type="text" id="eval-target" class="cmd-input" placeholder="e.g. C:\cada\projects\Strux\src\main.rs or .env" value="C:\cada\projects\hacking_road\playground\..\..\Strux\src\main.rs">
+            <input type="text" id="eval-target" class="cmd-input" placeholder="e.g. /workspace/core-repo/src/main.rs or .env" value="/workspace/playground/../core-repo/src/main.rs">
 
             <label class="proof-key">Agent ID:</label>
             <input type="text" id="eval-agent" class="cmd-input" placeholder="* or PC-2-Rogue-Subagent" value="PC-2-Rogue-Subagent">
@@ -861,7 +863,7 @@
               <label class="proof-key">Zone Name:</label>
               <input type="text" id="cz-name" class="cmd-input" placeholder="e.g. Core Repo Guard or Subagent Sandbox">
               <label class="proof-key">Path Prefix:</label>
-              <input type="text" id="cz-path" class="cmd-input" placeholder="C:\cada\projects\hacking_road\playground">
+              <input type="text" id="cz-path" class="cmd-input" placeholder="/workspace/playground">
               <label class="proof-key">Applies To:</label>
               <input type="text" id="cz-applies" class="cmd-input" value="*" placeholder="* (All Agents) or specific Agent ID">
               <label class="proof-key">Exempt Agents:</label>
@@ -884,10 +886,10 @@
             <input type="text" id="rule-blocked" class="cmd-input" value=".env, .secrets, id_rsa, id_ed25519, credentials">
 
             <label class="proof-key">Read Whitelist:</label>
-            <input type="text" id="rule-allowed" class="cmd-input" value="C:\cada\projects">
+            <input type="text" id="rule-allowed" class="cmd-input" value="/workspace, src, docs">
 
             <label class="proof-key">Write Whitelist:</label>
-            <input type="text" id="rule-write-allowed" class="cmd-input" value="C:\cada\projects\hacking_road\playground">
+            <input type="text" id="rule-write-allowed" class="cmd-input" value="/workspace/playground">
 
             <label class="proof-key">Playground Lock:</label>
             <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-main);">
@@ -1411,7 +1413,7 @@
             agent_id: agentId,
             rule_name: 'ConsoleQuickPolicy',
             sandbox_level: level,
-            allowed_directories: ['C:\\cada\\projects'],
+            allowed_directories: ['/workspace'],
             blocked_patterns: ['.env', 'id_rsa', '.aws']
           })
         });
@@ -1615,7 +1617,7 @@
           session_id: 'session-demo',
           timestamp: new Date().toISOString(),
           event_type: 'CommandRun',
-          target: 'rm -rf C:\\cada\\projects\\hacking_road',
+          target: 'rm -rf /workspace/core-repo',
           action_details: { tool: 'run_command', summary: 'Destructive deletion blocked by active sandbox' },
           diff: null,
           provenance_sources: [],
@@ -1633,9 +1635,9 @@
       } else if (type === 'zone_containment') {
         document.getElementById('sc-card-title').textContent = '☣️ DEMO 6: SAFE ZONE VAULTS vs. DANGER ZONE PLAYGROUND CONFINEMENT';
         document.getElementById('sc-problem-desc').textContent =
-          'Flat whitelists let an agent working in a scratch folder overwrite core repos (like Strux) or escape via ../ path traversal.';
+          'Flat whitelists let an agent working in a scratch folder overwrite core production repos or escape via ../ path traversal.';
         document.getElementById('sc-action-desc').textContent =
-          'Gateway locks the agent to the Danger Zone Playground (c:/cada/projects/hacking_road/playground): writes inside succeed, while a ../ escape into Strux Safe Zone is BLOCKED.';
+          'Gateway locks the agent to the Danger Zone Playground (/workspace/playground): writes inside succeed, while a ../ escape into the Guarded Core Safe Zone is BLOCKED.';
         document.getElementById('sc-value-desc').textContent =
           'Designate Guarded Safe Zones (No-Access Vaults / Read-Only Repos) and Danger Zone Playgrounds enforced for all (*) or specific agents.';
 
@@ -1650,7 +1652,7 @@
           body: JSON.stringify({
             node_id: 'PC-2-Rogue-Subagent',
             event_type: 'FileWrite',
-            target: 'C:/cada/projects/hacking_road/playground/sandbox_experiment.py',
+            target: '/workspace/playground/sandbox_experiment.py',
             diff: '@@ -0,0 +1,2 @@\n+# Danger Zone Playground Experiment\n+print("Allowed inside isolated Agent Playground!")\n',
             action_details: { tool: 'write_to_file', summary: 'Write inside allowed Danger Zone Playground' },
             duration_ms: 2.4
@@ -1662,8 +1664,8 @@
           body: JSON.stringify({
             node_id: 'PC-2-Rogue-Subagent',
             event_type: 'FileWrite',
-            target: 'C:/cada/projects/hacking_road/playground/../../Strux/src/main.rs',
-            action_details: { tool: 'replace_file_content', summary: 'Attempt ../ path traversal out of Playground into Guarded Strux Safe Zone' },
+            target: '/workspace/playground/../core-repo/src/main.rs',
+            action_details: { tool: 'replace_file_content', summary: 'Attempt ../ path traversal out of Playground into Guarded Core Safe Zone' },
             duration_ms: 1.1
           })
         });

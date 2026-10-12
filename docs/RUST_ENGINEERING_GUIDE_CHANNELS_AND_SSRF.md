@@ -1,7 +1,7 @@
 # Mastering Async Rust Systems: Actor Channels, Bounded Backpressure, and Zero-Trust Origin Security
 
 **A Production Engineering Guide for Systems & Gateway Developers**  
-**Repository:** `agent_trace_gw` (`C:\cada\projects\agent_trace_gw`)  
+**Repository:** `agent_trace_gw`  
 **Architecture Role:** Antigravity Systems Architect & Local Model Council  
 
 ---

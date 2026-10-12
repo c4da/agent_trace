@@ -132,6 +132,38 @@ async fn test_http_dashboard_and_static_routes() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
+    // 2a-1. GET /policies (Dedicated Policies, Whitelists & Containment Zones Page)
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/policies")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    let body_str = String::from_utf8_lossy(&body);
+    assert!(body_str.contains("POLICY &amp; WHITELIST FIREWALL"));
+
+    // 2a-2. GET /workgroups (Dedicated Drag-and-Drop Agent & .MD Mesh Page)
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/workgroups")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    let body_str = String::from_utf8_lossy(&body);
+    assert!(body_str.contains("PROBLEM WORKGROUPS &amp; AGENT MESH BUILDER"));
+
     // 2b. GET /console (Terminal Console UI)
     let res = app
         .clone()

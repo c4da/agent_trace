@@ -50,7 +50,13 @@ pub struct PlaygroundConfinementRequest {
 pub fn resolve_canonical_target(raw: &str) -> String {
     let mut s = raw.trim().to_string();
     if s.starts_with("file:///") {
-        s = s[8..].to_string();
+        // Windows file:///C:/foo -> C:/foo; Unix file:///workspace/foo -> /workspace/foo
+        let after = &s[8..];
+        if after.chars().nth(1) == Some(':') {
+            s = after.to_string();
+        } else {
+            s = s[7..].to_string();
+        }
     } else if s.starts_with("file://") {
         s = s[7..].to_string();
     }
@@ -147,7 +153,7 @@ pub fn default_cluster_zones() -> Vec<ContainmentZone> {
         ContainmentZone {
             zone_id: "zone-vault-secrets".to_string(),
             name: "Credentials & Secrets Vault".to_string(),
-            path_prefix: "c:/cada/projects/.secrets".to_string(),
+            path_prefix: "/workspace/.secrets".to_string(),
             kind: ZoneKind::VaultNoAccess,
             applies_to: "*".to_string(),
             exempt_agents: vec![],
@@ -163,9 +169,9 @@ pub fn default_cluster_zones() -> Vec<ContainmentZone> {
             description: "Strict No-Access Vault preventing any agent from reading SSH keys.".to_string(),
         },
         ContainmentZone {
-            zone_id: "zone-guarded-strux".to_string(),
-            name: "Strux Core CAD/FEM Repository".to_string(),
-            path_prefix: "c:/cada/projects/strux".to_string(),
+            zone_id: "zone-guarded-core".to_string(),
+            name: "Core Production Repository".to_string(),
+            path_prefix: "/workspace/core-repo".to_string(),
             kind: ZoneKind::GuardedReadOnly,
             applies_to: "*".to_string(),
             exempt_agents: vec!["PC-1-Antigravity".to_string()],
@@ -173,8 +179,8 @@ pub fn default_cluster_zones() -> Vec<ContainmentZone> {
         },
         ContainmentZone {
             zone_id: "zone-playground-lab".to_string(),
-            name: "Hacking Road Agent Playground".to_string(),
-            path_prefix: "c:/cada/projects/hacking_road/playground".to_string(),
+            name: "Agent Experiment Playground".to_string(),
+            path_prefix: "/workspace/playground".to_string(),
             kind: ZoneKind::AgentPlayground,
             applies_to: "*".to_string(),
             exempt_agents: vec![],
@@ -183,7 +189,7 @@ pub fn default_cluster_zones() -> Vec<ContainmentZone> {
         ContainmentZone {
             zone_id: "zone-playground-sandbox".to_string(),
             name: "Cluster Temp Sandbox".to_string(),
-            path_prefix: "c:/cada/projects/sandbox".to_string(),
+            path_prefix: "/workspace/sandbox".to_string(),
             kind: ZoneKind::AgentPlayground,
             applies_to: "*".to_string(),
             exempt_agents: vec![],

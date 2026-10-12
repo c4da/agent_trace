@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrace // Policies, Whitelists &amp; Containment Zones</title>
+  <style>
+    :root {
+      --bg-base: #0b0e14;
+      --bg-panel: #11161f;
+      --bg-elevated: #161c28;
+      --bg-input: #090c10;
+      --border: #222936;
+      --border-focus: #3b82f6;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #3b82f6;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+
+    /* Unified Top Navigation Bar */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      height: 48px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      color: var(--text-main);
+    }
+    .brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      transition: all 0.12s ease;
+    }
+    .nav-link:hover {
+      color: var(--text-main);
+      background: var(--bg-elevated);
+    }
+    .nav-link.active {
+      color: var(--text-main);
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.4);
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 18px 20px 40px;
+    }
+
+    /* Page Header & Evaluation Order Pipeline */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .page-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+    .page-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .pipeline-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 960px) {
+      .pipeline-bar { grid-template-columns: 1fr; }
+    }
+    .pipeline-step {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 4px;
+      padding: 10px 14px;
+    }
+    .pipeline-step.step-deny { border-left-color: var(--red); }
+    .pipeline-step.step-zone { border-left-color: var(--amber); }
+    .pipeline-step.step-allow { border-left-color: var(--green); }
+    .step-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .step-desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    /* Buttons & Inputs */
+    .btn {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover {
+      border-color: var(--text-muted);
+      background: #1e2636;
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+    .btn-danger {
+      color: var(--red);
+      border-color: rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .btn-danger:hover {
+      border-color: var(--red);
+      background: rgba(239, 68, 68, 0.16);
+    }
+    .btn-sm {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    input[type="text"], select {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      outline: none;
+    }
+    input[type="text"]:focus, select:focus {
+      border-color: var(--border-focus);
+    }
+
+    /* Section Panels */
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .panel-title {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-body {
+      padding: 16px;
+    }
+
+    /* Dry-Run Evaluator Bar */
+    .eval-grid {
+      display: grid;
+      grid-template-columns: 180px 150px 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    @media (max-width: 900px) {
+      .eval-grid { grid-template-columns: 1fr; }
+    }
+    .preset-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    /* Agent Policy Cards (Un-truncated, Full Visibility) */
+    .policy-cards-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .policy-card {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .policy-card.global-policy {
+      border-left: 3px solid var(--accent);
+    }
+    .policy-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .agent-badge {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-pill {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .pill-enforcing {
+      color: var(--green);
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+    .pill-audit {
+      color: var(--amber);
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+    .pill-confined {
+      color: var(--red);
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+
+    .whitelist-columns {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 1200px) {
+      .whitelist-columns { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 700px) {
+      .whitelist-columns { grid-template-columns: 1fr; }
+    }
+    .wl-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .wl-box.wl-read { border-top: 2px solid var(--accent); }
+    .wl-box.wl-write { border-top: 2px solid var(--green); }
+    .wl-box.wl-net { border-top: 2px solid var(--text-muted); }
+    .wl-box.wl-block { border-top: 2px solid var(--red); }
+
+    .wl-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .wl-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 10px;
+      min-height: 32px;
+      align-content: flex-start;
+    }
+    .wl-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 2px 7px;
+      border-radius: 3px;
+      word-break: break-all;
+    }
+    .wl-chip.chip-block {
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+    .chip-remove {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      padding: 0 2px;
+    }
+    .chip-remove:hover {
+      color: var(--red);
+    }
+    .wl-add-row {
+      display: flex;
+      gap: 4px;
+    }
+    .wl-add-row input {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 7px;
+      font-size: 11px;
+    }
+
+    /* Containment Zones Table */
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    th, td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+    th {
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    .zone-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .zone-vault {
+      color: var(--red);
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+    .zone-guarded {
+      color: var(--amber);
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+    .zone-playground {
+      color: var(--green);
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Unified Top Navigation Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span>AGENTTRACE // POLICY &amp; WHITELIST FIREWALL</span>
+    </div>
+    <nav class="nav-links">
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+      <a href="/policies" class="nav-link active">Policies &amp; Whitelists</a>
+      <a href="/workgroups" class="nav-link">Workgroups Mesh</a>
+      <a href="/graph" class="nav-link">Contribution Graph</a>
+      <a href="/console" class="nav-link">Terminal TUI</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Filesystem Whitelists, Blacklists &amp; Spatial Containment Zones</div>
+        <div class="page-subtitle">Deterministic 3-stage access evaluation for every agent tool touchpoint (`FileRead`, `FileWrite`, `CommandRun`, `NetworkPull`). Zero truncated columns—edit any whitelist chip inline.</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn" onclick="loadAllPolicyState()">Refresh State</button>
+        <button class="btn btn-primary" onclick="document.getElementById('new-agent-id').focus()">+ New Agent Policy</button>
+      </div>
+    </div>
+
+    <!-- 3-Stage Evaluation Pipeline Explainer -->
+    <div class="pipeline-bar">
+      <div class="pipeline-step step-deny">
+        <div class="step-label">
+          <span>Stage 1 // Blocked Patterns &amp; Vaults</span>
+          <span style="color: var(--red);">PRIORITY 1 (DENY)</span>
+        </div>
+        <div class="step-desc">Canonicalizes path (`..` collapsed) and checks `Blocked Patterns` (`.env`, `.secrets`, `id_rsa`) and `VaultNoAccess` zones. Match = immediate BLOCK.</div>
+      </div>
+      <div class="pipeline-step step-zone">
+        <div class="step-label">
+          <span>Stage 2 // Spatial Containment Zones</span>
+          <span style="color: var(--amber);">PRIORITY 2 (BOUNDARY)</span>
+        </div>
+        <div class="step-desc">Enforces `GuardedReadOnly` repositories (Read allowed, Write blocked unless exempt) and locks confined agents strictly inside `AgentPlayground` directories.</div>
+      </div>
+      <div class="pipeline-step step-allow">
+        <div class="step-label">
+          <span>Stage 3 // Agent Read / Write / Net Whitelists</span>
+          <span style="color: var(--green);">PRIORITY 3 (ALLOWLIST)</span>
+        </div>
+        <div class="step-desc">Checks the agent's explicit policy (or falls back to Global `*`). Target must match `Read Whitelist`, `Write Whitelist`, or `Network Allowlist` to proceed.</div>
+      </div>
+    </div>
+
+    <!-- Panel 1: Dry-Run Policy & Zone Evaluator -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>1. Dry-Run Policy &amp; Path Traversal Evaluator</span>
+        </div>
+        <span style="font-family: var(--mono); font-size: 11px; color: var(--text-muted);">POST /api/v1/policy/evaluate</span>
+      </div>
+      <div class="panel-body">
+        <div class="eval-grid">
+          <div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; font-family: var(--mono);">AGENT ID</div>
+            <input type="text" id="eval-agent" value="PC-2-Worker" placeholder="* or agent ID" style="width: 100%;">
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; font-family: var(--mono);">ACTION</div>
+            <select id="eval-action" style="width: 100%;">
+              <option value="Read">Read</option>
+              <option value="Write" selected>Write</option>
+              <option value="Execute">Execute</option>
+              <option value="NetworkPull">NetworkPull</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; font-family: var(--mono);">TARGET PATH / COMMAND / URL</div>
+            <input type="text" id="eval-target" value="/workspace/core-repo/src/main.rs" placeholder="/workspace/..." style="width: 100%;">
+          </div>
+          <div style="padding-top: 18px;">
+            <button class="btn btn-primary" onclick="evaluateTarget()">Test Rule</button>
+          </div>
+        </div>
+
+        <div class="preset-row">
+          <span style="font-family: var(--mono); font-size: 11px; color: var(--text-dim);">Quick Test Scenarios:</span>
+          <button class="btn btn-sm" onclick="runPreset('PC-2-Worker', 'Read', '/workspace/.secrets/api_tokens.env')">1. Read Secrets Vault (.env)</button>
+          <button class="btn btn-sm" onclick="runPreset('PC-2-Worker', 'Write', '/workspace/core-repo/src/lib.rs')">2. Subagent Write to Guarded Repo</button>
+          <button class="btn btn-sm" onclick="runPreset('PC-1-Antigravity', 'Write', '/workspace/core-repo/src/lib.rs')">3. Exempt Lead Architect Write</button>
+          <button class="btn btn-sm" onclick="runPreset('PC-2-Rogue-Subagent', 'Write', '/workspace/playground/../core-repo/src/main.rs')">4. ../ Path Traversal Escape</button>
+          <button class="btn btn-sm" onclick="runPreset('PC-2-Worker', 'Write', '/workspace/playground/experiment.py')">5. Allowed Playground Write</button>
+        </div>
+
+        <div id="eval-output" style="display: none; margin-top: 12px; padding: 10px 14px; border-radius: 4px; font-family: var(--mono); font-size: 12px;"></div>
+      </div>
+    </section>
+
+    <!-- Panel 2: Agent Whitelists & Blacklists (Full-Row, Chip-Editable) -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>2. Agent Whitelists &amp; Blacklists</span>
+          <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;" id="policies-count-label">(Loading...)</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <input type="text" id="new-agent-id" placeholder="New Agent ID (e.g. copilot-cli)" style="width: 210px;">
+          <button class="btn btn-primary" onclick="createNewAgentPolicy()">+ Create Agent Policy</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="policy-cards-container" class="policy-cards-grid"></div>
+      </div>
+    </section>
+
+    <!-- Panel 3: Spatial Containment Zones -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>3. Spatial Containment Zones (Safe Zones vs. Agent Playgrounds)</span>
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn btn-sm" onclick="setAgentConfinement('PC-2-Rogue-Subagent', true)">Confine PC-2-Rogue-Subagent to Playgrounds</button>
+          <button class="btn btn-sm btn-danger" onclick="setAgentConfinement('*', true)">Confine ALL (*) to Playgrounds</button>
+          <button class="btn btn-sm" onclick="setAgentConfinement('*', false)">Unconfine ALL (*)</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" style="margin-bottom: 16px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Zone Type</th>
+                <th>Zone ID &amp; Name</th>
+                <th>Canonical Path Prefix</th>
+                <th>Applies To</th>
+                <th>Exempt Agents</th>
+                <th>Description</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="zones-table-body">
+              <tr><td colspan="7" style="color: var(--text-muted);">Loading containment zones...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Add Zone Inline Bar -->
+        <div style="background: var(--bg-base); border: 1px solid var(--border); border-radius: 4px; padding: 12px;">
+          <div style="font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">+ Add Spatial Containment Zone</div>
+          <div style="display: grid; grid-template-columns: 200px 180px 1fr 130px 160px auto; gap: 8px; align-items: center;">
+            <select id="zone-kind">
+              <option value="VaultNoAccess">VaultNoAccess (No Read/Write)</option>
+              <option value="GuardedReadOnly">GuardedReadOnly (Read-Only)</option>
+              <option value="AgentPlayground">AgentPlayground (Full R/W/X)</option>
+            </select>
+            <input type="text" id="zone-name" placeholder="Zone Name (e.g. Prod Configs)">
+            <input type="text" id="zone-prefix" placeholder="Path Prefix (e.g. /workspace/prod-config)">
+            <input type="text" id="zone-applies" value="*" placeholder="* or Agent ID">
+            <input type="text" id="zone-exempt" placeholder="Exempt (e.g. PC-1-Antigravity)">
+            <button class="btn btn-primary" onclick="addContainmentZone()">Add Zone</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let policiesState = [];
+    let zonesState = [];
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function loadAllPolicyState() {
+      await Promise.all([loadPolicies(), loadZones()]);
+    }
+
+    async function loadPolicies() {
+      try {
+        const res = await fetch('/api/v1/policy');
+        policiesState = await res.json();
+        // Sort so '*' is always first
+        policiesState.sort((a, b) => (a.agent_id === '*' ? -1 : b.agent_id === '*' ? 1 : a.agent_id.localeCompare(b.agent_id)));
+        document.getElementById('policies-count-label').textContent = `(${policiesState.length} active profiles)`;
+        renderPolicyCards();
+      } catch (e) {
+        console.error('Failed to load policies:', e);
+      }
+    }
+
+    function renderPolicyCards() {
+      const container = document.getElementById('policy-cards-container');
+      if (!policiesState.length) {
+        container.innerHTML = '<div style="color: var(--text-muted);">No policies configured.</div>';
+        return;
+      }
+
+      container.innerHTML = policiesState.map((p, idx) => {
+        const isGlobal = p.agent_id === '*';
+        const agentLabel = isGlobal ? '* (Global Cluster Default)' : p.agent_id;
+
+        const renderChipList = (arr, fieldName, isBlock) => {
+          const items = arr || [];
+          if (!items.length) {
+            return '<span style="color: var(--text-dim); font-size: 11px; font-family: var(--mono);">None configured</span>';
+          }
+          return items.map((val, itemIdx) => `
+            <span class="wl-chip ${isBlock ? 'chip-block' : ''}">
+              <span>${escapeHtml(val)}</span>
+              <button class="chip-remove" title="Remove entry" onclick="removePolicyEntry(${idx}, '${fieldName}', ${itemIdx})">&times;</button>
+            </span>
+          `).join('');
+        };
+
+        return `
+          <div class="policy-card ${isGlobal ? 'global-policy' : ''}">
+            <div class="policy-card-header">
+              <div class="agent-badge">
+                <span>${escapeHtml(agentLabel)}</span>
+                <span class="status-pill ${p.enforcing ? 'pill-enforcing' : 'pill-audit'}">
+                  ${p.enforcing ? 'ENFORCING (BLOCK)' : 'AUDIT ONLY (FLAG)'}
+                </span>
+                ${p.confine_to_playgrounds ? '<span class="status-pill pill-confined">CONFINED TO PLAYGROUNDS</span>' : ''}
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                <button class="btn btn-sm" onclick="togglePolicyFlag(${idx}, 'enforcing')">
+                  Switch to ${p.enforcing ? 'Audit-Only' : 'Enforcing'}
+                </button>
+                <button class="btn btn-sm" onclick="togglePolicyFlag(${idx}, 'confine_to_playgrounds')">
+                  ${p.confine_to_playgrounds ? 'Unconfine from Playgrounds' : 'Confine to Playgrounds'}
+                </button>
+                ${!isGlobal ? `<button class="btn btn-sm btn-danger" onclick="deleteAgentPolicy('${escapeHtml(p.agent_id)}')">Delete Profile</button>` : ''}
+              </div>
+            </div>
+
+            <div class="whitelist-columns">
+              <!-- Read Whitelist -->
+              <div class="wl-box wl-read">
+                <div>
+                  <div class="wl-title">
+                    <span>READ WHITELIST</span>
+                    <span>${(p.read_whitelist || []).length}</span>
+                  </div>
+                  <div class="wl-chips">
+                    ${renderChipList(p.read_whitelist, 'read_whitelist', false)}
+                  </div>
+                </div>
+                <div class="wl-add-row">
+                  <input type="text" id="add-read-${idx}" placeholder="Add read path (e.g. /workspace/docs)" onkeydown="if(event.key==='Enter') addPolicyEntry(${idx}, 'read_whitelist', 'add-read-${idx}')">
+                  <button class="btn btn-sm" onclick="addPolicyEntry(${idx}, 'read_whitelist', 'add-read-${idx}')">+ Add</button>
+                </div>
+              </div>
+
+              <!-- Write Whitelist -->
+              <div class="wl-box wl-write">
+                <div>
+                  <div class="wl-title">
+                    <span>WRITE WHITELIST</span>
+                    <span>${(p.write_whitelist || []).length}</span>
+                  </div>
+                  <div class="wl-chips">
+                    ${renderChipList(p.write_whitelist, 'write_whitelist', false)}
+                  </div>
+                </div>
+                <div class="wl-add-row">
+                  <input type="text" id="add-write-${idx}" placeholder="Add write path (e.g. /workspace/src)" onkeydown="if(event.key==='Enter') addPolicyEntry(${idx}, 'write_whitelist', 'add-write-${idx}')">
+                  <button class="btn btn-sm" onclick="addPolicyEntry(${idx}, 'write_whitelist', 'add-write-${idx}')">+ Add</button>
+                </div>
+              </div>
+
+              <!-- Network Whitelist -->
+              <div class="wl-box wl-net">
+                <div>
+                  <div class="wl-title">
+                    <span>NETWORK ALLOWLIST</span>
+                    <span>${(p.network_whitelist || []).length}</span>
+                  </div>
+                  <div class="wl-chips">
+                    ${renderChipList(p.network_whitelist, 'network_whitelist', false)}
+                  </div>
+                </div>
+                <div class="wl-add-row">
+                  <input type="text" id="add-net-${idx}" placeholder="Add URL prefix (e.g. https://crates.io)" onkeydown="if(event.key==='Enter') addPolicyEntry(${idx}, 'network_whitelist', 'add-net-${idx}')">
+                  <button class="btn btn-sm" onclick="addPolicyEntry(${idx}, 'network_whitelist', 'add-net-${idx}')">+ Add</button>
+                </div>
+              </div>
+
+              <!-- Blocked Patterns -->
+              <div class="wl-box wl-block">
+                <div>
+                  <div class="wl-title">
+                    <span style="color: #fca5a5;">BLOCKED PATTERNS (ALWAYS DENY)</span>
+                    <span>${(p.blocked_patterns || []).length}</span>
+                  </div>
+                  <div class="wl-chips">
+                    ${renderChipList(p.blocked_patterns, 'blocked_patterns', true)}
+                  </div>
+                </div>
+                <div class="wl-add-row">
+                  <input type="text" id="add-block-${idx}" placeholder="Add blocked pattern (e.g. .pem)" onkeydown="if(event.key==='Enter') addPolicyEntry(${idx}, 'blocked_patterns', 'add-block-${idx}')">
+                  <button class="btn btn-sm btn-danger" onclick="addPolicyEntry(${idx}, 'blocked_patterns', 'add-block-${idx}')">+ Block</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function savePolicyObject(policyObj) {
+      await fetch('/api/v1/policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(policyObj)
+      });
+      await loadPolicies();
+    }
+
+    async function addPolicyEntry(policyIdx, fieldName, inputId) {
+      const p = policiesState[policyIdx];
+      if (!p) return;
+      const inputEl = document.getElementById(inputId);
+      const val = (inputEl?.value || '').trim();
+      if (!val) return;
+      if (!Array.isArray(p[fieldName])) p[fieldName] = [];
+      if (!p[fieldName].includes(val)) {
+        p[fieldName].push(val);
+      }
+      inputEl.value = '';
+      await savePolicyObject(p);
+    }
+
+    async function removePolicyEntry(policyIdx, fieldName, itemIdx) {
+      const p = policiesState[policyIdx];
+      if (!p || !Array.isArray(p[fieldName])) return;
+      p[fieldName].splice(itemIdx, 1);
+      await savePolicyObject(p);
+    }
+
+    async function togglePolicyFlag(policyIdx, flagName) {
+      const p = policiesState[policyIdx];
+      if (!p) return;
+      p[flagName] = !p[flagName];
+      await savePolicyObject(p);
+    }
+
+    async function createNewAgentPolicy() {
+      const agentInput = document.getElementById('new-agent-id');
+      const agentId = (agentInput.value || '').trim();
+      if (!agentId) {
+        agentInput.focus();
+        return;
+      }
+      // Clone defaults from '*' if present
+      const base = policiesState.find(p => p.agent_id === '*') || {
+        read_whitelist: ['/workspace', 'src', 'docs'],
+        write_whitelist: ['/workspace/playground'],
+        network_whitelist: ['http://127.0.0.1', 'http://localhost'],
+        blocked_patterns: ['.env', '.secrets', 'id_rsa', 'id_ed25519', '.pem', '.key']
+      };
+      const newPol = {
+        agent_id: agentId,
+        read_whitelist: [...(base.read_whitelist || [])],
+        write_whitelist: ['/workspace/playground'],
+        network_whitelist: [...(base.network_whitelist || [])],
+        blocked_patterns: [...(base.blocked_patterns || [])],
+        enforcing: true,
+        confine_to_playgrounds: false
+      };
+      agentInput.value = '';
+      await savePolicyObject(newPol);
+    }
+
+    async function deleteAgentPolicy(agentId) {
+      await fetch('/api/v1/policy/' + encodeURIComponent(agentId), { method: 'DELETE' });
+      await loadPolicies();
+    }
+
+    async function loadZones() {
+      try {
+        const res = await fetch('/api/v1/zones');
+        const data = await res.json();
+        zonesState = data.zones || [];
+        renderZonesTable();
+      } catch (e) {
+        console.error('Failed to load zones:', e);
+      }
+    }
+
+    function renderZonesTable() {
+      const tbody = document.getElementById('zones-table-body');
+      if (!zonesState.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--text-muted);">No spatial containment zones configured.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = zonesState.map(z => {
+        let badgeClass = 'zone-playground';
+        let badgeText = 'AgentPlayground (R/W/X)';
+        if (z.kind === 'VaultNoAccess') {
+          badgeClass = 'zone-vault';
+          badgeText = 'VaultNoAccess (No Access)';
+        } else if (z.kind === 'GuardedReadOnly') {
+          badgeClass = 'zone-guarded';
+          badgeText = 'GuardedReadOnly (Read-Only)';
+        }
+
+        const exempt = (z.exempt_agents && z.exempt_agents.length) ? z.exempt_agents.join(', ') : '—';
+        return `
+          <tr>
+            <td><span class="zone-badge ${badgeClass}">${badgeText}</span></td>
+            <td>
+              <div style="font-weight: 700; color: var(--text-main);">${escapeHtml(z.name)}</div>
+              <div style="font-size: 10.5px; color: var(--text-dim);">${escapeHtml(z.zone_id)}</div>
+            </td>
+            <td style="color: var(--text-main); font-weight: 600;">${escapeHtml(z.path_prefix)}</td>
+            <td>${escapeHtml(z.applies_to || '*')}</td>
+            <td style="color: var(--text-muted);">${escapeHtml(exempt)}</td>
+            <td style="color: var(--text-muted); font-family: var(--sans); font-size: 12px;">${escapeHtml(z.description || '')}</td>
+            <td>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm" onclick="runPreset('PC-2-Worker', 'Write', '${escapeHtml(z.path_prefix)}/test_file.txt')">Test Write</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteZone('${escapeHtml(z.zone_id)}')">Remove</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function addContainmentZone() {
+      const kind = document.getElementById('zone-kind').value;
+      const name = (document.getElementById('zone-name').value || '').trim();
+      const path_prefix = (document.getElementById('zone-prefix').value || '').trim();
+      const applies_to = (document.getElementById('zone-applies').value || '*').trim();
+      const exemptRaw = (document.getElementById('zone-exempt').value || '').trim();
+      if (!name || !path_prefix) return;
+
+      const exempt_agents = exemptRaw ? exemptRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const zone_id = 'zone-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+      await fetch('/api/v1/zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zone_id,
+          name,
+          path_prefix,
+          kind,
+          applies_to,
+          exempt_agents,
+          description: `${kind} zone on ${path_prefix}`
+        })
+      });
+      document.getElementById('zone-name').value = '';
+      document.getElementById('zone-prefix').value = '';
+      await loadZones();
+    }
+
+    async function deleteZone(zoneId) {
+      await fetch('/api/v1/zones/' + encodeURIComponent(zoneId), { method: 'DELETE' });
+      await loadZones();
+    }
+
+    async function setAgentConfinement(agentId, confined) {
+      await fetch('/api/v1/zones/confine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId, confined })
+      });
+      await loadAllPolicyState();
+    }
+
+    async function runPreset(agentId, action, target) {
+      document.getElementById('eval-agent').value = agentId;
+      document.getElementById('eval-action').value = action;
+      document.getElementById('eval-target').value = target;
+      await evaluateTarget();
+    }
+
+    async function evaluateTarget() {
+      const agent_id = (document.getElementById('eval-agent').value || '*').trim();
+      const action = document.getElementById('eval-action').value;
+      const target = (document.getElementById('eval-target').value || '').trim();
+      if (!target) return;
+
+      const out = document.getElementById('eval-output');
+      out.style.display = 'block';
+      out.style.background = 'var(--bg-input)';
+      out.style.border = '1px solid var(--border)';
+      out.textContent = 'Evaluating...';
+
+      try {
+        const res = await fetch('/api/v1/policy/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id, action, target })
+        });
+        const d = await res.json();
+        const isAllowed = d.verdict === 'Allowed';
+        const isFlagged = d.verdict === 'Flagged';
+        const color = isAllowed ? 'var(--green)' : (isFlagged ? 'var(--amber)' : 'var(--red)');
+        out.style.borderColor = color;
+        out.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <strong style="color: ${color};">[VERDICT: ${escapeHtml(d.verdict).toUpperCase()}]</strong>
+              <span style="color: var(--text-main); margin-left: 8px;">Agent: <strong>${escapeHtml(d.evaluated_agent)}</strong> | Action: <strong>${escapeHtml(d.action)}</strong></span>
+            </div>
+            <div style="color: var(--text-muted); font-size: 11px;">
+              Canonical Target: <code style="color: var(--text-main);">${escapeHtml(d.normalized_target)}</code>
+            </div>
+          </div>
+          <div style="margin-top: 6px; color: var(--text-muted);">
+            ${d.allowed_by_rule
+              ? `Matched Allow Rule: <strong style="color: var(--green);">${escapeHtml(d.allowed_by_rule)}</strong>`
+              : `Denial Reason: <strong style="color: ${color};">${escapeHtml((d.reasons || []).join(' | '))}</strong>`}
+          </div>
+        `;
+      } catch (e) {
+        out.textContent = 'Evaluation request failed: ' + e.message;
+      }
+    }
+
+    loadAllPolicyState();
+  </script>
+</body>
+</html>

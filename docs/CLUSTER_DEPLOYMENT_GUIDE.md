@@ -34,7 +34,7 @@ Complete guide for deploying, discovering, and orchestrating distributed AI agen
 
 ## 2. The Unified Setup Wizard (`Setup-Cluster.ps1`)
 
-On **PC-1 (Lead Node)**, open PowerShell in `C:\cada\projects\agent_trace_gw` and run:
+On **PC-1 (Lead Node)**, open PowerShell in the `agent_trace_gw` repository root and run:
 
 ```powershell
 .\Setup-Cluster.ps1

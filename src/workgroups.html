@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrace // Problem Workgroups &amp; Drag-and-Drop Agent Mesh</title>
+  <style>
+    :root {
+      --bg-base: #0b0e14;
+      --bg-panel: #11161f;
+      --bg-elevated: #161c28;
+      --bg-input: #090c10;
+      --border: #222936;
+      --border-focus: #3b82f6;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #3b82f6;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Unified Top Navigation Bar */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      height: 48px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      color: var(--text-main);
+    }
+    .brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      transition: all 0.12s ease;
+    }
+    .nav-link:hover {
+      color: var(--text-main);
+      background: var(--bg-elevated);
+    }
+    .nav-link.active {
+      color: var(--text-main);
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.4);
+      font-weight: 600;
+    }
+
+    /* Buttons & Inputs */
+    .btn {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover {
+      border-color: var(--text-muted);
+      background: #1e2636;
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+    .btn-danger {
+      color: var(--red);
+      border-color: rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .btn-sm {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    input[type="text"], select, textarea {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      outline: none;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus {
+      border-color: var(--border-focus);
+    }
+
+    /* Workgroup Selector Bar */
+    .wg-selector-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .wg-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .wg-tab {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.12s;
+    }
+    .wg-tab:hover {
+      color: var(--text-main);
+      border-color: var(--text-dim);
+    }
+    .wg-tab.active {
+      color: var(--text-main);
+      background: rgba(59, 130, 246, 0.14);
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+    .wg-count-pill {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--bg-base);
+      color: var(--text-muted);
+    }
+
+    /* 3-Column Mesh Builder Layout */
+    .workbench {
+      display: grid;
+      grid-template-columns: 290px 1fr 370px;
+      flex: 1;
+      min-height: calc(100vh - 105px);
+    }
+    @media (max-width: 1280px) {
+      .workbench { grid-template-columns: 260px 1fr; }
+      .inspector-col { grid-column: 1 / -1; border-top: 1px solid var(--border); }
+    }
+
+    /* Left Palette Column */
+    .palette-col {
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .palette-section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .draggable-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .palette-item {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 4px;
+      padding: 8px 10px;
+      cursor: grab;
+      user-select: none;
+      transition: border-color 0.12s, transform 0.1s;
+    }
+    .palette-item:hover {
+      border-color: var(--text-muted);
+      background: var(--bg-elevated);
+    }
+    .palette-item:active {
+      cursor: grabbing;
+    }
+    .palette-item.rule-item {
+      border-left-color: var(--green);
+    }
+    .palette-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .palette-item-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Center Interactive Drag-and-Drop Mesh Canvas */
+    .canvas-col {
+      position: relative;
+      background-color: #080b10;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 28px 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .canvas-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: rgba(17, 22, 31, 0.88);
+      border-bottom: 1px solid var(--border);
+      z-index: 10;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .mesh-stage {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      min-height: 560px;
+      overflow: hidden;
+    }
+    .mesh-stage.drag-over {
+      box-shadow: inset 0 0 0 2px var(--accent);
+      background-color: rgba(59, 130, 246, 0.04);
+    }
+    #mesh-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #mesh-nodes-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+
+    /* Mesh Nodes on Canvas */
+    .mesh-node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      min-width: 195px;
+      max-width: 235px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      cursor: move;
+      user-select: none;
+    }
+    .mesh-node:hover {
+      border-color: var(--text-muted);
+    }
+    .mesh-node.hub-node {
+      border: 2px solid var(--accent);
+      background: #101929;
+      min-width: 230px;
+      text-align: center;
+      z-index: 5;
+    }
+    .mesh-node.agent-node {
+      border-left: 3px solid var(--accent);
+    }
+    .mesh-node.md-node {
+      border-left: 3px solid var(--green);
+      background: #0e1718;
+      min-width: 185px;
+    }
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+    .node-meta {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .node-role-select {
+      width: 100%;
+      padding: 3px 6px;
+      font-size: 11px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 3px;
+    }
+    .node-remove-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 0 3px;
+    }
+    .node-remove-btn:hover {
+      color: var(--red);
+    }
+
+    @keyframes meshFlow {
+      to { stroke-dashoffset: -24; }
+    }
+    .mesh-edge-peer {
+      stroke-dasharray: 5 5;
+      animation: meshFlow 1.4s linear infinite;
+    }
+
+    /* Right Inspector & Dispatch Column */
+    .inspector-col {
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .insp-box {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px;
+    }
+    .insp-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .prompt-preview {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      max-height: 190px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Unified Top Navigation Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span>AGENTTRACE // PROBLEM WORKGROUPS &amp; AGENT MESH BUILDER</span>
+    </div>
+    <nav class="nav-links">
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+      <a href="/policies" class="nav-link">Policies &amp; Whitelists</a>
+      <a href="/workgroups" class="nav-link active">Workgroups Mesh</a>
+      <a href="/graph" class="nav-link">Contribution Graph</a>
+      <a href="/console" class="nav-link">Terminal TUI</a>
+    </nav>
+  </header>
+
+  <!-- Workgroup Tabs & Quick Group Creator -->
+  <div class="wg-selector-bar">
+    <div class="wg-tabs" id="wg-tabs-container">
+      <span style="color: var(--text-muted); font-family: var(--mono); font-size: 12px;">Loading workgroups...</span>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <input type="text" id="new-wg-name" placeholder="New Problem Group (e.g. Image Synthesis)" style="width: 220px;">
+      <input type="text" id="new-wg-keywords" placeholder="Keywords (e.g. svg, image, icon)" style="width: 185px;">
+      <button class="btn btn-primary" onclick="createEmptyWorkgroup()">+ Create Group</button>
+    </div>
+  </div>
+
+  <!-- 3-Column Drag-and-Drop Mesh Workbench -->
+  <div class="workbench">
+
+    <!-- Left Column: Draggable Agents & .MD Rules Palette -->
+    <aside class="palette-col">
+      <div>
+        <div class="palette-section-title">
+          <span>1. Drag Agents into Mesh</span>
+          <span style="color: var(--accent);">DRAGGABLE</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+          Drag any agent onto the center canvas (or click <code>+</code>) to wire it into the active problem mesh.
+        </div>
+        <div class="draggable-list" id="palette-agents-list"></div>
+      </div>
+
+      <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+        <div class="palette-section-title">
+          <span>2. Drag .MD Rule Files</span>
+          <span style="color: var(--green);">.MD RULES</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
+          Drag workspace <code>.md</code> files onto the mesh or drop a local <code>.md</code> file from your computer.
+        </div>
+        <div class="draggable-list" id="palette-md-list"></div>
+
+        <!-- Custom .MD Rule Creator -->
+        <div style="margin-top: 10px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 4px; padding: 8px;">
+          <div style="font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-bottom: 6px; font-weight: 700;">+ ATTACH INLINE OR LOCAL .MD RULE</div>
+          <input type="text" id="custom-md-title" placeholder="Rule Title (e.g. Strict Rust Style)" style="width: 100%; margin-bottom: 5px; font-size: 11px;">
+          <textarea id="custom-md-body" rows="3" placeholder="- No monolithic files&#10;- >= 85% unit test coverage" style="width: 100%; margin-bottom: 6px; font-size: 11px;"></textarea>
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-sm btn-primary" style="flex: 1; justify-content: center;" onclick="attachCustomInlineMd()">+ Attach to Mesh</button>
+            <label class="btn btn-sm" style="cursor: pointer; margin: 0;">
+              Upload .md
+              <input type="file" accept=".md,.txt,.markdown" style="display: none;" onchange="uploadLocalMdFile(event)">
+            </label>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center Column: Interactive SVG + HTML5 Drag-and-Drop Mesh Canvas -->
+    <section class="canvas-col">
+      <div class="canvas-toolbar">
+        <div>
+          <span style="font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-main);" id="canvas-wg-title">Select a Workgroup</span>
+          <span style="font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-left: 10px;" id="canvas-wg-stats"></span>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button class="btn btn-sm" onclick="autoLayoutMesh()" title="Reset node positions into a clean radial mesh">Auto-Arrange Mesh</button>
+          <button class="btn btn-sm btn-danger" id="btn-delete-wg" onclick="deleteActiveWorkgroup()" style="display: none;">Delete Group</button>
+        </div>
+      </div>
+
+      <div class="mesh-stage" id="mesh-stage"
+           ondragover="handleCanvasDragOver(event)"
+           ondragleave="handleCanvasDragLeave(event)"
+           ondrop="handleCanvasDrop(event)">
+        <svg id="mesh-svg"></svg>
+        <div id="mesh-nodes-layer"></div>
+      </div>
+    </section>
+
+    <!-- Right Column: Mesh Properties, Compiled .MD System Prompt & Live Runner -->
+    <aside class="inspector-col">
+      <!-- Dispatch Prompt to Active Mesh -->
+      <div class="insp-box">
+        <div class="insp-title">
+          <span>Dispatch Prompt to Active Mesh</span>
+          <span style="color: var(--accent);" id="dispatch-wg-badge">wg-coding</span>
+        </div>
+        <textarea id="mesh-prompt-input" rows="3" placeholder="Enter a problem for this workgroup mesh to solve..." style="width: 100%; margin-bottom: 8px;"></textarea>
+        <button class="btn btn-primary" style="width: 100%; justify-content: center;" id="btn-run-mesh" onclick="dispatchToActiveMesh()">Run Workgroup Mesh Pipeline</button>
+        <div id="mesh-dispatch-output" style="display: none; margin-top: 10px; font-family: var(--mono); font-size: 11px;"></div>
+      </div>
+
+      <!-- Trigger Keywords & Execution Strategy -->
+      <div class="insp-box">
+        <div class="insp-title">
+          <span>Workgroup Routing &amp; Triggers</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">
+          Auto-matches prompts containing these keywords when <code>workgroup_id: "auto"</code>:
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="wg-keywords-input" placeholder="rust, cargo, refactor" style="flex: 1; font-size: 11px;">
+          <button class="btn btn-sm" onclick="saveTriggerKeywords()">Save</button>
+        </div>
+      </div>
+
+      <!-- Compiled Markdown System Prompt Preview -->
+      <div class="insp-box" style="flex: 1; display: flex; flex-direction: column;">
+        <div class="insp-title">
+          <span>Compiled .MD System Prompt</span>
+          <span style="color: var(--green);" id="compiled-rules-count">0 rules</span>
+        </div>
+        <div class="prompt-preview" id="compiled-prompt-box" style="flex: 1;">Select a workgroup to inspect its compiled system prompt and attached .md rules.</div>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    let workgroups = [];
+    let availableAgents = [];
+    let discoveredMdFiles = [];
+    let activeWgId = 'wg-coding';
+
+    // Stores custom (x, y) coordinates in percentages (10..90) per workgroup ID + node key
+    const nodePositions = {};
+    let draggingCanvasNode = null;
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function loadWorkgroupsState() {
+      try {
+        const res = await fetch('/api/v1/workgroups');
+        const data = await res.json();
+        workgroups = data.workgroups || [];
+        availableAgents = data.available_agents || [];
+        discoveredMdFiles = data.discovered_markdown_files || [];
+
+        if (!workgroups.find(w => w.id === activeWgId) && workgroups.length > 0) {
+          activeWgId = workgroups[0].id;
+        }
+
+        renderTabs();
+        renderLeftPalettes();
+        renderActiveMesh();
+        await loadCompiledPreview();
+      } catch (e) {
+        console.error('Failed to load workgroups:', e);
+      }
+    }
+
+    function getActiveWg() {
+      return workgroups.find(w => w.id === activeWgId) || workgroups[0];
+    }
+
+    function renderTabs() {
+      const container = document.getElementById('wg-tabs-container');
+      container.innerHTML = workgroups.map(wg => {
+        const isActive = wg.id === activeWgId;
+        const memberCount = (wg.members || []).length;
+        const ruleCount = (wg.attached_rules || []).length;
+        return `
+          <button class="wg-tab ${isActive ? 'active' : ''}" onclick="selectWorkgroup('${escapeHtml(wg.id)}')">
+            <span>${escapeHtml(wg.name)}</span>
+            <span class="wg-count-pill">${memberCount}A · ${ruleCount}MD</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectWorkgroup(id) {
+      activeWgId = id;
+      renderTabs();
+      renderActiveMesh();
+      loadCompiledPreview();
+    }
+
+    function renderLeftPalettes() {
+      const agentsEl = document.getElementById('palette-agents-list');
+      agentsEl.innerHTML = availableAgents.map(a => `
+        <div class="palette-item" draggable="true"
+             ondragstart="onPaletteDragStart(event, 'agent', '${escapeHtml(a.agent_id)}')">
+          <div class="palette-item-top">
+            <span>${escapeHtml(a.display_name)}</span>
+            <button class="btn btn-sm" style="padding: 1px 6px;" onclick="addAgentToActiveWg('${escapeHtml(a.agent_id)}')">+</button>
+          </div>
+          <div class="palette-item-sub">
+            <code>${escapeHtml(a.agent_id)}</code> · ${escapeHtml(a.node_id)}
+          </div>
+        </div>
+      `).join('');
+
+      const mdEl = document.getElementById('palette-md-list');
+      mdEl.innerHTML = discoveredMdFiles.map(path => `
+        <div class="palette-item rule-item" draggable="true"
+             ondragstart="onPaletteDragStart(event, 'md', '${escapeHtml(path)}')">
+          <div class="palette-item-top">
+            <span>📄 ${escapeHtml(path)}</span>
+            <button class="btn btn-sm" style="padding: 1px 6px;" onclick="attachWorkspaceMdToActiveWg('${escapeHtml(path)}')">+</button>
+          </div>
+          <div class="palette-item-sub">Workspace Markdown Rule</div>
+        </div>
+      `).join('');
+    }
+
+    function onPaletteDragStart(ev, kind, id) {
+      ev.dataTransfer.setData('application/json', JSON.stringify({ kind, id }));
+      ev.dataTransfer.effectAllowed = 'copy';
+    }
+
+    function handleCanvasDragOver(ev) {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'copy';
+      document.getElementById('mesh-stage').classList.add('drag-over');
+    }
+
+    function handleCanvasDragLeave(ev) {
+      document.getElementById('mesh-stage').classList.remove('drag-over');
+    }
+
+    async function handleCanvasDrop(ev) {
+      ev.preventDefault();
+      const stage = document.getElementById('mesh-stage');
+      stage.classList.remove('drag-over');
+
+      const rect = stage.getBoundingClientRect();
+      const dropXPct = Math.max(12, Math.min(88, ((ev.clientX - rect.left) / rect.width) * 100));
+      const dropYPct = Math.max(14, Math.min(86, ((ev.clientY - rect.top) / rect.height) * 100));
+
+      // 1. Check if dropping an OS local .md file
+      if (ev.dataTransfer.files && ev.dataTransfer.files.length > 0) {
+        const file = ev.dataTransfer.files[0];
+        const text = await file.text();
+        await attachRulePayload({
+          title: file.name,
+          file_path: null,
+          inline_markdown: text,
+          enforce_strict: true
+        });
+        return;
+      }
+
+      // 2. Palette drag-and-drop (Agent or Workspace .MD Rule)
+      const raw = ev.dataTransfer.getData('application/json');
+      if (!raw) return;
+      try {
+        const payload = JSON.parse(raw);
+        if (payload.kind === 'agent') {
+          const key = `${activeWgId}:agent:${payload.id}`;
+          nodePositions[key] = { x: dropXPct, y: dropYPct };
+          await addAgentToActiveWg(payload.id);
+        } else if (payload.kind === 'md') {
+          const key = `${activeWgId}:md:${payload.id}`;
+          nodePositions[key] = { x: dropXPct, y: dropYPct };
+          await attachWorkspaceMdToActiveWg(payload.id);
+        }
+      } catch (e) {
+        console.error('Drop error:', e);
+      }
+    }
+
+    function ensureNodePositions(wg) {
+      const members = wg.members || [];
+      const rules = wg.attached_rules || [];
+
+      // Place Hub at center (50%, 50%)
+      const hubKey = `${wg.id}:hub`;
+      if (!nodePositions[hubKey]) {
+        nodePositions[hubKey] = { x: 50, y: 50 };
+      }
+
+      // Arrange Agents in an upper/outer ring around the Hub
+      members.forEach((m, idx) => {
+        const key = `${wg.id}:agent:${m.agent_id}`;
+        if (!nodePositions[key]) {
+          const count = Math.max(members.length, 1);
+          const angle = (-Math.PI / 2) + (idx * (2 * Math.PI / count));
+          const rx = 31;
+          const ry = 30;
+          nodePositions[key] = {
+            x: Math.round(50 + rx * Math.cos(angle)),
+            y: Math.round(48 + ry * Math.sin(angle))
+          };
+        }
+      });
+
+      // Arrange .MD Rules along the bottom/sides
+      rules.forEach((r, idx) => {
+        const rKeyId = r.file_path || r.rule_id || r.title;
+        const key = `${wg.id}:md:${rKeyId}`;
+        if (!nodePositions[key]) {
+          const count = Math.max(rules.length, 1);
+          const spread = 60;
+          const startX = 50 - spread / 2;
+          const stepX = count > 1 ? spread / (count - 1) : 0;
+          nodePositions[key] = {
+            x: Math.round(count === 1 ? 22 : startX + idx * stepX),
+            y: 84
+          };
+        }
+      });
+    }
+
+    function autoLayoutMesh() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      Object.keys(nodePositions).forEach(k => {
+        if (k.startsWith(wg.id + ':')) delete nodePositions[k];
+      });
+      renderActiveMesh();
+    }
+
+    function renderActiveMesh() {
+      const wg = getActiveWg();
+      if (!wg) return;
+
+      ensureNodePositions(wg);
+
+      const members = wg.members || [];
+      const rules = wg.attached_rules || [];
+      const peerLinkCount = members.length > 1 ? (members.length * (members.length - 1)) / 2 : 0;
+
+      document.getElementById('canvas-wg-title').textContent = `${wg.name} (${wg.id})`;
+      document.getElementById('canvas-wg-stats').textContent =
+        `${members.length} Agents · ${peerLinkCount} Peer Mesh Links · ${rules.length} .MD Rules`;
+      document.getElementById('dispatch-wg-badge').textContent = wg.id;
+      document.getElementById('wg-keywords-input').value = (wg.trigger_keywords || []).join(', ');
+
+      const isPreset = ['wg-coding', 'wg-image-gen', 'wg-reasoning-debug', 'wg-security-audit', 'wg-ui-workfirst'].includes(wg.id);
+      document.getElementById('btn-delete-wg').style.display = isPreset ? 'none' : 'inline-flex';
+
+      const nodesLayer = document.getElementById('mesh-nodes-layer');
+      const hubPos = nodePositions[`${wg.id}:hub`] || { x: 50, y: 50 };
+
+      let html = `
+        <div class="mesh-node hub-node" style="left: ${hubPos.x}%; top: ${hubPos.y}%;"
+             onmousedown="startCanvasNodeDrag(event, '${escapeHtml(wg.id)}:hub')">
+          <div class="node-header" style="justify-content: center;">
+            <span>PROBLEM HUB // ${escapeHtml(wg.name.toUpperCase())}</span>
+          </div>
+          <div class="node-meta" style="margin-bottom: 0;">
+            Strategy: <strong>${escapeHtml(wg.execution_strategy || 'sequential_pipeline')}</strong>
+          </div>
+        </div>
+      `;
+
+      // Render Agent Nodes
+      members.forEach((m, idx) => {
+        const key = `${wg.id}:agent:${m.agent_id}`;
+        const pos = nodePositions[key] || { x: 25, y: 25 };
+        const roles = ['LeadArchitect', 'PrimaryBuilder', 'SanityVerifier', 'ToolExecutor'];
+        const optionsHtml = roles.map(r =>
+          `<option value="${r}" ${m.role === r ? 'selected' : ''}>Role: ${r}</option>`
+        ).join('');
+
+        html += `
+          <div class="mesh-node agent-node" style="left: ${pos.x}%; top: ${pos.y}%;"
+               onmousedown="startCanvasNodeDrag(event, '${escapeHtml(key)}')">
+            <div class="node-header">
+              <span>${escapeHtml(m.display_name)}</span>
+              <button class="node-remove-btn" title="Remove agent from mesh" onclick="removeAgentFromActiveWg('${escapeHtml(m.agent_id)}')">&times;</button>
+            </div>
+            <div class="node-meta">
+              <code>${escapeHtml(m.agent_id)}</code> · ${escapeHtml(m.node_id)}
+            </div>
+            <select class="node-role-select" mousedown="event.stopPropagation()" onchange="changeAgentRole(${idx}, this.value)">
+              ${optionsHtml}
+            </select>
+          </div>
+        `;
+      });
+
+      // Render .MD Rule Nodes
+      rules.forEach((r, idx) => {
+        const rKeyId = r.file_path || r.rule_id || r.title;
+        const key = `${wg.id}:md:${rKeyId}`;
+        const pos = nodePositions[key] || { x: 25, y: 82 };
+        html += `
+          <div class="mesh-node md-node" style="left: ${pos.x}%; top: ${pos.y}%;"
+               onmousedown="startCanvasNodeDrag(event, '${escapeHtml(key)}')">
+            <div class="node-header">
+              <span>📄 ${escapeHtml(r.title)}</span>
+              <button class="node-remove-btn" title="Detach .md rule" onclick="removeMdRuleFromActiveWg(${idx})">&times;</button>
+            </div>
+            <div class="node-meta" style="margin-bottom: 0;">
+              ${r.file_path ? `File: <code>${escapeHtml(r.file_path)}</code>` : 'Inline Markdown Rule'}
+              · <span style="color: var(--green);">STRICT</span>
+            </div>
+          </div>
+        `;
+      });
+
+      nodesLayer.innerHTML = html;
+      drawMeshSvgEdges(wg);
+    }
+
+    function drawMeshSvgEdges(wg) {
+      const svg = document.getElementById('mesh-svg');
+      const stage = document.getElementById('mesh-stage');
+      const w = stage.clientWidth || 800;
+      const h = stage.clientHeight || 560;
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+      const hubPos = nodePositions[`${wg.id}:hub`] || { x: 50, y: 50 };
+      const hx = (hubPos.x / 100) * w;
+      const hy = (hubPos.y / 100) * h;
+
+      const members = wg.members || [];
+      const rules = wg.attached_rules || [];
+
+      let linesHtml = '';
+
+      // 1. Agent-to-Agent Peer Mesh Links (Full Mesh Polygon between assigned agents)
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const p1 = nodePositions[`${wg.id}:agent:${members[i].agent_id}`] || { x: 30, y: 30 };
+          const p2 = nodePositions[`${wg.id}:agent:${members[j].agent_id}`] || { x: 70, y: 30 };
+          const x1 = (p1.x / 100) * w;
+          const y1 = (p1.y / 100) * h;
+          const x2 = (p2.x / 100) * w;
+          const y2 = (p2.y / 100) * h;
+          const mx = (x1 + x2) / 2;
+          const my = (y1 + y2) / 2;
+          linesHtml += `
+            <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+                  stroke="#3b82f6" stroke-width="1.5" stroke-opacity="0.45" class="mesh-edge-peer" />
+            <rect x="${mx - 28}" y="${my - 8}" width="56" height="16" rx="3" fill="#0b0e14" stroke="#222936" />
+            <text x="${mx}" y="${my + 3}" text-anchor="middle" fill="#94a3b8" font-family="monospace" font-size="9">MESH LINK</text>
+          `;
+        }
+      }
+
+      // 2. Hub-to-Agent Spokes
+      members.forEach((m, idx) => {
+        const p = nodePositions[`${wg.id}:agent:${m.agent_id}`] || { x: 30, y: 30 };
+        const ax = (p.x / 100) * w;
+        const ay = (p.y / 100) * h;
+        linesHtml += `
+          <line x1="${hx}" y1="${hy}" x2="${ax}" y2="${ay}"
+                stroke="#3b82f6" stroke-width="2" stroke-opacity="0.75" />
+        `;
+      });
+
+      // 3. .MD Rules to Hub & Agent Mesh Governance Links
+      rules.forEach(r => {
+        const rKeyId = r.file_path || r.rule_id || r.title;
+        const p = nodePositions[`${wg.id}:md:${rKeyId}`] || { x: 25, y: 82 };
+        const rx = (p.x / 100) * w;
+        const ry = (p.y / 100) * h;
+        linesHtml += `
+          <line x1="${rx}" y1="${ry}" x2="${hx}" y2="${hy}"
+                stroke="#10b981" stroke-width="1.75" stroke-dasharray="3 3" stroke-opacity="0.75" />
+        `;
+        members.forEach(m => {
+          const ap = nodePositions[`${wg.id}:agent:${m.agent_id}`];
+          if (ap) {
+            const ax = (ap.x / 100) * w;
+            const ay = (ap.y / 100) * h;
+            linesHtml += `
+              <line x1="${rx}" y1="${ry}" x2="${ax}" y2="${ay}"
+                    stroke="#10b981" stroke-width="1" stroke-dasharray="2 4" stroke-opacity="0.28" />
+            `;
+          }
+        });
+      });
+
+      svg.innerHTML = linesHtml;
+    }
+
+    function startCanvasNodeDrag(ev, posKey) {
+      if (ev.target.tagName === 'SELECT' || ev.target.tagName === 'BUTTON') return;
+      ev.preventDefault();
+      draggingCanvasNode = posKey;
+    }
+
+    window.addEventListener('mousemove', (ev) => {
+      if (!draggingCanvasNode) return;
+      const stage = document.getElementById('mesh-stage');
+      const rect = stage.getBoundingClientRect();
+      const xPct = Math.max(10, Math.min(90, ((ev.clientX - rect.left) / rect.width) * 100));
+      const yPct = Math.max(10, Math.min(90, ((ev.clientY - rect.top) / rect.height) * 100));
+      nodePositions[draggingCanvasNode] = { x: xPct, y: yPct };
+      renderActiveMesh();
+    });
+
+    window.addEventListener('mouseup', () => {
+      draggingCanvasNode = null;
+    });
+
+    window.addEventListener('resize', () => {
+      const wg = getActiveWg();
+      if (wg) drawMeshSvgEdges(wg);
+    });
+
+    async function saveWorkgroup(wg) {
+      await fetch('/api/v1/workgroups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(wg)
+      });
+      await loadWorkgroupsState();
+    }
+
+    async function addAgentToActiveWg(agentId) {
+      const wg = getActiveWg();
+      if (!wg) return;
+      if (!Array.isArray(wg.members)) wg.members = [];
+      if (wg.members.some(m => m.agent_id === agentId)) {
+        renderActiveMesh();
+        return;
+      }
+      const catalogEntry = availableAgents.find(a => a.agent_id === agentId) || {
+        agent_id: agentId,
+        display_name: agentId,
+        node_id: 'PC-1',
+        default_role: 'PrimaryBuilder'
+      };
+      wg.members.push({
+        agent_id: catalogEntry.agent_id,
+        display_name: catalogEntry.display_name,
+        node_id: catalogEntry.node_id,
+        role: catalogEntry.default_role || 'PrimaryBuilder'
+      });
+      await saveWorkgroup(wg);
+    }
+
+    async function removeAgentFromActiveWg(agentId) {
+      const wg = getActiveWg();
+      if (!wg || !Array.isArray(wg.members)) return;
+      wg.members = wg.members.filter(m => m.agent_id !== agentId);
+      await saveWorkgroup(wg);
+    }
+
+    async function changeAgentRole(memberIdx, newRole) {
+      const wg = getActiveWg();
+      if (!wg || !wg.members[memberIdx]) return;
+      wg.members[memberIdx].role = newRole;
+      await saveWorkgroup(wg);
+    }
+
+    async function attachWorkspaceMdToActiveWg(filePath) {
+      await attachRulePayload({
+        title: filePath.split('/').pop(),
+        file_path: filePath,
+        inline_markdown: '',
+        enforce_strict: true
+      });
+    }
+
+    async function attachCustomInlineMd() {
+      const title = (document.getElementById('custom-md-title').value || '').trim();
+      const body = (document.getElementById('custom-md-body').value || '').trim();
+      if (!title || !body) return;
+      document.getElementById('custom-md-title').value = '';
+      document.getElementById('custom-md-body').value = '';
+      await attachRulePayload({
+        title,
+        file_path: null,
+        inline_markdown: body,
+        enforce_strict: true
+      });
+    }
+
+    async function uploadLocalMdFile(ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      await attachRulePayload({
+        title: file.name,
+        file_path: null,
+        inline_markdown: text,
+        enforce_strict: true
+      });
+      ev.target.value = '';
+    }
+
+    async function attachRulePayload(payload) {
+      const wg = getActiveWg();
+      if (!wg) return;
+      await fetch(`/api/v1/workgroups/${encodeURIComponent(wg.id)}/rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      await loadWorkgroupsState();
+    }
+
+    async function removeMdRuleFromActiveWg(ruleIdx) {
+      const wg = getActiveWg();
+      if (!wg || !Array.isArray(wg.attached_rules)) return;
+      wg.attached_rules.splice(ruleIdx, 1);
+      await saveWorkgroup(wg);
+    }
+
+    async function saveTriggerKeywords() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      const raw = document.getElementById('wg-keywords-input').value || '';
+      wg.trigger_keywords = raw.split(',').map(s => s.trim()).filter(Boolean);
+      await saveWorkgroup(wg);
+    }
+
+    async function createEmptyWorkgroup() {
+      const nameInput = document.getElementById('new-wg-name');
+      const kwInput = document.getElementById('new-wg-keywords');
+      const name = (nameInput.value || '').trim();
+      if (!name) {
+        nameInput.focus();
+        return;
+      }
+      const id = 'wg-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const keywords = (kwInput.value || '').split(',').map(s => s.trim()).filter(Boolean);
+
+      const newWg = {
+        id,
+        name,
+        problem_domain: name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+        icon: '🕸️',
+        color: '#3b82f6',
+        description: `Custom mesh workgroup for ${name}`,
+        execution_strategy: 'sequential_pipeline',
+        members: [],
+        attached_rules: [],
+        trigger_keywords: keywords.length ? keywords : [name.toLowerCase()]
+      };
+
+      nameInput.value = '';
+      kwInput.value = '';
+      activeWgId = id;
+      await saveWorkgroup(newWg);
+    }
+
+    async function deleteActiveWorkgroup() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      await fetch('/api/v1/workgroups/' + encodeURIComponent(wg.id), { method: 'DELETE' });
+      activeWgId = 'wg-coding';
+      await loadWorkgroupsState();
+    }
+
+    async function loadCompiledPreview() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      try {
+        const res = await fetch(`/api/v1/workgroups/${encodeURIComponent(wg.id)}/preview`);
+        const d = await res.json();
+        document.getElementById('compiled-rules-count').textContent = `${d.rules_count || 0} rules active`;
+        document.getElementById('compiled-prompt-box').textContent =
+          d.compiled_system_prompt || 'No rules or members configured yet. Drag agents and .md files onto the mesh.';
+      } catch (e) {
+        console.error('Preview error:', e);
+      }
+    }
+
+    async function dispatchToActiveMesh() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      const prompt = (document.getElementById('mesh-prompt-input').value || '').trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('btn-run-mesh');
+      const out = document.getElementById('mesh-dispatch-output');
+      btn.disabled = true;
+      btn.textContent = 'Executing across Mesh...';
+      out.style.display = 'block';
+      out.innerHTML = '<div style="color: var(--text-muted);">Routing prompt through workgroup mesh...</div>';
+
+      try {
+        const res = await fetch('/api/v1/hub/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            mode: 'workgroup',
+            workgroup_id: wg.id
+          })
+        });
+        const d = await res.json();
+        const stagesHtml = (d.stages || []).map(s => `
+          <div style="border-left: 2px solid var(--accent); padding-left: 8px; margin-bottom: 8px;">
+            <div style="color: var(--text-main); font-weight: 700;">${escapeHtml(s.stage_name)} (${Math.round(s.duration_ms || 0)}ms)</div>
+            <div style="color: var(--text-muted); max-height: 110px; overflow-y: auto; white-space: pre-wrap; margin-top: 3px;">${escapeHtml(s.response)}</div>
+          </div>
+        `).join('');
+        out.innerHTML = stagesHtml || '<div style="color: var(--green);">Dispatched successfully.</div>';
+      } catch (e) {
+        out.innerHTML = `<div style="color: var(--red);">Dispatch failed: ${escapeHtml(e.message)}</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Workgroup Mesh Pipeline';
+      }
+    }
+
+    loadWorkgroupsState();
+  </script>
+</body>
+</html>

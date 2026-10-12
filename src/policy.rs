@@ -209,31 +209,29 @@ impl PolicyEngine {
             zones: default_cluster_zones(),
         };
 
-        let mut read_whitelist = vec![
-            "c:/cada/projects".to_string(),
+        let read_whitelist = vec![
+            "/workspace".to_string(),
             "src".to_string(),
             "tests".to_string(),
             "crates".to_string(),
             "target".to_string(),
             "docs".to_string(),
+            "sdk".to_string(),
+            "playground".to_string(),
         ];
-        if let Ok(profile) = std::env::var("USERPROFILE") {
-            read_whitelist.push(format!(
-                "{}/appdata/local/hermes",
-                profile.replace('\\', "/").to_lowercase()
-            ));
-        }
 
         let default_policy = AgentAccessPolicy {
             agent_id: "*".to_string(),
             read_whitelist,
             write_whitelist: vec![
-                "c:/cada/projects".to_string(),
+                "/workspace".to_string(),
                 "src".to_string(),
                 "tests".to_string(),
                 "crates".to_string(),
                 "target".to_string(),
                 "docs".to_string(),
+                "sdk".to_string(),
+                "playground".to_string(),
                 "cluster_telemetry.db".to_string(),
                 "worker_telemetry.db".to_string(),
             ],
@@ -493,12 +491,12 @@ mod tests {
     #[test]
     fn test_path_normalization_and_traversal_collapse() {
         assert_eq!(
-            normalize_target_path(r"C:\cada\projects\agent_trace_gw\.env"),
-            "c:/cada/projects/agent_trace_gw/.env"
+            normalize_target_path(r"\workspace\agent_trace_gw\.env"),
+            "/workspace/agent_trace_gw/.env"
         );
         assert_eq!(
-            normalize_target_path("file:///C:/cada/projects/RustCAD/src/main.rs"),
-            "c:/cada/projects/rustcad/src/main.rs"
+            normalize_target_path("file:///workspace/core-repo/src/main.rs"),
+            "/workspace/core-repo/src/main.rs"
         );
         assert_eq!(
             normalize_target_path("./src/policy.rs"),
@@ -506,8 +504,8 @@ mod tests {
         );
         // Critical: Verify `..` path traversal out of playground is collapsed!
         assert_eq!(
-            normalize_target_path(r"C:\cada\projects\hacking_road\playground\..\..\Strux\src\main.rs"),
-            "c:/cada/projects/strux/src/main.rs"
+            normalize_target_path(r"/workspace/playground/../../workspace/core-repo/src/main.rs"),
+            "/workspace/core-repo/src/main.rs"
         );
     }
 
@@ -519,7 +517,7 @@ mod tests {
         let dec_allow = engine.evaluate(
             "hermes-agent",
             AccessAction::Write,
-            r"C:\cada\projects\agent_trace_gw\src\main.rs",
+            r"/workspace/agent_trace_gw/src/main.rs",
         );
         assert_eq!(dec_allow.verdict, SecurityVerdict::Allowed);
 
@@ -527,7 +525,7 @@ mod tests {
         let dec_env = engine.evaluate(
             "hermes-agent",
             AccessAction::Read,
-            r"C:\cada\projects\agent_trace_gw\.env",
+            r"/workspace/agent_trace_gw/.env",
         );
         assert_eq!(dec_env.verdict, SecurityVerdict::Blocked);
         assert!(dec_env.reasons[0].contains(".env"));
@@ -564,27 +562,27 @@ mod tests {
         assert_eq!(vault_read.verdict, SecurityVerdict::Blocked);
         assert!(vault_read.reasons[0].contains("SAFE ZONE VIOLATION"));
 
-        // 2. GuardedReadOnly (`C:\cada\projects\Strux`): Worker agent can Read, but Write is BLOCKED!
-        let strux_read = engine.evaluate(
+        // 2. GuardedReadOnly (`/workspace/core-repo`): Worker agent can Read, but Write is BLOCKED!
+        let core_read = engine.evaluate(
             "PC-2-Worker",
             AccessAction::Read,
-            r"C:\cada\projects\Strux\src\main.rs",
+            r"/workspace/core-repo/src/main.rs",
         );
-        assert_eq!(strux_read.verdict, SecurityVerdict::Allowed);
+        assert_eq!(core_read.verdict, SecurityVerdict::Allowed);
 
-        let strux_write = engine.evaluate(
+        let core_write = engine.evaluate(
             "PC-2-Worker",
             AccessAction::Write,
-            r"C:\cada\projects\Strux\src\main.rs",
+            r"/workspace/core-repo/src/main.rs",
         );
-        assert_eq!(strux_write.verdict, SecurityVerdict::Blocked);
-        assert!(strux_write.reasons[0].contains("GuardedReadOnly"));
+        assert_eq!(core_write.verdict, SecurityVerdict::Blocked);
+        assert!(core_write.reasons[0].contains("GuardedReadOnly"));
 
-        // 3. Exempt Lead Architect (`PC-1-Antigravity`) IS permitted to write to Strux
+        // 3. Exempt Lead Architect (`PC-1-Antigravity`) IS permitted to write to core-repo
         let lead_write = engine.evaluate(
             "PC-1-Antigravity",
             AccessAction::Write,
-            r"C:\cada\projects\Strux\src\main.rs",
+            r"/workspace/core-repo/src/main.rs",
         );
         assert_eq!(lead_write.verdict, SecurityVerdict::Allowed);
     }
@@ -596,11 +594,11 @@ mod tests {
         // Confine "PC-2-Rogue-Subagent" strictly to Danger Zone Playgrounds
         engine.set_playground_confinement("PC-2-Rogue-Subagent", true);
 
-        // 1. Writing inside Danger Zone Playground (`C:\cada\projects\hacking_road\playground`) is ALLOWED
+        // 1. Writing inside Danger Zone Playground (`/workspace/playground`) is ALLOWED
         let ok_play = engine.evaluate(
             "PC-2-Rogue-Subagent",
             AccessAction::Write,
-            r"C:\cada\projects\hacking_road\playground\exploit_test.py",
+            r"/workspace/playground/exploit_test.py",
         );
         assert_eq!(ok_play.verdict, SecurityVerdict::Allowed);
         assert_eq!(
@@ -608,20 +606,20 @@ mod tests {
             Some("danger_zone_playground:zone-playground-lab")
         );
 
-        // 2. Writing outside Playground (even inside `c:/cada/projects/agent_trace_gw`) is BLOCKED!
+        // 2. Writing outside Playground (even inside `/workspace/agent_trace_gw`) is BLOCKED!
         let blocked_out = engine.evaluate(
             "PC-2-Rogue-Subagent",
             AccessAction::Write,
-            r"C:\cada\projects\agent_trace_gw\src\main.rs",
+            r"/workspace/agent_trace_gw/src/main.rs",
         );
         assert_eq!(blocked_out.verdict, SecurityVerdict::Blocked);
         assert!(blocked_out.reasons[0].contains("PLAYGROUND CONFINEMENT VIOLATION"));
 
-        // 3. Attempting `..\..` path traversal from Playground into Strux Safe Zone is BLOCKED!
+        // 3. Attempting `../..` path traversal from Playground into Guarded Safe Zone is BLOCKED!
         let traversal_attempt = engine.evaluate(
             "PC-2-Rogue-Subagent",
             AccessAction::Write,
-            r"C:\cada\projects\hacking_road\playground\..\..\Strux\src\lib.rs",
+            r"/workspace/playground/../core-repo/src/lib.rs",
         );
         assert_eq!(traversal_attempt.verdict, SecurityVerdict::Blocked);
 
@@ -629,7 +627,7 @@ mod tests {
         let cmd_escape = engine.evaluate(
             "PC-2-Rogue-Subagent",
             AccessAction::Execute,
-            r"Remove-Item -Recurse C:\cada\projects\Strux\src",
+            r"Remove-Item -Recurse /workspace/core-repo/src",
         );
         assert_eq!(cmd_escape.verdict, SecurityVerdict::Blocked);
     }
@@ -640,8 +638,8 @@ mod tests {
 
         engine.set_policy(AgentAccessPolicy {
             agent_id: "untrusted-subagent".to_string(),
-            read_whitelist: vec!["c:/cada/projects/sandbox".to_string()],
-            write_whitelist: vec!["c:/cada/projects/sandbox/tmp".to_string()],
+            read_whitelist: vec!["/workspace/sandbox".to_string()],
+            write_whitelist: vec!["/workspace/sandbox/tmp".to_string()],
             network_whitelist: vec![],
             blocked_patterns: vec![".env".to_string()],
             enforcing: true,
@@ -651,14 +649,14 @@ mod tests {
         let dec_denied = engine.evaluate(
             "untrusted-subagent",
             AccessAction::Write,
-            r"C:\cada\projects\agent_trace_gw\src\main.rs",
+            r"/workspace/agent_trace_gw/src/main.rs",
         );
         assert_eq!(dec_denied.verdict, SecurityVerdict::Blocked);
 
         let dec_ok = engine.evaluate(
             "untrusted-subagent",
             AccessAction::Write,
-            r"C:\cada\projects\sandbox\tmp\output.json",
+            r"/workspace/sandbox/tmp/output.json",
         );
         assert_eq!(dec_ok.verdict, SecurityVerdict::Allowed);
     }
@@ -669,7 +667,7 @@ mod tests {
 
         engine.set_policy(AgentAccessPolicy {
             agent_id: "audit-agent".to_string(),
-            read_whitelist: vec!["c:/cada/projects/allowed".to_string()],
+            read_whitelist: vec!["/workspace/allowed".to_string()],
             write_whitelist: vec![],
             network_whitelist: vec![],
             blocked_patterns: vec![".env".to_string()],

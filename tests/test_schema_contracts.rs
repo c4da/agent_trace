@@ -9,7 +9,7 @@ fn test_trace_event_serialization_roundtrip() {
         session_id: "session-xyz".to_string(),
         timestamp: "2026-10-09T10:00:00Z".to_string(),
         event_type: EventType::FileWrite,
-        target: "C:/cada/projects/test.rs".to_string(),
+        target: "/workspace/src/test.rs".to_string(),
         action_details: json!({"lines_added": 15, "author": "antigravity"}),
         diff: Some("+pub fn test() {}".to_string()),
         provenance_sources: vec!["ide_edit".to_string(), "tool_call".to_string()],

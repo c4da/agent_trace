@@ -129,6 +129,6 @@ You have live access to the AgentTrace Security & Provenance Gateway at `http://
    - Check `active_alerts` in the handoff digest. Inspect any `BLOCKED_POLICY` events via `get_event_detail`.
    - Once triaged, clear resolved alerts with `python sdk/agent_trace_client.py --reset-alerts` or `POST /api/v1/agent/action` (`{"tool":"acknowledge_alert","arguments":{"event_id":"all"}}`).
 3. **Enforce Containment (`Safe Zone` vs `Agent Playground`)**:
-   - If an agent is behaving suspiciously or running untrusted code, confine it to the Playground (`C:/cada/projects/agent_playground`) via:
+   - If an agent is behaving suspiciously or running untrusted code, confine it to the Playground (`/workspace/playground`) via:
      `python sdk/agent_trace_client.py --confine <AGENT_ID>`
 ```

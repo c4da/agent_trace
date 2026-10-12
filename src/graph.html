@@ -206,10 +206,12 @@
       <span class="badge" style="background: rgba(88,166,255,0.15); color: var(--blue); border: 1px solid var(--blue);" id="active-filter-badge">Filter: ALL AGENTS &amp; TOPICS</span>
     </div>
     <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-      <button class="btn" style="border-color: #f0883e; color: #f0883e; font-weight: bold;" onclick="simulateMultiAgentSprint()">⚡ Simulate Multi-Agent Sprint</button>
-      <button class="btn" onclick="clearGraphSelection()">↺ Reset Filter</button>
-      <a href="/dashboard" class="btn">📊 Visual Dashboard</a>
-      <a href="/console" class="btn">⌨️ Operator Console (/console)</a>
+      <button class="btn" onclick="simulateMultiAgentSprint()">Simulate Sprint</button>
+      <button class="btn" onclick="clearGraphSelection()">Reset Filter</button>
+      <a href="/dashboard" class="btn">Dashboard</a>
+      <a href="/policies" class="btn">Policies</a>
+      <a href="/workgroups" class="btn">Workgroups</a>
+      <a href="/console" class="btn">Console</a>
     </div>
   </div>
 
@@ -629,7 +631,7 @@
           session_id: 'sprint-containment',
           timestamp: now,
           event_type: 'FileWrite',
-          target: 'C:/cada/projects/agent_trace_gw/src/zones.rs',
+          target: 'src/zones.rs',
           action_details: { prompt: 'Architect Safe Zone vs Agent Playground containment rules' },
           diff: '--- a/src/zones.rs\n+++ b/src/zones.rs\n@@ -1,3 +1,12 @@\n+pub enum ZoneKind { VaultNoAccess, GuardedReadOnly, AgentPlayground }\n+pub fn resolve_canonical_target(raw: &str) -> String {}\n+pub fn evaluate_zones_for_path() -> Option<PolicyDecision> {}\n',
           provenance_sources: [],
