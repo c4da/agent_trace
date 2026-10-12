@@ -110,6 +110,12 @@
       border-color: var(--text-muted);
       background: #1e2636;
     }
+    .btn.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: var(--accent);
+      color: var(--text-main);
+      font-weight: 600;
+    }
     .btn-primary {
       background: var(--accent);
       border-color: var(--accent);
@@ -196,7 +202,7 @@
     /* 3-Column Tree Builder Layout */
     .workbench {
       display: grid;
-      grid-template-columns: 290px 1fr 370px;
+      grid-template-columns: 280px 1fr 410px;
       flex: 1;
       min-height: calc(100vh - 105px);
     }
@@ -221,7 +227,7 @@
       font-weight: 700;
       text-transform: uppercase;
       color: var(--text-muted);
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -236,7 +242,7 @@
       border: 1px solid var(--border);
       border-left: 3px solid var(--accent);
       border-radius: 4px;
-      padding: 8px 10px;
+      padding: 7px 10px;
       cursor: grab;
       user-select: none;
       transition: border-color 0.12s;
@@ -247,9 +253,6 @@
     }
     .palette-item:active {
       cursor: grabbing;
-    }
-    .palette-item.rule-item {
-      border-left-color: var(--green);
     }
     .palette-item-top {
       display: flex;
@@ -262,9 +265,25 @@
       color: var(--text-main);
     }
     .palette-item-sub {
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--text-muted);
       margin-top: 2px;
+      font-family: var(--mono);
+    }
+
+    /* Compact .MD Rule List */
+    .attached-rule-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-family: var(--mono);
+      font-size: 11px;
     }
 
     /* Center Interactive Top-Down Tree Canvas */
@@ -287,20 +306,6 @@
       background: rgba(17, 22, 31, 0.92);
       border-bottom: 1px solid var(--border);
       z-index: 10;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .canvas-hint-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 16px;
-      background: rgba(11, 14, 20, 0.85);
-      border-bottom: 1px solid var(--border);
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-muted);
-      z-index: 9;
       flex-wrap: wrap;
       gap: 8px;
     }
@@ -358,7 +363,7 @@
     .tree-node.hub-node {
       border: 2px solid var(--accent);
       background: #101929;
-      width: 340px;
+      width: 320px;
       text-align: center;
       z-index: 5;
       cursor: pointer;
@@ -368,7 +373,8 @@
       flex-wrap: wrap;
       gap: 4px;
       justify-content: center;
-      margin-top: 8px;
+      align-items: center;
+      margin-top: 7px;
       padding-top: 6px;
       border-top: 1px solid rgba(255,255,255,0.08);
     }
@@ -383,6 +389,20 @@
       font-size: 10px;
       padding: 2px 6px;
       border-radius: 3px;
+    }
+    .hub-add-rule-btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px dashed var(--border);
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .hub-add-rule-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
     }
 
     /* Agent Tree Node */
@@ -462,7 +482,7 @@
       color: var(--red);
     }
 
-    /* Right Inspector & Dispatch Column */
+    /* Right Inspector & YAML Config Column */
     .inspector-col {
       background: var(--bg-panel);
       border-left: 1px solid var(--border);
@@ -470,7 +490,7 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
     .insp-box {
       background: var(--bg-base);
@@ -489,6 +509,19 @@
       justify-content: space-between;
       align-items: center;
     }
+    .yaml-editor {
+      width: 100%;
+      min-height: 245px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.45;
+      background: var(--bg-input);
+      color: #e2e8f0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 10px;
+      resize: vertical;
+    }
     .prompt-preview {
       font-family: var(--mono);
       font-size: 11px;
@@ -497,7 +530,8 @@
       border: 1px solid var(--border);
       border-radius: 4px;
       padding: 8px;
-      max-height: 220px;
+      min-height: 245px;
+      max-height: 300px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-word;
@@ -533,46 +567,37 @@
     </div>
   </div>
 
-  <!-- 3-Column Drag-and-Drop Tree Workbench -->
+  <!-- 3-Column Tree & YAML Workbench -->
   <div class="workbench">
 
-    <!-- Left Column: Draggable Agents & .MD Rules Palette -->
+    <!-- Left Column: Agents + Compact 1-Line .MD Rule Path Selector -->
     <aside class="palette-col">
       <div>
         <div class="palette-section-title">
-          <span>1. Drag Agents into Tree</span>
-          <span style="color: var(--accent);">DRAGGABLE</span>
-        </div>
-        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
-          • Drop onto <strong>Top Hub</strong> (or empty canvas) to run in <strong>Parallel</strong>.<br>
-          • Drop onto an <strong>Agent Node</strong> to <strong>Chain</strong> as a child stage below it.
+          <span>1. Cluster Agents</span>
+          <span style="color: var(--text-dim);">DRAG OR +</span>
         </div>
         <div class="draggable-list" id="palette-agents-list"></div>
       </div>
 
       <div style="border-top: 1px solid var(--border); padding-top: 12px;">
         <div class="palette-section-title">
-          <span>2. Drag .MD Rule Files</span>
-          <span style="color: var(--green);">.MD RULES</span>
+          <span>2. .MD Rule Path</span>
+          <label class="btn btn-sm" style="cursor: pointer; margin: 0; padding: 1px 6px;">
+            Browse
+            <input type="file" accept=".md,.txt,.markdown" style="display: none;" onchange="uploadLocalMdFile(event)">
+          </label>
         </div>
-        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 8px;">
-          Drag workspace <code>.md</code> files onto the Top Hub or drop a local <code>.md</code> file from your computer.
-        </div>
-        <div class="draggable-list" id="palette-md-list"></div>
 
-        <!-- Custom .MD Rule Creator -->
-        <div style="margin-top: 10px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 4px; padding: 8px;">
-          <div style="font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-bottom: 6px; font-weight: 700;">+ ATTACH INLINE OR LOCAL .MD RULE</div>
-          <input type="text" id="custom-md-title" placeholder="Rule Title (e.g. Strict Rust Style)" style="width: 100%; margin-bottom: 5px; font-size: 11px;">
-          <textarea id="custom-md-body" rows="3" placeholder="- No monolithic files&#10;- >= 85% unit test coverage" style="width: 100%; margin-bottom: 6px; font-size: 11px;"></textarea>
-          <div style="display: flex; gap: 4px;">
-            <button class="btn btn-sm btn-primary" style="flex: 1; justify-content: center;" onclick="attachCustomInlineMd()">+ Attach to Tree</button>
-            <label class="btn btn-sm" style="cursor: pointer; margin: 0;">
-              Upload .md
-              <input type="file" accept=".md,.txt,.markdown" style="display: none;" onchange="uploadLocalMdFile(event)">
-            </label>
-          </div>
+        <!-- Single Compact Path Input + [+] Button -->
+        <div style="display: flex; gap: 4px; margin-bottom: 8px;">
+          <input type="text" id="md-path-input" list="workspace-md-datalist" placeholder="Select or type .md path..." style="flex: 1; min-width: 0; font-size: 11px;" onkeydown="if(event.key==='Enter') attachSelectedMdPath()">
+          <datalist id="workspace-md-datalist"></datalist>
+          <button class="btn btn-primary btn-sm" style="padding: 4px 10px;" title="Attach .md rule path" onclick="attachSelectedMdPath()">+</button>
         </div>
+
+        <!-- Attached .MD Rules for Current Workgroup -->
+        <div id="attached-rules-sidebar" style="display: flex; flex-direction: column; gap: 5px;"></div>
       </div>
     </aside>
 
@@ -584,17 +609,11 @@
           <span style="font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-left: 10px;" id="canvas-wg-stats"></span>
         </div>
         <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-          <span style="font-family: var(--mono); font-size: 11px; color: var(--text-dim);">Quick Tree Layout:</span>
           <button class="btn btn-sm" onclick="applyTreePreset('chain')" title="Chain all agents sequentially (Hub -> Agent 1 -> Agent 2 -> Agent 3)">⬇ Sequential Chain</button>
           <button class="btn btn-sm" onclick="applyTreePreset('parallel')" title="Connect all agents in parallel directly under Top Hub">⑃ All Parallel</button>
           <button class="btn btn-sm" onclick="applyTreePreset('lead_fanout')" title="Lead agent under Hub, remaining agents in parallel below Lead">🌳 Lead &rarr; Parallel</button>
           <button class="btn btn-sm btn-danger" id="btn-delete-wg" onclick="deleteActiveWorkgroup()" style="display: none;">Delete Group</button>
         </div>
-      </div>
-
-      <div class="canvas-hint-bar">
-        <span><strong>TOP-DOWN EXECUTION TREE:</strong> Hub is at the top (Root). Sibling nodes on the same horizontal tier run in <strong>Parallel</strong>; vertical parent &rarr; child links run as a <strong>Sequential Chain</strong>.</span>
-        <span style="color: var(--accent);">Tip: Drag any Agent card onto another Agent card to chain it underneath!</span>
       </div>
 
       <div class="tree-stage" id="tree-stage"
@@ -606,8 +625,43 @@
       </div>
     </section>
 
-    <!-- Right Column: Tree Inspector, Compiled .MD System Prompt & Live Runner -->
+    <!-- Right Column: Declarative YAML Config Editor, Path Loader & Live Dispatcher -->
     <aside class="inspector-col">
+      <!-- Declarative YAML Config & File Path Loader -->
+      <div class="insp-box" style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="insp-title" style="margin-bottom: 0;">
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-sm active" id="tab-btn-yaml" onclick="switchRightTab('yaml')">YAML Config</button>
+            <button class="btn btn-sm" id="tab-btn-prompt" onclick="switchRightTab('prompt')">Compiled Prompt</button>
+          </div>
+          <span style="color: var(--green);" id="compiled-rules-count">0 rules</span>
+        </div>
+
+        <!-- Tab 1: Editable YAML Config + File Path Loader -->
+        <div id="right-tab-yaml" style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; gap: 4px;">
+            <input type="text" id="yaml-file-path" placeholder="YAML config path (e.g. workgroup.yaml)" style="flex: 1; font-size: 11px;">
+            <button class="btn btn-sm" onclick="loadYamlFromPath()" title="Load workgroup from a .yaml file path on disk">Load Path</button>
+            <label class="btn btn-sm" style="cursor: pointer; margin: 0;">
+              File
+              <input type="file" accept=".yaml,.yml" style="display: none;" onchange="uploadLocalYamlFile(event)">
+            </label>
+          </div>
+
+          <textarea id="yaml-config-editor" class="yaml-editor" spellcheck="false" placeholder="id: wg-coding&#10;name: Coding & Architecture&#10;..."></textarea>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+            <span id="yaml-status-msg" style="font-family: var(--mono); font-size: 11px; color: var(--text-muted);">Synced with tree</span>
+            <button class="btn btn-primary btn-sm" onclick="applyEditedYaml()">Apply YAML to Tree</button>
+          </div>
+        </div>
+
+        <!-- Tab 2: Compiled System Prompt Preview -->
+        <div id="right-tab-prompt" style="display: none;">
+          <div class="prompt-preview" id="compiled-prompt-box"></div>
+        </div>
+      </div>
+
       <!-- Dispatch Prompt to Active Tree -->
       <div class="insp-box">
         <div class="insp-title">
@@ -617,29 +671,6 @@
         <textarea id="mesh-prompt-input" rows="3" placeholder="Enter a problem for this workgroup tree to solve..." style="width: 100%; margin-bottom: 8px;"></textarea>
         <button class="btn btn-primary" style="width: 100%; justify-content: center;" id="btn-run-mesh" onclick="dispatchToActiveTree()">Execute Workgroup Tree</button>
         <div id="mesh-dispatch-output" style="display: none; margin-top: 10px; font-family: var(--mono); font-size: 11px;"></div>
-      </div>
-
-      <!-- Trigger Keywords -->
-      <div class="insp-box">
-        <div class="insp-title">
-          <span>Auto-Routing Trigger Keywords</span>
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">
-          Matches prompts containing these keywords when <code>workgroup_id: "auto"</code>:
-        </div>
-        <div style="display: flex; gap: 6px;">
-          <input type="text" id="wg-keywords-input" placeholder="rust, cargo, refactor" style="flex: 1; font-size: 11px;">
-          <button class="btn btn-sm" onclick="saveTriggerKeywords()">Save</button>
-        </div>
-      </div>
-
-      <!-- Compiled Markdown System Prompt Preview -->
-      <div class="insp-box" style="flex: 1; display: flex; flex-direction: column;">
-        <div class="insp-title">
-          <span>Compiled .MD System Prompt &amp; Tree Roster</span>
-          <span style="color: var(--green);" id="compiled-rules-count">0 rules</span>
-        </div>
-        <div class="prompt-preview" id="compiled-prompt-box" style="flex: 1;">Select a workgroup to inspect its compiled system prompt and attached .md rules.</div>
       </div>
     </aside>
 
@@ -657,6 +688,14 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+    }
+
+    function switchRightTab(tab) {
+      const isYaml = tab === 'yaml';
+      document.getElementById('right-tab-yaml').style.display = isYaml ? 'flex' : 'none';
+      document.getElementById('right-tab-prompt').style.display = isYaml ? 'none' : 'block';
+      document.getElementById('tab-btn-yaml').classList.toggle('active', isYaml);
+      document.getElementById('tab-btn-prompt').classList.toggle('active', !isYaml);
     }
 
     async function loadWorkgroupsState() {
@@ -702,40 +741,62 @@
     function selectWorkgroup(id) {
       activeWgId = id;
       renderTabs();
+      renderLeftPalettes();
       renderActiveTree();
       loadCompiledPreview();
     }
 
     function renderLeftPalettes() {
+      // 1. Draggable Agent Cards
       const agentsEl = document.getElementById('palette-agents-list');
       agentsEl.innerHTML = availableAgents.map(a => `
         <div class="palette-item" draggable="true"
              ondragstart="onPaletteDragStart(event, 'agent', '${escapeHtml(a.agent_id)}')">
           <div class="palette-item-top">
             <span>${escapeHtml(a.display_name)}</span>
-            <button class="btn btn-sm" style="padding: 1px 6px;" title="Add under Top Hub (Parallel)" onclick="addOrReparentAgent('${escapeHtml(a.agent_id)}', null)">+ Hub</button>
+            <button class="btn btn-sm" style="padding: 1px 6px;" title="Add to Tree" onclick="addOrReparentAgent('${escapeHtml(a.agent_id)}', null)">+</button>
           </div>
           <div class="palette-item-sub">
-            <code>${escapeHtml(a.agent_id)}</code> · ${escapeHtml(a.node_id)}
+            ${escapeHtml(a.agent_id)} · ${escapeHtml(a.node_id)}
           </div>
         </div>
       `).join('');
 
-      const mdEl = document.getElementById('palette-md-list');
-      mdEl.innerHTML = discoveredMdFiles.map(md => {
+      // 2. Populate Datalist for 1-line .MD Path Picker
+      const datalist = document.getElementById('workspace-md-datalist');
+      datalist.innerHTML = discoveredMdFiles.map(md => {
         const filePath = typeof md === 'string' ? md : md.path;
         const title = typeof md === 'string' ? md : (md.title || md.path);
-        return `
-          <div class="palette-item rule-item" draggable="true"
-               ondragstart="onPaletteDragStart(event, 'md', '${escapeHtml(filePath)}')">
-            <div class="palette-item-top">
-              <span>📄 ${escapeHtml(filePath)}</span>
-              <button class="btn btn-sm" style="padding: 1px 6px;" onclick="attachWorkspaceMdToActiveWg('${escapeHtml(filePath)}')">+</button>
-            </div>
-            <div class="palette-item-sub">${escapeHtml(title)}</div>
-          </div>
-        `;
+        return `<option value="${escapeHtml(filePath)}">${escapeHtml(title)}</option>`;
       }).join('');
+
+      // 3. Render currently attached .md rules for the active workgroup
+      const wg = getActiveWg();
+      const rules = wg?.markdown_rules || [];
+      const sidebarRules = document.getElementById('attached-rules-sidebar');
+      if (!rules.length) {
+        sidebarRules.innerHTML = '';
+      } else {
+        sidebarRules.innerHTML = rules.map(r => `
+          <div class="attached-rule-row">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(r.file_path || r.title)}">
+              📄 ${escapeHtml(r.file_path || r.title)}
+            </span>
+            <button class="node-remove-btn" onclick="removeMdRuleFromActiveWg('${escapeHtml(r.id)}')">&times;</button>
+          </div>
+        `).join('');
+      }
+    }
+
+    async function attachSelectedMdPath() {
+      const input = document.getElementById('md-path-input');
+      const val = (input.value || '').trim();
+      if (!val) {
+        input.focus();
+        return;
+      }
+      input.value = '';
+      await attachWorkspaceMdToActiveWg(val);
     }
 
     function onPaletteDragStart(ev, kind, id) {
@@ -759,23 +820,26 @@
       document.getElementById('tree-stage').classList.remove('drag-over-bg');
     }
 
-    // Dropping on the Top Hub or empty canvas places the agent directly under the Hub (Parallel Tier 1)
     async function handleStageDropOnHub(ev) {
       ev.preventDefault();
       ev.stopPropagation();
       document.getElementById('tree-stage').classList.remove('drag-over-bg');
       clearNodeDropHighlights();
 
-      // OS local .md file drop
       if (ev.dataTransfer.files && ev.dataTransfer.files.length > 0) {
         const file = ev.dataTransfer.files[0];
         const text = await file.text();
-        await attachRulePayload({
-          title: file.name,
-          file_path: null,
-          inline_markdown: text,
-          enforce_strict: true
-        });
+        if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
+          document.getElementById('yaml-config-editor').value = text;
+          await applyEditedYaml();
+        } else {
+          await attachRulePayload({
+            title: file.name,
+            file_path: null,
+            inline_markdown: text,
+            enforce_strict: true
+          });
+        }
         return;
       }
 
@@ -806,7 +870,6 @@
       targetEl.classList.remove('drop-target-active');
     }
 
-    // Dropping an agent onto an existing Agent Node chains it as a downstream child under that agent!
     async function handleDropOnAgentNode(ev, parentAgentId) {
       ev.preventDefault();
       ev.stopPropagation();
@@ -817,7 +880,7 @@
       try {
         const payload = JSON.parse(raw);
         if (payload.kind === 'agent') {
-          if (payload.id === parentAgentId) return; // Ignore self-drop
+          if (payload.id === parentAgentId) return;
           await addOrReparentAgent(payload.id, parentAgentId);
         } else if (payload.kind === 'md') {
           await attachWorkspaceMdToActiveWg(payload.id);
@@ -833,7 +896,6 @@
       });
     }
 
-    // Checks if setting childId's parent to candidateParentId would create a cycle
     function wouldCreateCycle(members, childId, candidateParentId) {
       if (!candidateParentId) return false;
       if (childId === candidateParentId) return true;
@@ -852,13 +914,11 @@
       return false;
     }
 
-    // Computes hierarchical Top-Down Tree Layout coordinates (xPct, yPct, depth, siblingsCount)
     function computeTopDownTreeLayout(wg) {
       const members = wg.members || [];
       const memberById = {};
       members.forEach(m => { memberById[m.agent_id] = m; });
 
-      // Calculate depth of each member (1 = direct child of Hub, 2 = child of Level 1, etc.)
       const depthMap = {};
       function getDepth(agentId, visited = new Set()) {
         if (depthMap[agentId]) return depthMap[agentId];
@@ -877,7 +937,6 @@
 
       members.forEach(m => getDepth(m.agent_id));
 
-      // Group members by depth level
       const levels = {};
       let maxDepth = 1;
       members.forEach(m => {
@@ -887,7 +946,6 @@
         levels[d].push(m);
       });
 
-      // Sort each level by parent's horizontal order so tree branches don't cross
       const coords = {};
       coords['__hub__'] = { x: 50, y: 12, depth: 0 };
 
@@ -901,14 +959,12 @@
           });
         }
         const count = row.length;
-        // Vertical spacing: Hub at 12%, levels distributed cleanly down to 85%
         const yStep = Math.min(25, 72 / Math.max(maxDepth, 1));
         const yPct = Math.round(13 + d * yStep);
 
         row.forEach((m, idx) => {
           let xPct = 50;
           if (count === 1) {
-            // If single child of a parent, align directly below its parent for a clean vertical chain!
             const parentId = (m.parent_agent_id && memberById[m.parent_agent_id]) ? m.parent_agent_id : '__hub__';
             xPct = coords[parentId]?.x ?? 50;
           } else {
@@ -936,15 +992,13 @@
       const rules = wg.markdown_rules || [];
       const { coords, maxDepth, memberById } = computeTopDownTreeLayout(wg);
 
-      // Count parallel vs chained links
       const rootParallelCount = members.filter(m => !m.parent_agent_id || !memberById[m.parent_agent_id]).length;
       const chainedCount = members.length - rootParallelCount;
 
       document.getElementById('canvas-wg-title').textContent = `${wg.name} (${wg.id})`;
       document.getElementById('canvas-wg-stats').textContent =
-        `${members.length} Agents · ${maxDepth} Tree Depth Level(s) · ${rootParallelCount} Root Parallel · ${chainedCount} Chained · ${rules.length} .MD Rules`;
+        `${members.length} Agents · ${maxDepth} Level(s) · ${rootParallelCount} Parallel · ${chainedCount} Chained`;
       document.getElementById('dispatch-wg-badge').textContent = wg.id;
-      document.getElementById('wg-keywords-input').value = (wg.trigger_keywords || []).join(', ');
 
       const isPreset = ['wg-coding', 'wg-image-gen', 'wg-reasoning-debug', 'wg-security-audit', 'wg-ui-workfirst'].includes(wg.id);
       document.getElementById('btn-delete-wg').style.display = isPreset ? 'none' : 'inline-flex';
@@ -952,29 +1006,28 @@
       const nodesLayer = document.getElementById('tree-nodes-layer');
       const hubCoord = coords['__hub__'];
 
-      const rulesChipsHtml = rules.length
-        ? rules.map(r => `
-            <span class="hub-rule-chip" title="${escapeHtml(r.file_path || 'Inline .md rule')}">
-              <span>📄 ${escapeHtml(r.title)}</span>
-              <button class="node-remove-btn" style="font-size: 11px; color: #6ee7b7;" onclick="removeMdRuleFromActiveWg('${escapeHtml(r.id)}')">&times;</button>
-            </span>
-          `).join('')
-        : '<span style="font-size: 10px; color: var(--text-dim); font-family: var(--mono);">Drag .MD Rule files here to attach governance rules</span>';
+      const rulesChipsHtml = rules.map(r => `
+        <span class="hub-rule-chip" title="${escapeHtml(r.file_path || r.title)}">
+          <span>📄 ${escapeHtml(r.file_path || r.title)}</span>
+          <button class="node-remove-btn" style="font-size: 11px; color: #6ee7b7;" onclick="removeMdRuleFromActiveWg('${escapeHtml(r.id)}')">&times;</button>
+        </span>
+      `).join('');
 
-      // 1. Render Top Hub Node (Root of the Tree)
+      // 1. Render Top Hub Node (Root of the Tree) with compact [+ .MD] chip
       let html = `
         <div class="tree-node hub-node" style="left: ${hubCoord.x}%; top: ${hubCoord.y}%;"
              ondragover="handleNodeDragOver(event, this)"
              ondragleave="handleNodeDragLeave(event, this)"
              ondrop="handleStageDropOnHub(event)">
           <div style="font-family: var(--mono); font-size: 10px; color: var(--accent); font-weight: 700; letter-spacing: 0.5px;">
-            ROOT HUB // DROP AGENT HERE FOR PARALLEL TIER 1
+            ROOT HUB
           </div>
           <div class="node-header" style="justify-content: center; font-size: 13px; margin-top: 2px;">
             <span>${escapeHtml(wg.name.toUpperCase())}</span>
           </div>
           <div class="hub-rules-list">
             ${rulesChipsHtml}
+            <button class="hub-add-rule-btn" onclick="document.getElementById('md-path-input').focus()" title="Select or type a .md rule path">+ .MD Rule</button>
           </div>
         </div>
       `;
@@ -983,9 +1036,7 @@
       members.forEach((m, idx) => {
         const c = coords[m.agent_id] || { x: 50, y: 45, depth: 1 };
         const hasAgentParent = m.parent_agent_id && memberById[m.parent_agent_id];
-        const parentName = hasAgentParent ? memberById[m.parent_agent_id].display_name : 'Top Hub (Root)';
 
-        // Check how many siblings share the exact same parent
         const siblingsWithSameParent = members.filter(other => {
           const p1 = (other.parent_agent_id && memberById[other.parent_agent_id]) ? other.parent_agent_id : '__hub__';
           const p2 = hasAgentParent ? m.parent_agent_id : '__hub__';
@@ -995,16 +1046,15 @@
         const isParallel = siblingsWithSameParent > 1;
         const stageLabel = hasAgentParent
           ? (isParallel ? `STAGE ${c.depth} · PARALLEL BRANCH` : `STAGE ${c.depth} · CHAINED CHILD`)
-          : (isParallel ? `STAGE 1 · PARALLEL (${siblingsWithSameParent} NODES)` : `STAGE 1 · ENTRY NODE`);
+          : (isParallel ? `STAGE 1 · PARALLEL (${siblingsWithSameParent})` : `STAGE 1 · ENTRY NODE`);
 
         const roles = ['LeadArchitect', 'PrimaryBuilder', 'SanityVerifier', 'ToolExecutor'];
         const roleOptions = roles.map(r =>
           `<option value="${r}" ${m.role === r ? 'selected' : ''}>Role: ${r}</option>`
         ).join('');
 
-        // Build Parent selector so user can chain under any other agent or place under Top Hub
         const parentOptions = [
-          `<option value="" ${!hasAgentParent ? 'selected' : ''}>⬆ Parent: Top Hub (Parallel Tier 1)</option>`,
+          `<option value="" ${!hasAgentParent ? 'selected' : ''}>⬆ Parent: Top Hub (Parallel)</option>`,
           ...members
             .filter(other => other.agent_id !== m.agent_id && !wouldCreateCycle(members, m.agent_id, other.agent_id))
             .map(other => `<option value="${escapeHtml(other.agent_id)}" ${m.parent_agent_id === other.agent_id ? 'selected' : ''}>⬇ Chain after: ${escapeHtml(other.display_name)}</option>`)
@@ -1063,7 +1113,6 @@
         </defs>
       `;
 
-      // Draw subtle horizontal tier guide lines for each depth level
       const drawnY = new Set();
       members.forEach(m => {
         const c = coords[m.agent_id];
@@ -1074,13 +1123,12 @@
             <line x1="24" y1="${yPx}" x2="${w - 24}" y2="${yPx}"
                   stroke="#222936" stroke-width="1" stroke-dasharray="4 6" />
             <text x="30" y="${yPx - 8}" fill="#64748b" font-family="monospace" font-size="10" font-weight="bold">
-              STAGE TIER ${c.depth} ${c.parallelCountAtDepth > 1 ? '(PARALLEL EXECUTION)' : '(SEQUENTIAL STAGE)'}
+              STAGE TIER ${c.depth} ${c.parallelCountAtDepth > 1 ? '(PARALLEL)' : '(SEQUENTIAL)'}
             </text>
           `;
         }
       });
 
-      // Draw directed Top-Down Cubic Bezier edges from Parent (Hub or Parent Agent) -> Child Agent
       members.forEach(m => {
         const childCoord = coords[m.agent_id];
         if (!childCoord) return;
@@ -1090,7 +1138,7 @@
         if (!parentCoord) return;
 
         const x1 = (parentCoord.x / 100) * w;
-        const y1 = ((parentCoord.y / 100) * h) + (hasAgentParent ? 54 : 44);
+        const y1 = ((parentCoord.y / 100) * h) + (hasAgentParent ? 54 : 42);
         const x2 = (childCoord.x / 100) * w;
         const y2 = ((childCoord.y / 100) * h) - 58;
 
@@ -1128,7 +1176,6 @@
       await loadWorkgroupsState();
     }
 
-    // Adds a new agent or updates an existing agent's parent_agent_id in the tree
     async function addOrReparentAgent(agentId, parentAgentId) {
       const wg = getActiveWg();
       if (!wg) return;
@@ -1136,9 +1183,7 @@
 
       const existing = wg.members.find(m => m.agent_id === agentId);
       if (existing) {
-        if (wouldCreateCycle(wg.members, agentId, parentAgentId)) {
-          return;
-        }
+        if (wouldCreateCycle(wg.members, agentId, parentAgentId)) return;
         existing.parent_agent_id = parentAgentId || null;
         await saveWorkgroup(wg);
         return;
@@ -1169,19 +1214,16 @@
       if (!wg || !Array.isArray(wg.members) || !wg.members.length) return;
 
       if (mode === 'chain') {
-        // Hub -> Member 0 -> Member 1 -> Member 2
         wg.members.forEach((m, idx) => {
           m.parent_agent_id = idx === 0 ? null : wg.members[idx - 1].agent_id;
         });
         wg.execution_strategy = 'pipeline';
       } else if (mode === 'parallel') {
-        // Hub -> [Member 0 | Member 1 | Member 2]
         wg.members.forEach(m => {
           m.parent_agent_id = null;
         });
         wg.execution_strategy = 'swarm';
       } else if (mode === 'lead_fanout') {
-        // Hub -> Member 0 -> [Member 1 | Member 2 | ...]
         const leadId = wg.members[0].agent_id;
         wg.members.forEach((m, idx) => {
           m.parent_agent_id = idx === 0 ? null : leadId;
@@ -1197,7 +1239,6 @@
       const removedMember = wg.members.find(m => m.agent_id === agentId);
       const fallbackParent = removedMember?.parent_agent_id || null;
       wg.members = wg.members.filter(m => m.agent_id !== agentId);
-      // Re-attach any children of the removed node to its parent so the tree stays connected
       wg.members.forEach(m => {
         if (m.parent_agent_id === agentId) {
           m.parent_agent_id = fallbackParent;
@@ -1218,20 +1259,6 @@
         title: filePath.split('/').pop(),
         file_path: filePath,
         inline_markdown: '',
-        enforce_strict: true
-      });
-    }
-
-    async function attachCustomInlineMd() {
-      const title = (document.getElementById('custom-md-title').value || '').trim();
-      const body = (document.getElementById('custom-md-body').value || '').trim();
-      if (!title || !body) return;
-      document.getElementById('custom-md-title').value = '';
-      document.getElementById('custom-md-body').value = '';
-      await attachRulePayload({
-        title,
-        file_path: null,
-        inline_markdown: body,
         enforce_strict: true
       });
     }
@@ -1267,14 +1294,6 @@
         method: 'DELETE'
       });
       await loadWorkgroupsState();
-    }
-
-    async function saveTriggerKeywords() {
-      const wg = getActiveWg();
-      if (!wg) return;
-      const raw = document.getElementById('wg-keywords-input').value || '';
-      wg.trigger_keywords = raw.split(',').map(s => s.trim()).filter(Boolean);
-      await saveWorkgroup(wg);
     }
 
     async function createEmptyWorkgroup() {
@@ -1321,12 +1340,85 @@
       try {
         const res = await fetch(`/api/v1/workgroups/${encodeURIComponent(wg.id)}/preview`);
         const d = await res.json();
-        document.getElementById('compiled-rules-count').textContent = `${d.rules_count ?? (wg.markdown_rules || []).length} rules active`;
+        document.getElementById('compiled-rules-count').textContent = `${d.rules_count ?? (wg.markdown_rules || []).length} rules`;
         document.getElementById('compiled-prompt-box').textContent =
-          d.compiled_system_prompt || 'No rules or members configured yet. Drag agents and .md files onto the tree.';
+          d.compiled_system_prompt || 'No rules or members configured yet.';
+        if (d.yaml) {
+          document.getElementById('yaml-config-editor').value = d.yaml;
+        }
       } catch (e) {
         console.error('Preview error:', e);
       }
+    }
+
+    async function applyEditedYaml() {
+      const yaml = document.getElementById('yaml-config-editor').value;
+      const statusEl = document.getElementById('yaml-status-msg');
+      statusEl.textContent = 'Applying YAML...';
+      statusEl.style.color = 'var(--text-muted)';
+      try {
+        const res = await fetch('/api/v1/workgroups/yaml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ yaml })
+        });
+        const d = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = d.error || 'Invalid YAML';
+          statusEl.style.color = 'var(--red)';
+          return;
+        }
+        if (d.workgroup && d.workgroup.id) {
+          activeWgId = d.workgroup.id;
+        }
+        statusEl.textContent = '✓ YAML applied to tree';
+        statusEl.style.color = 'var(--green)';
+        await loadWorkgroupsState();
+      } catch (e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.style.color = 'var(--red)';
+      }
+    }
+
+    async function loadYamlFromPath() {
+      const file_path = (document.getElementById('yaml-file-path').value || '').trim();
+      const statusEl = document.getElementById('yaml-status-msg');
+      if (!file_path) {
+        document.getElementById('yaml-file-path').focus();
+        return;
+      }
+      statusEl.textContent = `Loading ${file_path}...`;
+      try {
+        const res = await fetch('/api/v1/workgroups/yaml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_path })
+        });
+        const d = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = d.error || 'Failed to load path';
+          statusEl.style.color = 'var(--red)';
+          return;
+        }
+        if (d.workgroup && d.workgroup.id) {
+          activeWgId = d.workgroup.id;
+        }
+        statusEl.textContent = `✓ Loaded ${file_path}`;
+        statusEl.style.color = 'var(--green)';
+        await loadWorkgroupsState();
+      } catch (e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.style.color = 'var(--red)';
+      }
+    }
+
+    async function uploadLocalYamlFile(ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      document.getElementById('yaml-config-editor').value = text;
+      ev.target.value = '';
+      await applyEditedYaml();
     }
 
     async function dispatchToActiveTree() {

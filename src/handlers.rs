@@ -93,7 +93,9 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/zones/confine", post(confine_playground_handler))
         // Problem Workgroups & Attached Markdown (.md) Rules Endpoints
         .route("/api/v1/workgroups", get(crate::workgroups::list_workgroups_handler).post(crate::workgroups::upsert_workgroup_handler))
+        .route("/api/v1/workgroups/yaml", post(crate::workgroups::apply_workgroup_yaml_handler))
         .route("/api/v1/workgroups/:workgroup_id", delete(crate::workgroups::delete_workgroup_handler))
+        .route("/api/v1/workgroups/:workgroup_id/yaml", get(crate::workgroups::get_workgroup_yaml_handler))
         .route("/api/v1/workgroups/:workgroup_id/rules", post(crate::workgroups::attach_markdown_rule_handler))
         .route("/api/v1/workgroups/:workgroup_id/rules/:rule_id", delete(crate::workgroups::remove_markdown_rule_handler))
         .route("/api/v1/workgroups/:workgroup_id/preview", get(crate::workgroups::preview_workgroup_prompt_handler))
