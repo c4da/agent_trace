@@ -99,9 +99,9 @@ async fn execute_stage_call(
 ) -> HubStageResult {
     let t0 = std::time::Instant::now();
 
-    // For fast non-reasoning tasks on Qwen3, append /no_think to avoid 20s thinking overhead
+    // Append /no_think for Qwen3 models unless /think is explicitly requested so multi-stage Hub pipelines return in seconds
     let effective_prompt = if preferred_model.to_lowercase().starts_with("qwen3")
-        && intent != RoutingIntent::ComplexReasoning
+        && !prompt.contains("/think")
         && !prompt.contains("/no_think")
     {
         format!("{}\n/no_think", prompt)

@@ -480,8 +480,8 @@ impl WorkgroupRegistry {
                     role: WorkgroupRole::SanityVerifier,
                 },
                 WorkgroupMember {
-                    agent_id: "qwen3.8:27b".to_string(),
-                    display_name: "Qwen 3.8 (27B Heavy)".to_string(),
+                    agent_id: "qwen3.5:9b".to_string(),
+                    display_name: "Qwen 3.5 (9B Code & Debug)".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::LeadArchitect,
                 },
@@ -984,7 +984,7 @@ mod tests {
             .expect("wg-reasoning-debug should exist");
         assert_eq!(reasoning.problem_domain, "reasoning_debugging");
         assert!(reasoning.members.iter().any(|m| m.agent_id.contains("deepseek")));
-        assert!(reasoning.members.iter().any(|m| m.agent_id.contains("27b")));
+        assert!(reasoning.members.iter().any(|m| m.agent_id.contains("qwen")));
     }
 
     #[test]
