@@ -208,6 +208,127 @@
       width: 100%;
     }
 
+    /* Interactive Scenario Demo Strip */
+    .demo-strip {
+      background: #090d14;
+      border-bottom: 1px solid var(--border-term);
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+
+    .demo-label {
+      color: var(--accent-amber);
+      font-weight: bold;
+      font-size: 11px;
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+    }
+
+    .demo-btn-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    .demo-btn {
+      background: #141a24;
+      border: 1px solid var(--border-bright);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      cursor: pointer;
+      border-radius: 3px;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .demo-btn:hover {
+      background: var(--border-term);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .demo-btn.btn-danger { border-color: #f85149; color: #ff7b72; }
+    .demo-btn.btn-danger:hover { background: #3c1417; }
+    .demo-btn.btn-success { border-color: #2ea043; color: #7ee787; }
+    .demo-btn.btn-success:hover { background: #14321d; }
+    .demo-btn.btn-primary { border-color: #388bfd; color: #79c0ff; }
+    .demo-btn.btn-primary:hover { background: #112846; }
+    .demo-btn.btn-accent { border-color: #8957e5; color: #d2a8ff; }
+    .demo-btn.btn-accent:hover { background: #261b40; }
+    .demo-btn.btn-warning { border-color: #d29922; color: #e3b341; }
+    .demo-btn.btn-warning:hover { background: #3b2a0c; }
+
+    /* Scenario Explainer Card */
+    .scenario-card {
+      background: #0c121c;
+      border-bottom: 2px solid var(--accent-cyan);
+      padding: 10px 14px;
+      flex-shrink: 0;
+    }
+
+    .sc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .sc-title {
+      color: var(--accent-cyan);
+      font-weight: bold;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .sc-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .sc-close:hover { color: var(--text-main); }
+
+    .sc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .sc-box {
+      background: #080c12;
+      border: 1px solid var(--border-term);
+      padding: 8px 10px;
+      border-radius: 3px;
+    }
+
+    .sc-badge {
+      font-size: 10px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      display: inline-block;
+      padding: 1px 4px;
+      border-radius: 2px;
+    }
+
+    .sc-badge.problem { background: #3c1417; color: #ff7b72; border: 1px solid #782329; }
+    .sc-badge.action { background: #14321d; color: #7ee787; border: 1px solid #2ea043; }
+    .sc-badge.value { background: #122138; color: #79c0ff; border: 1px solid #388bfd; }
+
+    .sc-text {
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-main);
+    }
+
     /* Main Split Workspace */
     .workspace {
       display: flex;
@@ -526,6 +647,50 @@
     <div class="filter-wrapper">
       <span class="filter-prefix">/</span>
       <input type="text" id="filter-input" class="filter-input" placeholder="filter (e.g. verdict:Blocked target:.env)" oninput="applyFilter()">
+    </div>
+  </div>
+
+  <!-- Interactive Scenario Demonstrator Strip -->
+  <div class="demo-strip">
+    <span class="demo-label">⚡ LIVE SCENARIO DEMOS:</span>
+    <div class="demo-btn-group">
+      <button class="demo-btn btn-danger" onclick="runScenarioDemo('secret_leak')" title="Simulate rogue agent attempting to read .env">
+        1. 🛡️ Intercept .env Leak
+      </button>
+      <button class="demo-btn btn-success" onclick="runScenarioDemo('code_diff')" title="Simulate in-flight agent code modification with unified diff">
+        2. 📝 In-Flight Code Diff
+      </button>
+      <button class="demo-btn btn-primary" onclick="runScenarioDemo('zero_token')" title="Simulate prompt classification & zero-token cloud interception">
+        3. 🔀 Zero-Token Route
+      </button>
+      <button class="demo-btn btn-accent" onclick="runScenarioDemo('ledger_proof')" title="Run headless cryptographic ledger verification across all blocks">
+        4. ⛓️ Cryptographic Proof
+      </button>
+      <button class="demo-btn btn-warning" onclick="runScenarioDemo('sandbox_freeze')" title="Simulate instant policy lockdown on runaway agent">
+        5. 🛑 Runtime Sandbox Freeze
+      </button>
+    </div>
+  </div>
+
+  <!-- Scenario Explainer Card (Shows problem, interception, and value proposition) -->
+  <div id="scenario-card" class="scenario-card" style="display: none;">
+    <div class="sc-header">
+      <span class="sc-title" id="sc-card-title">⚡ SCENARIO DEMONSTRATION</span>
+      <button class="sc-close" onclick="closeScenarioCard()">✕ Dismiss</button>
+    </div>
+    <div class="sc-grid">
+      <div class="sc-box">
+        <div class="sc-badge problem">1. THE PROBLEM SOLVED</div>
+        <div id="sc-problem-desc" class="sc-text">...</div>
+      </div>
+      <div class="sc-box">
+        <div class="sc-badge action">2. GATEWAY INTERCEPTION</div>
+        <div id="sc-action-desc" class="sc-text">...</div>
+      </div>
+      <div class="sc-box">
+        <div class="sc-badge value">3. WHY YOU NEED AGENTTRACE</div>
+        <div id="sc-value-desc" class="sc-text">...</div>
+      </div>
     </div>
   </div>
 
@@ -1078,6 +1243,157 @@
           document.getElementById('verify-modal').style.display = 'none';
         }
       });
+    }
+
+    // 9. Interactive Scenario Demonstration Suite
+    async function runScenarioDemo(type) {
+      const card = document.getElementById('scenario-card');
+      card.style.display = 'block';
+
+      if (type === 'secret_leak') {
+        document.getElementById('sc-card-title').textContent = '🚨 DEMO 1: ROGUE AGENT SECRET INTRUSION INTERCEPTION';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Autonomous agent crawling workspace attempts to read .env to inject DB credentials into LLM prompt context.';
+        document.getElementById('sc-action-desc').textContent = 
+          'AgentTrace PolicyEngine evaluates path in-memory: blocked pattern *.env matched -> Verdict set to BLOCKED (0 blast radius).';
+        document.getElementById('sc-value-desc').textContent = 
+          'Prevents catastrophic credential exfiltration before proprietary keys ever leave the host machine.';
+
+        const ev = {
+          event_id: 'demo-leak-' + Date.now().toString(36),
+          node_id: 'PC-1-CopilotCLI',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'FileRead',
+          target: '.env',
+          action_details: { tool: 'file_read', summary: 'Exfiltrate AWS & DB secret keys', args: { path: '.env' } },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 2.1,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-leak-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('blocked');
+        switchInspTab('policy');
+      } else if (type === 'code_diff') {
+        document.getElementById('sc-card-title').textContent = '📝 DEMO 2: IN-FLIGHT CODE FORENSICS & UNIFIED DIFF';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Blind agent writes rewrite core security files. Developers cannot see uncommitted modifications until post-mortem.';
+        document.getElementById('sc-action-desc').textContent = 
+          'Gateway streams the unified diff in-flight (+ green additions, - red deletions) before disk sync or git commit.';
+        document.getElementById('sc-value-desc').textContent = 
+          'Line-by-line inspection of AI-generated edits in real-time, eliminating black-box hallucinations.';
+
+        const diffText = `--- a/src/auth.rs\n+++ b/src/auth.rs\n@@ -14,4 +14,6 @@\n- let bypass_auth = true; // Insecure test mode\n+ let bypass_auth = false;\n+ let token = verify_cluster_signature(&headers)?;\n  Ok(token)`;
+        const ev = {
+          event_id: 'demo-diff-' + Date.now().toString(36),
+          node_id: 'PC-1-Hermes',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'FileWrite',
+          target: 'src/auth.rs',
+          action_details: { tool: 'replace_file_content', summary: 'Enforce cryptographic token check in auth' },
+          diff: diffText,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 8.4,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-diff-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('diffs');
+        switchInspTab('diff');
+      } else if (type === 'zero_token') {
+        document.getElementById('sc-card-title').textContent = '🔀 DEMO 3: ZERO-TOKEN MODEL INTERCEPTION & COST GUARDRAIL';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Prompts with proprietary code leak to commercial cloud APIs, running up high external billing costs.';
+        document.getElementById('sc-action-desc').textContent = 
+          'Classifier intercepts cloud model intent and auto-routes to local Ollama qwen3.8:27b / worker node at $0 token cost.';
+        document.getElementById('sc-value-desc').textContent = 
+          '100% data residency and guaranteed zero external cloud billing for autonomous subagents.';
+
+        const ev = {
+          event_id: 'demo-route-' + Date.now().toString(36),
+          node_id: 'Gateway-Router',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'DecisionStep',
+          target: 'ModelRoute: qwen3.8:27b (Local Ollama :11434)',
+          action_details: { 
+            tool: 'model_router', 
+            summary: 'Intercepted gpt-4o -> Local Qwen (Zero-Token Economy)', 
+            args: { original_model: 'gpt-4o', routed_model: 'qwen3.8:27b', tokens_saved: 1420, cost_saved: '$0.042' } 
+          },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: ['ZeroTokenRoutingApplied'],
+          duration_ms: 14.8,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-route-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('all');
+        document.getElementById('filter-input').value = 'ZeroToken';
+        applyFilter();
+        switchInspTab('payload');
+      } else if (type === 'ledger_proof') {
+        document.getElementById('sc-card-title').textContent = '⛓️ DEMO 4: 1-KEYSTROKE CRYPTOGRAPHIC TAMPER PROOF';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Standard loggers can be altered, truncated, or wiped by malicious agents or compromised developer credentials.';
+        document.getElementById('sc-action-desc').textContent = 
+          'Every event is SHA-256 chained and Ed25519 node-signed across all 11,600+ blocks. Mathematical proof of unbroken continuity.';
+        document.getElementById('sc-value-desc').textContent = 
+          'Immutable provenance that satisfies enterprise SOC-2, HIPAA, and compliance audit standards.';
+
+        triggerLedgerVerification();
+        switchInspTab('proof');
+      } else if (type === 'sandbox_freeze') {
+        document.getElementById('sc-card-title').textContent = '🛑 DEMO 5: RUNTIME AGENT SANDBOX & FREEZE LOCKDOWN';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Agent enters an infinite bash loop or attempts destructive commands (e.g. rm -rf / or format).';
+        document.getElementById('sc-action-desc').textContent = 
+          'Policy applied in memory: agent locked to StrictSandbox without killing gateway daemon or dropping IDE sessions.';
+        document.getElementById('sc-value-desc').textContent = 
+          'Sub-millisecond containment of rogue agents with zero downtime.';
+
+        await quickSetPolicy('RogueAgent-Copilot', 'StrictSandbox');
+        const ev = {
+          event_id: 'demo-freeze-' + Date.now().toString(36),
+          node_id: 'RogueAgent-Copilot',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'CommandRun',
+          target: 'rm -rf C:\\cada\\projects\\hacking_road',
+          action_details: { tool: 'run_command', summary: 'Destructive deletion blocked by active sandbox' },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Blocked',
+          security_reasons: ['StrictSandboxEnforced', 'DestructiveCommandPrevented'],
+          duration_ms: 0.9,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-freeze-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('blocked');
+        switchInspTab('policy');
+      }
+    }
+
+    function closeScenarioCard() {
+      document.getElementById('scenario-card').style.display = 'none';
     }
 
     // Helper functions

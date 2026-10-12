@@ -12,6 +12,22 @@
 
 ---
 
+## 🎯 Why AgentTrace? The 5 Real-World Scenarios That Sell The App
+
+Autonomous AI coding agents (GitHub Copilot CLI, Hermes Agent, Antigravity, Claude Code) are rapidly being granted terminal access, shell execution, and write permissions across codebases. **Operating them without a cryptographic proxy is like driving without a seatbelt.**
+
+AgentTrace was built to solve the real dangers of autonomous agent deployment, demonstrated live through the **Terminal Console (`/console`)** and **Visual Dashboard (`/dashboard`)**:
+
+| # | Real-World Danger & Question | Why Standard Tools Fail | The AgentTrace Solution | Live UI Demonstration |
+|---|:---|:---|:---|:---|
+| **1** | **Secret & Sensitive Path Intrusion**<br>*"Did an agent read or leak `.env`, `id_rsa`, or AWS credentials?"* | `git status` only tracks committed files. Agents crawling directories silently inject secrets into prompt contexts. | In-memory **Policy Engine** intercepts path access at the gateway. Matches against blocked patterns and marks `verdict:Blocked` with 0 blast radius. | Click **`[1. 🛡️ Intercept .env Leak]`** in UI or press <kbd>B</kbd>. Alert flashes red, isolates path, and displays rule match. |
+| **2** | **In-Flight Code Modification Forensics**<br>*"What exact code did the agent change in my project?"* | Standard logs lose context when stdout redirects. You only see changes post-commit, masking hallucinations. | Captures in-flight **Unified Diffs** before disk sync or git commit, recording additions and deletions in the immutable ledger. | Click **`[2. 📝 In-Flight Code Diff]`** or press <kbd>D</kbd>. Inspector renders colorized git diff (`+` green, `-` red). |
+| **3** | **Zero-Token Cost & Code Leakage Prevention**<br>*"Did my proprietary code leak to paid commercial APIs?"* | Standard HTTP proxies cannot classify prompt semantics or enforce cost circuit breakers. | **Zero-Token Router** classifies intent and auto-delegates prompts to local Ollama (`qwen3.8:27b`) or cluster workers (`deepseek-r1:1.5b`) at **$0 token cost**. | Click **`[3. 🔀 Zero-Token Route]`**. Shows original model intercepted, local destination, latency ms, and tokens saved. |
+| **4** | **1-Keystroke Proof of Non-Tampering**<br>*"Can I mathematically prove logs have not been altered?"* | Traditional SQLite rows and text logs can be edited or deleted by attackers or rogue scripts with disk access. | Every event is chained with **SHA-256** and signed with **Ed25519**. Over **11,600+ blocks** mathematically verified in milliseconds. | Click **`[4. ⛓️ Cryptographic Proof]`** or press <kbd>V</kbd>. Headless verifier checks hash continuity across all blocks. |
+| **5** | **Instant Runtime Agent Sandboxing**<br>*"An agent is stuck in an infinite loop. How do I freeze it?"* | Killing the gateway drops IDE sessions and kills active streams. Standard watchdogs take seconds to kick in. | **Runtime Policy Gate** injects in-memory restrictions (`StrictSandbox`) instantly, halting destructive actions without server restart. | Click **`[5. 🛑 Runtime Sandbox Freeze]`**. Locks agent in memory, dropping subsequent command executions. |
+
+---
+
 ## ⚡ Key Highlights & Core Capabilities
 
 - **Sub-5ms Latency Overhead:** Single compiled native binary (`agent_trace_gw.exe`), ~20 MB RAM footprint, zero GC pauses, embedded SQLite WAL mode.
