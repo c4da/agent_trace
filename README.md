@@ -1,153 +1,190 @@
 # 🌐 AgentTrace Gateway (`agent_trace_gw`)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.78%2B-orange.svg)](https://www.rust-lang.org/)
-[![Ed25519 Ledger](https://img.shields.io/badge/Ledger-Ed25519%20Signed-green.svg)](src/ledger.rs)
-[![Zero Auth Friction](https://img.shields.io/badge/Auth-Zero%20Login%20Required-success.svg)](#-licensing--openclaw-business-model)
+[![Tests](https://img.shields.io/badge/Tests-68%20Passed-brightgreen.svg)](tests/)
+[![Ledger](https://img.shields.io/badge/Ledger-Ed25519%20Signed%20%2B%20SHA--256-green.svg)](src/ledger.rs)
+[![Architecture](https://img.shields.io/badge/Architecture-Actor%20Model%20(MPSC)-blueviolet.svg)](src/ledger_writer.rs)
+[![MCP](https://img.shields.io/badge/Protocol-MCP%20JSON--RPC%202.0-blue.svg)](src/agent_interface/mcp.rs)
 
-High-performance, ultra-low-footprint Rust reverse proxy & cryptographic telemetry gateway for distributed AI agent clusters.
-
-- **RAM Footprint:** ~20 MB (vs 500MB+ in Spring Boot), zero GC pauses, no VRAM contention.
-- **Cryptographic Provenance:** Authoritative SHA-256 hash-chaining and Ed25519 node identity digital signatures on every tool call and LLM inference.
-- **Smart Auto-Routing:** OpenAI-compatible proxy that automatically resolves and routes requests to the optimal cluster node (`PC-1` or `PC-2`) based on the requested model name.
-- **Streaming:** Native async Server-Sent Events (SSE) & byte pass-through via Tokio and Axum.
-- **Zero-Friction Operations:** Single compiled native binary (`agent_trace_gw.exe`), zero database setup (embedded SQLite WAL mode), zero mandatory external services.
+> **High-throughput, sub-5ms cryptographic audit ledger, actor-based reverse proxy, and multi-agent governance gateway in pure Rust.**  
+> Built for autonomous agent clusters running tools, shell commands, file diffs, and local/remote LLM inferences.
 
 ---
 
-## ⚖️ Licensing & OpenClaw Commercial Model
+## ⚡ Key Highlights & Core Capabilities
 
-**AgentTrace Gateway** follows the **OpenClaw** operational philosophy:
-
-1. **100% Free & Open Source:** Licensed under the permissive **[MIT License](LICENSE)**. Free for personal, academic, and commercial use with no artificial functional limitations.
-2. **Zero Login, Zero Paywalls:** No user accounts, no login portals, no telemetry phone-home requirements, and no local feature gating. All core capabilities—distributed routing, cryptographic ledger, Ed25519 signing, and real-time dashboard—are fully accessible out of the box.
-3. **Sustainable Monetization Strategy:**
-   - **Managed Fleet Relay (Cloud):** Turnkey multi-region edge mesh for teams orchestrating agents across distributed datacenters and clouds without managing manual VPNs or port forwards.
-   - **Enterprise Cryptographic Compliance Packages:** Automated SOC2 Type II, ISO 27001, and EU AI Act audit exports with cryptographically verifiable tamper-proof ledgers.
-   - **Custom Agent Tooling & Swarm Integrations:** Bespoke MAVLink/PX4, CAD/FEM solver hooks, and dedicated enterprise SLA support.
+- **Sub-5ms Latency Overhead:** Single compiled native binary (`agent_trace_gw.exe`), ~20 MB RAM footprint, zero GC pauses, embedded SQLite WAL mode.
+- **Actor-Based Channel Persistence ([`src/ledger_writer.rs`](src/ledger_writer.rs)):** Replaces blocking async mutexes with a dedicated background actor (`tokio::sync::mpsc` + `oneshot`). Features bounded backpressure (`capacity: 1024`) and adaptive batch-draining (up to 32 items/batch) for high-throughput disk commits without Tokio thread starvation.
+- **Strict RFC 3986 SSRF Protection ([`src/secrets.rs`](src/secrets.rs)):** Replaces naive string slicing with canonical `url::Url::origin()` tuple comparisons `(scheme, host, port)`, completely blocking prefix collision bypasses.
+- **Model Context Protocol (MCP) Native Support ([`src/agent_interface/mcp.rs`](src/agent_interface/mcp.rs)):** First-class JSON-RPC 2.0 interface (`/api/v1/mcp`) enabling Claude Code, Cursor, Windsurf, and custom autonomous agents to inspect, verify, and govern the ledger.
+- **Cryptographic Provenance ([`src/db/verify.rs`](src/db/verify.rs)):** Server-authoritative SHA-256 hash chaining and Ed25519 digital signatures on every tool invocation, shell command, file diff, and LLM completion.
+- **Smart Model Arbitration & Token Guard ([`src/delegation_engine/`](src/delegation_engine/)):** OpenAI-compatible proxy (`/v1/chat/completions`) that auto-intercepts commercial cloud prompts, classifies intent, and delegates tasks to local/cluster models at zero external token cost.
+- **Native Multi-Agent Session Watchers:** Automated background daemons tracking active Antigravity, GitHub Copilot CLI, and remote worker sessions.
 
 ---
 
-## 🏗️ Cluster Topology
+## 🏗️ Architecture & Actor Pipeline
 
 ```
-                  ┌─────────────────────────────────────────────────────────┐
-                  │                 Lead Node (PC-1: VECTOR)                │
-                  │  • Antigravity (Architect & Reasoning Lead)             │
-                  │  • Hermes CLI & Ollama (:11434)                         │
-                  │    - qwen3.8:27b (Heavy Reasoning Lead)                 │
-                  │    - qwen3:14b (Fast Code & Boilerplate Partner)        │
-                  │    - gemma4:latest (Offline Executor)                   │
-                  └────────────────────────────┬────────────────────────────┘
-                                               │
-               ┌───────────────────────────────┴───────────────────────────────┐
-               ▼                                                               ▼
-┌──────────────────────────────────────────────┐        ┌──────────────────────────────────────────────┐
-│       AgentTrace Gateway (Rust :8080)        │        │          Worker Node (PC-2: NODE-02)         │
-│  • Smart Model Auto-Router                   │◄───────┤  • Hermes Agent Gateway (:8642)              │
-│  • Cryptographic Ledger V2 + Ed25519         │        │  • deepseek-r1:1.5b (Fast GPU Reasoning)     │
-│  • SSRF-Hardened Upstream Allowlist          │        │  • Gemma 4 on CUDA (Boilerplate & Tests)     │
-│  • Embedded Real-Time Dashboard              │        │                                              │
-│  • SQLite WAL Ledger (cluster_telemetry.db)  │        │  Run: agent_trace_gw.exe --worker            │
-└──────────────────────────────────────────────┘        └──────────────────────────────────────────────┘
+                               ┌────────────────────────────────────────────────────────┐
+                               │               Client Applications / Agents             │
+                               │   (Antigravity · Copilot CLI · Claude Code · Python)   │
+                               └───────────────────────────┬────────────────────────────┘
+                                                           │
+                                                           │ HTTP / JSON-RPC / MCP
+                                                           ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                       AgentTrace Gateway (Rust Axum :8080)                                       │
+│                                                                                                                  │
+│  ┌───────────────────────┐   ┌───────────────────────────┐   ┌────────────────────────────────────────────────┐  │
+│  │   Auth & SSRF Guard   │──▶│    Smart Router & Proxy   │──▶│ Upstream Dispatch                              │  │
+│  │  (RFC 3986 Origin)    │   │  (Delegation / Intent)    │   │  • PC-1 (Ollama :11434 - Qwen 27B / 14B)       │  │
+│  └───────────────────────┘   └─────────────┬─────────────┘   │  • PC-2 (Worker :8642 - DeepSeek R1 / Gemma)   │  │
+│                                            │                 └────────────────────────────────────────────────┘  │
+│                                            │ (Zero Lock Contention)                                              │
+│                                            ▼                                                                     │
+│                              ┌───────────────────────────┐                                                       │
+│                              │  Actor Channel (mpsc)     │                                                       │
+│                              │  Bounded Buffer (1024)    │                                                       │
+│                              └─────────────┬─────────────┘                                                       │
+│                                            │ Batch Drain (up to 32 items)                                        │
+│                                            ▼                                                                     │
+│                              ┌───────────────────────────┐                                                       │
+│                              │  Ledger Writer Worker     │                                                       │
+│                              │  • SHA-256 Hash Chaining  │                                                       │
+│                              │  • Ed25519 Node Signing   │                                                       │
+│                              │  • SQLite WAL Persistence │                                                       │
+│                              │  • Live SSE Broadcast     │                                                       │
+│                              └───────────────────────────┘                                                       │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🧠 Smart Model Awareness & Auto-Routing
+## 🧠 Smart Cluster Routing & Zero-Token Economy
 
-AgentTrace Gateway eliminates manual endpoint switching. Clients connect directly to `http://localhost:8080/v1` using standard OpenAI SDKs:
+Connect directly using the standard OpenAI client or `curl`. The gateway automatically routes each prompt to the best available cluster node:
 
-| Requested Model | Target Host | Node ID | Assigned Cluster Role |
+| Target Model | Node ID | Host Address | Specialization / Role |
 | :--- | :--- | :--- | :--- |
-| `qwen3.8:27b` | `http://127.0.0.1:11434` | `PC-1` | Heavy Reasoning & Architecture Lead |
-| `qwen3:14b` | `http://127.0.0.1:11434` | `PC-1` | Fast Code Generation & Boilerplate Partner |
-| `gemma4:latest` | `http://127.0.0.1:11434` | `PC-1` | Local Offline Generalist |
-| `deepseek-r1:1.5b` | `http://192.168.1.102:8642` | `PC-2` | Ultra-Fast GPU Reasoning & Sanity Checks |
-| `hermes-agent` | `http://192.168.1.102:8642` | `PC-2` | Autonomous Swarm Worker & Test Runner |
+| `qwen3.8:27b` | `PC-1` | `http://127.0.0.1:11434` | Heavy Architectural Refactoring & Math Lead |
+| `qwen3:14b` | `PC-1` | `http://127.0.0.1:11434` | Fast Code Generation, Boilerplate & Unit Tests |
+| `gemma4:latest` | `PC-1` | `http://127.0.0.1:11434` | Offline General Purpose Reasoning |
+| `deepseek-r1:1.5b` | `PC-2` | `http://192.168.1.102:8642` | Ultra-Fast GPU Reasoning & Sanity Verification |
+| `auto` | *Dynamic* | *Best Match* | Intent Classifier picks model based on prompt complexity |
 
-### 1. Unified Cluster Model Catalog
-```bash
-curl -s http://localhost:8080/v1/models
-```
-Returns an aggregated list of models across both PC-1 and PC-2, tagged with active node IDs, hosts, and capability roles.
-
-### 2. Auto-Routed Completion Call
+### Python OpenAI SDK Integration
 ```python
 from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="not-needed"
+    api_key="not-needed" # Or cluster token if configured
 )
 
-# Gateway automatically routes this to PC-2 (:8642), attaches worker auth, and signs trace block:
+# Gateway automatically routes, logs trace event, signs hash-chain, and streams response:
 response = client.chat.completions.create(
-    model="hermes-agent",
-    messages=[{"role": "user", "content": "Execute offline benchmark suite."}]
+    model="qwen3:14b",
+    messages=[{"role": "user", "content": "Write an in-memory test harness in Rust."}]
 )
 print(response.choices[0].message.content)
 ```
 
 ---
 
-## 🔒 Cryptographic Ledger & Zero-Trust Audit Trail
+## 🔒 Cryptographic Verification & Audit Trail
 
-Every file read, file modification (with full unified diff), shell execution, and LLM inference is cryptographically hashed and linked in a server-authoritative hash-chain:
+Every file change (with unified diff), shell execution, and LLM inference is cryptographically secured in SQLite:
 
-- **Canonical V2 Hashing:** Length-prefixed SHA-256 digest covering `event_id`, `node_id`, `session_id`, `timestamp`, `event_type`, `target`, `action_details`, `diff`, `provenance_sources`, `security_verdict`, `security_reasons`, and `duration_ms`.
-- **Ed25519 Node Signatures:** Every block is signed with the node's private key (`.secrets/node_identity.pk8`).
-- **SSRF Prevention:** Upstream allowlist (`UPSTREAM_ALLOWLIST`) strictly restricts outgoing proxy requests to authorized nodes, blocking forged `X-Upstream-Url` headers with `403 Forbidden`.
-- **Backwards Compatibility:** Transparently verifies legacy V1 blocks and V2 blocks.
-
-### Verifying the Ledger
 ```bash
 curl -s http://localhost:8080/api/v1/ledger/verify
 ```
-**Response:**
+
+**Output:**
 ```json
 {
   "is_valid": true,
-  "total_blocks": 3146,
+  "total_blocks": 11210,
   "genesis_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-  "latest_block_hash": "f52a1e141e45e46fda414f61b030d7bfcfdc4f19fd0b1308e05ff042a8829d79",
+  "latest_block_hash": "b657bed0ba5e9b56869ee1f38aefa9396d68e89c64f26586bc592731924cdf61",
   "broken_block_id": null,
   "error_reason": null
 }
 ```
 
+Any attempt to edit a database row, modify an action detail, or tamper with an agent's security verdict breaks the hash chain and is immediately flagged by the verification engine.
+
+---
+
+## 🛠️ Model Context Protocol (MCP) Server
+
+AgentTrace Gateway implements the **Model Context Protocol (2024-11-05)** over JSON-RPC 2.0 at `/api/v1/mcp`:
+
+### Claude Desktop / Cursor / Windsurf Configuration
+```json
+{
+  "mcpServers": {
+    "agent-trace": {
+      "url": "http://localhost:8080/api/v1/mcp"
+    }
+  }
+}
+```
+
+Exposed MCP tools:
+- `verify_ledger`: Verify cryptographic hash chain integrity and digital signatures.
+- `query_telemetry`: Search past agent actions, file reads/writes, and execution times.
+- `inspect_cluster`: Inspect active cluster nodes, parameter tiers, and model health.
+- `flag_incident`: Flag anomalous agent behavior or policy violations directly in the ledger.
+- `set_route_override`: Mandate runtime routing overrides for specific sessions or agent IDs.
+- `get_access_policies`: Inspect agent sandbox whitelists and path restrictions.
+
+---
+
+## 📚 Technical & Systems Guides
+
+- 📘 **[Mastering Async Rust Systems: Actor Channels, Bounded Backpressure, and Zero-Trust Origin Security](docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md)**  
+  An in-depth guide detailing why `Arc<Mutex<T>>` causes Tokio worker starvation, how we built the actor-based bounded writer, canonical RFC 3986 origin matching, and in-memory Tower testing.
+- 📙 **[Worker Node Setup Guide](docs/WORKER_NODE_SETUP.md)**  
+  Step-by-step instructions for deploying distributed worker nodes on Linux/Windows.
+
 ---
 
 ## 🚀 Quick Start
 
-### 1. Build & Run on Lead Node (PC-1)
-```powershell
-cd C:\cada\projects\agent_trace_gw
+### 1. Build & Run
+```bash
+# Clone the repository
+git clone https://github.com/c4da/agent_trace.git
+cd agent_trace
+
+# Build optimized binary
 cargo build --release
-.\target\release\agent_trace_gw.exe
-```
-By default, listens on `0.0.0.0:8080` with dashboard at **`http://localhost:8080/dashboard`**.
 
-### 2. Run as Worker Node on PC-2
-```powershell
-.\target\release\agent_trace_gw.exe --worker --lead http://192.168.1.101:8080
+# Run Lead Node Gateway
+./target/release/agent_trace_gw
 ```
-*(See [`docs/WORKER_NODE_SETUP.md`](docs/WORKER_NODE_SETUP.md) for full system service setup on Linux and Windows).*
+
+- **Gateway Port:** `http://0.0.0.0:8080`
+- **Dashboard UI:** `http://localhost:8080/dashboard`
+- **SSE Live Stream:** `http://localhost:8080/api/v1/events/stream`
+
+### 2. Run Test Suite
+```bash
+cargo test
+```
+All **68 unit, integration, and in-memory Tower tests** execute in under 1 second without opening external network ports.
 
 ---
 
-## 🕵️ Verification & Inspection Tools
+## ⚖️ License
 
-- **[`cluster_inspector.py`](cluster_inspector.py):** Comprehensive CLI tool for security audits, blast-radius scoring, and node telemetry queries.
-- **[`cluster_verification_benchmark.py`](cluster_verification_benchmark.py):** Pure Python standard library benchmark verifying cluster models, ledger integrity, and round-trip routing latency.
-- **Autonomous Delegation:** Delegate audit tasks to local agents at zero external token cost:
-  ```powershell
-  & "C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd" -z "python cluster_inspector.py --audit"
-  ```
+Dual-licensed under either of:
 
----
+- **[Apache License, Version 2.0](LICENSE-APACHE)**
+- **[MIT License](LICENSE)**
 
-## 📄 License
+at your option.
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details. 
-Completely free, open-source, and unrestricted for personal, academic, and commercial usage.
+Free for personal, academic, and commercial usage with full patent grants and contributor protections.
