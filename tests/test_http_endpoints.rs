@@ -132,6 +132,36 @@ async fn test_http_dashboard_and_static_routes() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
+    // 2b. GET /console (Terminal Console UI)
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/console")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    let body_str = String::from_utf8_lossy(&body);
+    assert!(body_str.contains("AgentTrace Terminal Console"));
+    assert!(body_str.contains("Unified Diff"));
+
+    // 2c. GET /terminal alias
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/terminal")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
     // 3. GET /flyer
     let res = app
         .clone()
