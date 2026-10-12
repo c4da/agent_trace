@@ -148,7 +148,7 @@ async fn test_http_dashboard_and_static_routes() {
     let body_str = String::from_utf8_lossy(&body);
     assert!(body_str.contains("POLICY &amp; WHITELIST FIREWALL"));
 
-    // 2a-2. GET /workgroups (Dedicated Drag-and-Drop Agent & .MD Mesh Page)
+    // 2a-2. GET /workgroups (Dedicated Drag-and-Drop Top-Down Execution Tree Page)
     let res = app
         .clone()
         .oneshot(
@@ -162,7 +162,7 @@ async fn test_http_dashboard_and_static_routes() {
     assert_eq!(res.status(), StatusCode::OK);
     let body = res.into_body().collect().await.unwrap().to_bytes();
     let body_str = String::from_utf8_lossy(&body);
-    assert!(body_str.contains("PROBLEM WORKGROUPS &amp; AGENT MESH BUILDER"));
+    assert!(body_str.contains("PROBLEM WORKGROUPS &amp; EXECUTION TREE BUILDER"));
 
     // 2b. GET /console (Terminal Console UI)
     let res = app
@@ -847,13 +847,15 @@ async fn test_http_workgroups_and_markdown_rules_lifecycle() {
                 "agent_id": "deepseek-r1:1.5b",
                 "display_name": "DeepSeek-R1 (1.5B CUDA)",
                 "node_id": "PC-2",
-                "role": "LeadArchitect"
+                "role": "LeadArchitect",
+                "parent_agent_id": null
             },
             {
                 "agent_id": "copilot-cli",
                 "display_name": "GitHub Copilot CLI",
                 "node_id": "PC-1-Copilot",
-                "role": "PrimaryBuilder"
+                "role": "PrimaryBuilder",
+                "parent_agent_id": "deepseek-r1:1.5b"
             }
         ],
         "trigger_keywords": ["banner", "poster"]

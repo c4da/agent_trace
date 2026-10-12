@@ -34,13 +34,18 @@ impl WorkgroupRole {
     }
 }
 
-/// An AI agent or model assigned to a Problem Workgroup.
+/// An AI agent or model assigned to a Problem Workgroup tree.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorkgroupMember {
     pub agent_id: String,
     pub display_name: String,
     pub node_id: String,
     pub role: WorkgroupRole,
+    /// Optional parent `agent_id` in the workgroup tree.
+    /// `None` means the agent is connected directly under the Top Workgroup Hub (parallel root tier).
+    /// `Some(parent_id)` means the agent is chained sequentially after `parent_id`.
+    #[serde(default)]
+    pub parent_agent_id: Option<String>,
 }
 
 /// A Markdown (`.md`) rule file attached to a Problem Workgroup.
@@ -141,9 +146,15 @@ impl ProblemWorkgroup {
             let roster: Vec<String> = self
                 .members
                 .iter()
-                .map(|m| format!("{} ({} on {})", m.display_name, m.role.label(), m.node_id))
+                .map(|m| {
+                    let parent_desc = match m.parent_agent_id.as_deref() {
+                        Some(p) if !p.is_empty() && p != "hub" => format!("chained after {}", p),
+                        _ => "under Top Hub (parallel root)".to_string(),
+                    };
+                    format!("{} ({} on {}, {})", m.display_name, m.role.label(), m.node_id, parent_desc)
+                })
                 .collect();
-            out.push_str(&format!("Assigned Workgroup Roster: {}\n", roster.join(", ")));
+            out.push_str(&format!("Assigned Workgroup Tree Roster: {}\n", roster.join(" -> ")));
         }
 
         if !self.markdown_rules.is_empty() {
@@ -269,22 +280,25 @@ impl WorkgroupRegistry {
             execution_strategy: "pipeline".to_string(),
             members: vec![
                 WorkgroupMember {
-                    agent_id: "qwen3.5:9b".to_string(),
-                    display_name: "Qwen 3.5 (9B Code)".to_string(),
-                    node_id: "PC-1".to_string(),
-                    role: WorkgroupRole::PrimaryBuilder,
-                },
-                WorkgroupMember {
                     agent_id: "gemini-pro".to_string(),
                     display_name: "Gemini / Antigravity".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::LeadArchitect,
+                    parent_agent_id: None,
+                },
+                WorkgroupMember {
+                    agent_id: "qwen3.5:9b".to_string(),
+                    display_name: "Qwen 3.5 (9B Code)".to_string(),
+                    node_id: "PC-1".to_string(),
+                    role: WorkgroupRole::PrimaryBuilder,
+                    parent_agent_id: Some("gemini-pro".to_string()),
                 },
                 WorkgroupMember {
                     agent_id: "qwen3.8:27b".to_string(),
                     display_name: "Qwen 3.8 (27B Heavy)".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::SanityVerifier,
+                    parent_agent_id: Some("qwen3.5:9b".to_string()),
                 },
             ],
             markdown_rules: vec![
@@ -311,7 +325,7 @@ impl WorkgroupRegistry {
             tasks_completed: 14,
         };
 
-        // 2. Image & Visual Asset Generation Workgroup (DeepSeek + Copilot CLI)
+        // 2. Image & Visual Asset Generation Workgroup (DeepSeek -> Copilot CLI chain)
         let wg_image = ProblemWorkgroup {
             id: "wg-image-gen".to_string(),
             name: "Image & SVG Generation".to_string(),
@@ -326,12 +340,14 @@ impl WorkgroupRegistry {
                     display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
                     node_id: "PC-2".to_string(),
                     role: WorkgroupRole::LeadArchitect,
+                    parent_agent_id: None,
                 },
                 WorkgroupMember {
                     agent_id: "copilot-cli".to_string(),
                     display_name: "GitHub Copilot CLI".to_string(),
                     node_id: "PC-1-Copilot".to_string(),
                     role: WorkgroupRole::PrimaryBuilder,
+                    parent_agent_id: Some("deepseek-r1:1.5b".to_string()),
                 },
             ],
             markdown_rules: vec![
@@ -358,7 +374,7 @@ impl WorkgroupRegistry {
             tasks_completed: 6,
         };
 
-        // 3. Security Audit & Spatial Containment Workgroup (DeepSeek + Qwen + Copilot CLI)
+        // 3. Security Audit & Spatial Containment Workgroup (Parallel Swarm under Top Hub)
         let wg_security = ProblemWorkgroup {
             id: "wg-security-audit".to_string(),
             name: "Security & Zone Audit".to_string(),
@@ -373,18 +389,21 @@ impl WorkgroupRegistry {
                     display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
                     node_id: "PC-2".to_string(),
                     role: WorkgroupRole::SanityVerifier,
+                    parent_agent_id: None,
                 },
                 WorkgroupMember {
                     agent_id: "qwen3.5:9b".to_string(),
                     display_name: "Qwen 3.5 (9B Code)".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::PrimaryBuilder,
+                    parent_agent_id: None,
                 },
                 WorkgroupMember {
                     agent_id: "copilot-cli".to_string(),
                     display_name: "GitHub Copilot CLI".to_string(),
                     node_id: "PC-1-Copilot".to_string(),
                     role: WorkgroupRole::ToolExecutor,
+                    parent_agent_id: None,
                 },
             ],
             markdown_rules: vec![
@@ -411,7 +430,7 @@ impl WorkgroupRegistry {
             tasks_completed: 9,
         };
 
-        // 4. Work-First UI & TUI Engineering Workgroup
+        // 4. Work-First UI & TUI Engineering Workgroup (Gemini -> Parallel Qwen & DeepSeek)
         let wg_ui = ProblemWorkgroup {
             id: "wg-ui-workfirst".to_string(),
             name: "Work-First UI & TUI".to_string(),
@@ -426,18 +445,21 @@ impl WorkgroupRegistry {
                     display_name: "Gemini / Antigravity".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::LeadArchitect,
+                    parent_agent_id: None,
                 },
                 WorkgroupMember {
                     agent_id: "qwen3.5:9b".to_string(),
                     display_name: "Qwen 3.5 (9B Code)".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::PrimaryBuilder,
+                    parent_agent_id: Some("gemini-pro".to_string()),
                 },
                 WorkgroupMember {
                     agent_id: "deepseek-r1:1.5b".to_string(),
                     display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
                     node_id: "PC-2".to_string(),
                     role: WorkgroupRole::SanityVerifier,
+                    parent_agent_id: Some("gemini-pro".to_string()),
                 },
             ],
             markdown_rules: vec![
@@ -463,7 +485,7 @@ impl WorkgroupRegistry {
             tasks_completed: 8,
         };
 
-        // 5. Reasoning & Coding Issue Debugging Workgroup (DeepSeek-R1 + Qwen 27B + Copilot CLI)
+        // 5. Reasoning & Coding Issue Debugging Workgroup (Qwen Lead -> Parallel DeepSeek & Copilot CLI)
         let wg_reasoning = ProblemWorkgroup {
             id: "wg-reasoning-debug".to_string(),
             name: "Reasoning & Coding Issues".to_string(),
@@ -474,22 +496,25 @@ impl WorkgroupRegistry {
             execution_strategy: "pipeline".to_string(),
             members: vec![
                 WorkgroupMember {
-                    agent_id: "deepseek-r1:1.5b".to_string(),
-                    display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
-                    node_id: "PC-2".to_string(),
-                    role: WorkgroupRole::SanityVerifier,
-                },
-                WorkgroupMember {
                     agent_id: "qwen3.5:9b".to_string(),
                     display_name: "Qwen 3.5 (9B Code & Debug)".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::LeadArchitect,
+                    parent_agent_id: None,
+                },
+                WorkgroupMember {
+                    agent_id: "deepseek-r1:1.5b".to_string(),
+                    display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
+                    node_id: "PC-2".to_string(),
+                    role: WorkgroupRole::SanityVerifier,
+                    parent_agent_id: Some("qwen3.5:9b".to_string()),
                 },
                 WorkgroupMember {
                     agent_id: "copilot-cli".to_string(),
                     display_name: "GitHub Copilot CLI".to_string(),
                     node_id: "PC-1-Copilot".to_string(),
                     role: WorkgroupRole::ToolExecutor,
+                    parent_agent_id: Some("qwen3.5:9b".to_string()),
                 },
             ],
             markdown_rules: vec![
@@ -957,6 +982,7 @@ pub async fn preview_workgroup_prompt_handler(
         "problem_domain": wg.problem_domain,
         "execution_strategy": wg.execution_strategy,
         "members": wg.members,
+        "rules_count": wg.markdown_rules.len(),
         "resolved_rules": resolved_rules,
         "compiled_system_prompt": wg.compile_system_prompt(),
     })))
@@ -1004,12 +1030,14 @@ mod tests {
                     display_name: "Qwen 3.8 27B".to_string(),
                     node_id: "PC-1".to_string(),
                     role: WorkgroupRole::PrimaryBuilder,
+                    parent_agent_id: None,
                 },
                 WorkgroupMember {
                     agent_id: "deepseek-r1:1.5b".to_string(),
                     display_name: "DeepSeek-R1".to_string(),
                     node_id: "PC-2".to_string(),
                     role: WorkgroupRole::SanityVerifier,
+                    parent_agent_id: Some("qwen3.8:27b".to_string()),
                 },
             ],
             markdown_rules: vec![],
