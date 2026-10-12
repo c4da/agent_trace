@@ -631,6 +631,10 @@
     <div class="top-actions">
       <a href="/dashboard" class="term-btn">📊 Visual Dashboard</a>
       <button class="term-btn accent" onclick="triggerLedgerVerification()">⛓️ Verify (V)</button>
+      <button class="term-btn" onclick="togglePolicyModal()" title="Manual policy evaluation & rule editor">🛡️ Sandbox (M)</button>
+      <button class="term-btn" onclick="exportEvents('json')" title="Manually export filtered events to JSON">💾 JSON</button>
+      <button class="term-btn" onclick="exportEvents('csv')" title="Manually export filtered events to CSV">💾 CSV</button>
+      <button class="term-btn" id="btn-toggle-flag" onclick="toggleFlagCurrentEvent()" title="Pin/Flag current event for investigation">🚩 Flag (F)</button>
       <button class="term-btn" onclick="toggleHelpModal()">Help (?)</button>
     </div>
   </header>
@@ -643,6 +647,7 @@
       <button class="scenario-tab" onclick="setScenario('diffs')">[3: 📝 Code Diffs]</button>
       <button class="scenario-tab" onclick="setScenario('commands')">[4: ⚙️ Bash Commands]</button>
       <button class="scenario-tab" onclick="setScenario('routing')">[5: 🔀 Model Routes]</button>
+      <button class="scenario-tab" onclick="setScenario('flagged')">[6: 🚩 Pinned/Flagged]</button>
     </div>
     <div class="filter-wrapper">
       <span class="filter-prefix">/</span>
@@ -789,6 +794,81 @@
     </div>
   </div>
 
+  <!-- Manual Policy Sandbox & Rule Editor Modal -->
+  <div class="modal-overlay" id="policy-modal">
+    <div class="modal-box" style="width: 720px;">
+      <div class="modal-head">
+        <span>🛡️ MANUAL OPERATOR POLICY SANDBOX &amp; EVALUATOR</span>
+        <button class="term-btn" onclick="togglePolicyModal()">✕ Close</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 1px solid var(--border-term); padding-bottom: 8px;">
+          <button class="term-btn accent" id="tab-eval-btn" onclick="switchPolicyTab('eval')">🧪 Test Path Evaluation</button>
+          <button class="term-btn" id="tab-rule-btn" onclick="switchPolicyTab('rule')">➕ Add Custom Rule</button>
+          <button class="term-btn" id="tab-list-btn" onclick="switchPolicyTab('list')">📋 Active Policies</button>
+        </div>
+
+        <!-- Sub-panel 1: Test Path Evaluation -->
+        <div id="sub-policy-eval">
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">
+            Simulate how the Gateway policy engine will evaluate a file or command target *before* the agent executes it:
+          </p>
+          <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; margin-bottom: 10px; align-items: center;">
+            <label class="proof-key">Action:</label>
+            <select id="eval-action" class="cmd-input" style="width: 140px;">
+              <option value="Read">Read</option>
+              <option value="Write">Write</option>
+              <option value="Execute">Execute</option>
+              <option value="NetworkPull">NetworkPull</option>
+            </select>
+
+            <label class="proof-key">Target Path:</label>
+            <input type="text" id="eval-target" class="cmd-input" placeholder="e.g. .env, ~/.ssh/id_rsa, C:\keys\db.pem" value=".env">
+
+            <label class="proof-key">Agent ID:</label>
+            <input type="text" id="eval-agent" class="cmd-input" placeholder="*" value="*">
+          </div>
+          <button class="term-btn accent" onclick="runManualPolicyEval()">🧪 Test Evaluate Target</button>
+          <div id="eval-result-box" style="margin-top: 12px; display: none;"></div>
+        </div>
+
+        <!-- Sub-panel 2: Add Custom Rule -->
+        <div id="sub-policy-rule" style="display: none;">
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">
+            Manually apply in-memory security policies to restrict any agent's allowed directories and blocked patterns:
+          </p>
+          <div style="display: grid; grid-template-columns: 130px 1fr; gap: 8px; margin-bottom: 10px; align-items: center;">
+            <label class="proof-key">Agent ID:</label>
+            <input type="text" id="rule-agent" class="cmd-input" value="*">
+
+            <label class="proof-key">Rule Name:</label>
+            <input type="text" id="rule-name" class="cmd-input" value="ManualCustomRule">
+
+            <label class="proof-key">Blocked Patterns:</label>
+            <input type="text" id="rule-blocked" class="cmd-input" value=".env*, id_rsa*, *.pem, credentials.json">
+
+            <label class="proof-key">Allowed Dirs:</label>
+            <input type="text" id="rule-allowed" class="cmd-input" value="C:\cada\projects">
+
+            <label class="proof-key">Sandbox Level:</label>
+            <select id="rule-level" class="cmd-input" style="width: 160px;">
+              <option value="StrictSandbox">StrictSandbox</option>
+              <option value="Standard">Standard</option>
+              <option value="AllowAll">AllowAll</option>
+            </select>
+          </div>
+          <button class="term-btn accent" onclick="saveManualPolicyRule()">💾 Apply Rule In-Memory</button>
+          <div id="rule-result-box" style="margin-top: 12px; display: none;"></div>
+        </div>
+
+        <!-- Sub-panel 3: Active Policies -->
+        <div id="sub-policy-list" style="display: none;">
+          <div id="active-policies-content">Loading policies...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // State
     let events = [];
@@ -871,6 +951,9 @@
       };
     }
 
+    // Flagged events store for manual investigation
+    let flaggedEventIds = new Set();
+
     // 4. Filter & Scenario Logic
     function setScenario(scenario) {
       activeScenario = scenario;
@@ -883,6 +966,13 @@
       else if (scenario === 'diffs') filterInput.value = 'type:FileWrite';
       else if (scenario === 'commands') filterInput.value = 'type:CommandRun';
       else if (scenario === 'routing') filterInput.value = 'type:Route';
+      else if (scenario === 'flagged') {
+        filterInput.value = '';
+        filteredEvents = events.filter(ev => flaggedEventIds.has(ev.event_id));
+        renderRows();
+        if (filteredEvents.length > 0) selectEvent(0);
+        return;
+      }
       else if (scenario === 'all') filterInput.value = '';
 
       applyFilter();
@@ -928,6 +1018,8 @@
         row.className = 'table-row' + (idx === selectedEventIndex ? ' selected' : '');
         row.onclick = () => selectEvent(idx);
 
+        const isFlagged = flaggedEventIds.has(ev.event_id);
+        const flagIcon = isFlagged ? '<span style="color: var(--accent-red); margin-right: 2px;">🚩</span>' : '';
         const timeStr = formatTime(ev.timestamp);
         const nodeStr = ev.node_id || 'UNKNOWN';
         const typeStr = ev.event_type || 'Unknown';
@@ -940,7 +1032,7 @@
         else if (verdict === 'Warn') verdictClass = 'verdict-warn';
 
         row.innerHTML = `
-          <span class="col-time">${timeStr}</span>
+          <span class="col-time">${flagIcon}${timeStr}</span>
           <span class="col-node" title="${nodeStr}">${nodeStr}</span>
           <span class="col-type">${typeStr}</span>
           <span><span class="badge-verdict ${verdictClass}">${verdict}</span></span>
@@ -1229,6 +1321,12 @@
         } else if (e.key === 'b' || e.key === 'B') {
           e.preventDefault();
           setScenario('blocked');
+        } else if (e.key === 'm' || e.key === 'M') {
+          e.preventDefault();
+          togglePolicyModal();
+        } else if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          toggleFlagCurrentEvent();
         } else if (e.key === '/') {
           e.preventDefault();
           document.getElementById('filter-input').focus();
@@ -1241,6 +1339,7 @@
         } else if (e.key === 'Escape') {
           document.getElementById('help-modal').style.display = 'none';
           document.getElementById('verify-modal').style.display = 'none';
+          document.getElementById('policy-modal').style.display = 'none';
         }
       });
     }
@@ -1394,6 +1493,180 @@
 
     function closeScenarioCard() {
       document.getElementById('scenario-card').style.display = 'none';
+    }
+
+    // 10. Manual Operator Toolbox & Controls
+    function toggleFlagCurrentEvent() {
+      if (selectedEventIndex < 0 || selectedEventIndex >= filteredEvents.length) return;
+      const ev = filteredEvents[selectedEventIndex];
+      if (!ev) return;
+      if (flaggedEventIds.has(ev.event_id)) {
+        flaggedEventIds.delete(ev.event_id);
+      } else {
+        flaggedEventIds.add(ev.event_id);
+      }
+      renderRows();
+      selectEvent(selectedEventIndex);
+    }
+
+    function exportEvents(format) {
+      if (filteredEvents.length === 0) {
+        alert('No events in current view to export.');
+        return;
+      }
+      let content = '';
+      let mime = '';
+      let filename = '';
+
+      if (format === 'json') {
+        content = JSON.stringify(filteredEvents, null, 2);
+        mime = 'application/json';
+        filename = 'agenttrace_audit_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+      } else {
+        const headers = ['timestamp', 'node_id', 'event_type', 'security_verdict', 'target', 'event_hash', 'duration_ms'];
+        const rows = [headers.join(',')];
+        filteredEvents.forEach(ev => {
+          const row = [
+            `"${ev.timestamp || ''}"`,
+            `"${ev.node_id || ''}"`,
+            `"${ev.event_type || ''}"`,
+            `"${ev.security_verdict || ''}"`,
+            `"${(ev.target || '').replace(/"/g, '""')}"`,
+            `"${ev.event_hash || ''}"`,
+            ev.duration_ms || 0
+          ];
+          rows.push(row.join(','));
+        });
+        content = rows.join('\n');
+        mime = 'text/csv';
+        filename = 'agenttrace_audit_' + new Date().toISOString().replace(/[:.]/g, '-') + '.csv';
+      }
+
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function togglePolicyModal() {
+      const m = document.getElementById('policy-modal');
+      m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+      if (m.style.display === 'flex') {
+        switchPolicyTab('eval');
+      }
+    }
+
+    function switchPolicyTab(tab) {
+      document.getElementById('sub-policy-eval').style.display = tab === 'eval' ? 'block' : 'none';
+      document.getElementById('sub-policy-rule').style.display = tab === 'rule' ? 'block' : 'none';
+      document.getElementById('sub-policy-list').style.display = tab === 'list' ? 'block' : 'none';
+
+      document.getElementById('tab-eval-btn').className = 'term-btn' + (tab === 'eval' ? ' accent' : '');
+      document.getElementById('tab-rule-btn').className = 'term-btn' + (tab === 'rule' ? ' accent' : '');
+      document.getElementById('tab-list-btn').className = 'term-btn' + (tab === 'list' ? ' accent' : '');
+
+      if (tab === 'list') {
+        loadActivePolicies();
+      }
+    }
+
+    async function runManualPolicyEval() {
+      const action = document.getElementById('eval-action').value;
+      const target = document.getElementById('eval-target').value.trim();
+      const agent_id = document.getElementById('eval-agent').value.trim() || '*';
+      const box = document.getElementById('eval-result-box');
+      box.style.display = 'block';
+      box.innerHTML = '<span style="color: var(--accent-cyan);">Evaluating policy against gateway engine...</span>';
+
+      try {
+        const res = await fetch('/api/v1/policy/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id, action, target })
+        });
+        const data = await res.json();
+        const isBlocked = data.verdict === 'Blocked';
+        const color = isBlocked ? 'var(--accent-red)' : 'var(--accent-green)';
+        const reasons = (data.reasons || []).join(', ') || 'No restrictions triggered (Allowed)';
+
+        box.innerHTML = `
+          <div style="background: #080c12; border: 1px solid ${color}; padding: 10px; border-radius: 3px;">
+            <div style="font-weight: bold; color: ${color}; margin-bottom: 4px;">VERDICT: ${data.verdict}</div>
+            <div style="font-size: 11px; color: var(--text-main);"><strong>Target:</strong> ${escapeHtml(target)}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;"><strong>Reasons:</strong> ${escapeHtml(reasons)}</div>
+          </div>
+        `;
+      } catch (err) {
+        box.innerHTML = `<span style="color: var(--accent-red);">Evaluation failed: ${escapeHtml(err.message)}</span>`;
+      }
+    }
+
+    async function saveManualPolicyRule() {
+      const agent_id = document.getElementById('rule-agent').value.trim();
+      const rule_name = document.getElementById('rule-name').value.trim();
+      const blocked_raw = document.getElementById('rule-blocked').value.trim();
+      const allowed_raw = document.getElementById('rule-allowed').value.trim();
+      const sandbox_level = document.getElementById('rule-level').value;
+      const box = document.getElementById('rule-result-box');
+      box.style.display = 'block';
+
+      const blocked_patterns = blocked_raw.split(',').map(s => s.trim()).filter(Boolean);
+      const allowed_directories = allowed_raw.split(',').map(s => s.trim()).filter(Boolean);
+
+      try {
+        const res = await fetch('/api/v1/policy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id,
+            rule_name,
+            sandbox_level,
+            allowed_directories,
+            blocked_patterns
+          })
+        });
+        if (res.ok) {
+          box.innerHTML = `<div style="color: var(--accent-green); font-size: 11px;">✓ Policy rule applied in-memory for agent: <strong>${escapeHtml(agent_id)}</strong></div>`;
+        } else {
+          box.innerHTML = `<div style="color: var(--accent-red); font-size: 11px;">Failed to save rule: HTTP ${res.status}</div>`;
+        }
+      } catch (err) {
+        box.innerHTML = `<div style="color: var(--accent-red); font-size: 11px;">Error saving rule: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function loadActivePolicies() {
+      const container = document.getElementById('active-policies-content');
+      container.innerHTML = '<span style="color: var(--accent-cyan);">Fetching active policies...</span>';
+      try {
+        const res = await fetch('/api/v1/policy');
+        const policies = await res.json();
+        if (!Array.isArray(policies) || policies.length === 0) {
+          container.innerHTML = '<p style="color: var(--text-muted);">No custom policies configured (Default permissive sandbox active).</p>';
+          return;
+        }
+        let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+        policies.forEach(p => {
+          html += `
+            <div style="background: #080c12; border: 1px solid var(--border-term); padding: 8px; border-radius: 3px; font-size: 11px;">
+              <div style="display: flex; justify-content: space-between; font-weight: bold; color: var(--accent-cyan);">
+                <span>${escapeHtml(p.agent_id)} (${escapeHtml(p.rule_name || 'Policy')})</span>
+                <span style="color: var(--accent-amber);">${escapeHtml(p.sandbox_level)}</span>
+              </div>
+              <div style="color: var(--text-muted); margin-top: 4px;">Blocked: ${escapeHtml((p.blocked_patterns || []).join(', ') || 'None')}</div>
+            </div>
+          `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<span style="color: var(--accent-red);">Error loading policies: ${escapeHtml(err.message)}</span>`;
+      }
     }
 
     // Helper functions
