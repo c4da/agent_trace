@@ -256,17 +256,6 @@ impl Default for WorkgroupRegistry {
 
 impl WorkgroupRegistry {
     pub fn new_with_defaults(persistence_path: Option<PathBuf>) -> Self {
-        if let Some(ref path) = persistence_path {
-            if let Ok(raw) = fs::read_to_string(path) {
-                if let Ok(mut loaded) = serde_json::from_str::<WorkgroupRegistry>(&raw) {
-                    loaded.persistence_path = persistence_path.clone();
-                    if !loaded.groups.is_empty() {
-                        return loaded;
-                    }
-                }
-            }
-        }
-
         let mut groups = HashMap::new();
 
         // 1. Coding & Systems Architecture Workgroup (Qwen + Gemini + Anti-Monolith MD rules)
@@ -474,10 +463,77 @@ impl WorkgroupRegistry {
             tasks_completed: 8,
         };
 
+        // 5. Reasoning & Coding Issue Debugging Workgroup (DeepSeek-R1 + Qwen 27B + Copilot CLI)
+        let wg_reasoning = ProblemWorkgroup {
+            id: "wg-reasoning-debug".to_string(),
+            name: "Reasoning & Coding Issues".to_string(),
+            problem_domain: "reasoning_debugging".to_string(),
+            icon: "🧠".to_string(),
+            color: "#f0883e".to_string(),
+            description: "Root-cause bug diagnosis, compiler/borrow-checker errors, async deadlock/race analysis, and mathematical invariant verification.".to_string(),
+            execution_strategy: "pipeline".to_string(),
+            members: vec![
+                WorkgroupMember {
+                    agent_id: "deepseek-r1:1.5b".to_string(),
+                    display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
+                    node_id: "PC-2".to_string(),
+                    role: WorkgroupRole::SanityVerifier,
+                },
+                WorkgroupMember {
+                    agent_id: "qwen3.8:27b".to_string(),
+                    display_name: "Qwen 3.8 (27B Heavy)".to_string(),
+                    node_id: "PC-1".to_string(),
+                    role: WorkgroupRole::LeadArchitect,
+                },
+                WorkgroupMember {
+                    agent_id: "copilot-cli".to_string(),
+                    display_name: "GitHub Copilot CLI".to_string(),
+                    node_id: "PC-1-Copilot".to_string(),
+                    role: WorkgroupRole::ToolExecutor,
+                },
+            ],
+            markdown_rules: vec![
+                MarkdownRuleAttachment {
+                    id: "rule-reasoning-debug".to_string(),
+                    title: "Root-Cause Debugging & Reasoning Protocol".to_string(),
+                    file_path: Some("docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md".to_string()),
+                    inline_markdown: Some(
+                        "- Isolate the minimal reproducible failure (compiler error, panic backtrace, or violated invariant) before proposing edits.\n- Inspect async lock contention (prefer bounded mpsc channels over shared Mutex locks).\n- Pair every bug fix with a deterministic regression test.".to_string(),
+                    ),
+                    enforce_strict: true,
+                },
+            ],
+            trigger_keywords: vec![
+                "bug".to_string(),
+                "issue".to_string(),
+                "error".to_string(),
+                "panic".to_string(),
+                "debug".to_string(),
+                "reason".to_string(),
+                "why".to_string(),
+                "deadlock".to_string(),
+                "borrow".to_string(),
+                "compile".to_string(),
+                "fix".to_string(),
+            ],
+            tasks_completed: 11,
+        };
+
         groups.insert(wg_coding.id.clone(), wg_coding);
         groups.insert(wg_image.id.clone(), wg_image);
         groups.insert(wg_security.id.clone(), wg_security);
         groups.insert(wg_ui.id.clone(), wg_ui);
+        groups.insert(wg_reasoning.id.clone(), wg_reasoning);
+
+        if let Some(ref path) = persistence_path {
+            if let Ok(raw) = fs::read_to_string(path) {
+                if let Ok(loaded) = serde_json::from_str::<WorkgroupRegistry>(&raw) {
+                    for (k, v) in loaded.groups {
+                        groups.insert(k, v);
+                    }
+                }
+            }
+        }
 
         let reg = Self {
             groups,
@@ -922,6 +978,13 @@ mod tests {
         assert_eq!(img.problem_domain, "image_generation");
         assert!(img.members.iter().any(|m| m.agent_id.contains("deepseek")));
         assert!(img.members.iter().any(|m| m.agent_id.contains("copilot")));
+
+        let reasoning = reg
+            .get("wg-reasoning-debug")
+            .expect("wg-reasoning-debug should exist");
+        assert_eq!(reasoning.problem_domain, "reasoning_debugging");
+        assert!(reasoning.members.iter().any(|m| m.agent_id.contains("deepseek")));
+        assert!(reasoning.members.iter().any(|m| m.agent_id.contains("27b")));
     }
 
     #[test]

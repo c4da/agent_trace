@@ -642,7 +642,8 @@
         <span style="font-size: 10px; color: #8b949e;">1-Click Templates:</span>
         <button class="copy-btn" style="font-size: 10px; border-color: #bc8cff; color: #d2a8ff;" onclick="loadWorkgroupTemplate('image_gen')">🎨 Image Gen (DeepSeek + Copilot CLI)</button>
         <button class="copy-btn" style="font-size: 10px; border-color: #58a6ff; color: #79c0ff;" onclick="loadWorkgroupTemplate('coding')">💻 Coding (Qwen + Gemini + Rules)</button>
-        <button class="copy-btn" style="font-size: 10px; border-color: #3fb950; color: #7ee787;" onclick=" startNewWorkgroup()">➕ New Blank Workgroup</button>
+        <button class="copy-btn" style="font-size: 10px; border-color: #f0883e; color: #ffa657;" onclick="loadWorkgroupTemplate('reasoning')">🧠 Reasoning &amp; Bugs (DeepSeek + Qwen 27B)</button>
+        <button class="copy-btn" style="font-size: 10px; border-color: #3fb950; color: #7ee787;" onclick="startNewWorkgroup()">➕ New Blank Workgroup</button>
         <button class="copy-btn" style="font-size: 10px;" onclick="toggleWorkgroupsStudio()">✕ Close</button>
       </div>
     </div>
@@ -4060,6 +4061,8 @@
         selectWorkgroupForEdit('wg-image-gen');
       } else if (kind === 'coding') {
         selectWorkgroupForEdit('wg-coding');
+      } else if (kind === 'reasoning') {
+        selectWorkgroupForEdit('wg-reasoning-debug');
       }
     }
 
@@ -4141,6 +4144,8 @@
             inp.value = 'Design a crisp dark-mode SVG network node icon and provide the Copilot CLI generation script.';
           } else if (wgId === 'wg-coding') {
             inp.value = 'Implement a pure Rust function with <= 3 arguments and a unit test verifying path normalization.';
+          } else if (wgId === 'wg-reasoning-debug') {
+            inp.value = 'Diagnose why holding a std::sync::Mutex across an .await point causes a Tokio worker deadlock and show the bounded mpsc fix.';
           } else {
             inp.value = `Execute task using workgroup ${wgId} and enforce all attached .md rules.`;
           }

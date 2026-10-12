@@ -12,6 +12,7 @@ You can graphically group specific cluster agents around a problem domain and at
 | :--- | :--- | :--- | :--- |
 | **`wg-image-gen`** | 🎨 **Image & SVG Generation** | `DeepSeek-R1 (1.5B CUDA)` (`LeadArchitect`) $\rightarrow$ `GitHub Copilot CLI` (`PrimaryBuilder`) | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md` (*No device frames, dark `#0d1117` palette, crisp SVG geometry*) |
 | **`wg-coding`** | 💻 **Coding & Architecture** | `Qwen 3.5 (9B)` (`PrimaryBuilder`) $\rightarrow$ `Gemini / Antigravity` (`LeadArchitect`) + `Qwen 3.8 (27B)` (`SanityVerifier`) | `docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md` (*Anti-Monolith SRP, $\le 3$ args, $\ge 85\%$ test coverage*) |
+| **`wg-reasoning-debug`** | 🧠 **Reasoning & Coding Issues** | `DeepSeek-R1 (1.5B CUDA)` (`SanityVerifier`) $\rightarrow$ `Qwen 3.8 (27B Heavy)` (`LeadArchitect`) + `GitHub Copilot CLI` (`ToolExecutor`) | `docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md` (*Root-cause bug diagnosis, borrow-checker/deadlock fixes & regression tests*) |
 | **`wg-security-audit`** | 🛡️ **Security & Zone Audit** | `DeepSeek-R1 (1.5B)` + `Qwen 3.5 (9B)` + `GitHub Copilot CLI` | `docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md` (*Vault protection & lexical `..` traversal collapse*) |
 | **`wg-ui-workfirst`** | 🖥️ **Work-First UI & TUI** | `Gemini / Antigravity` + `Qwen 3.5 (9B)` + `DeepSeek-R1 (1.5B)` | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md` (*30–50 rows visible, keyboard-first `j`/`k`/`P`/`M`/`F`*) |
 
