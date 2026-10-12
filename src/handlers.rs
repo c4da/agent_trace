@@ -27,6 +27,7 @@ use tower_http::cors::CorsLayer;
 
 const DASHBOARD_HTML: &str = include_str!("dashboard.html");
 const CONSOLE_HTML: &str = include_str!("console.html");
+const GRAPH_HTML: &str = include_str!("graph.html");
 const FLYER_HTML: &str = include_str!("../docs/flyer.html");
 const INSTALL_PS1: &str = include_str!("install.ps1");
 const PROVISION_PS1: &str = include_str!("provision.ps1");
@@ -56,6 +57,7 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/dashboard", get(serve_dashboard))
         .route("/console", get(serve_console))
         .route("/terminal", get(serve_console))
+        .route("/graph", get(serve_graph))
         .route("/flyer", get(serve_flyer))
         .route("/marketing", get(serve_flyer))
         .route("/install", get(serve_install_py))
@@ -73,8 +75,9 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/summary", get(get_summary))
         .route("/api/v1/ledger/verify", get(verify_ledger_handler))
         .route("/api/v1/stream", get(sse_handler))
-        // Telemetry Analytics, Alerts & Sandbox Policy Endpoints
+        // Telemetry Analytics, Contribution Graph, Alerts & Sandbox Policy Endpoints
         .route("/api/v1/telemetry/analytics", get(get_analytics_handler))
+        .route("/api/v1/telemetry/contributions", get(get_contributions_handler))
         .route("/api/v1/alerts", get(get_alerts_handler))
         .route("/api/v1/alerts/ack", post(ack_alert_handler))
         .route("/api/v1/alerts/reset", post(reset_alerts_handler))
@@ -186,6 +189,10 @@ pub async fn serve_console() -> Html<&'static str> {
     Html(CONSOLE_HTML)
 }
 
+pub async fn serve_graph() -> Html<&'static str> {
+    Html(GRAPH_HTML)
+}
+
 pub async fn serve_flyer() -> Html<&'static str> {
     Html(FLYER_HTML)
 }
@@ -262,6 +269,28 @@ pub async fn get_analytics_handler(
         eprintln!("[-] Error computing telemetry analytics: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })
+}
+
+#[derive(serde::Deserialize, Default)]
+pub struct ContributionsQuery {
+    pub limit: Option<usize>,
+}
+
+pub async fn get_contributions_handler(
+    State(state): State<AppState>,
+    Query(q): Query<ContributionsQuery>,
+) -> Result<Json<crate::contributions::ContributionGraphReport>, StatusCode> {
+    let limit = q.limit.unwrap_or(1000).clamp(1, 5000);
+    let raw_events = state
+        .db
+        .get_recent_events(limit)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let typed_events: Vec<TraceEvent> = raw_events
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect();
+    let report = crate::contributions::build_contribution_report(&typed_events);
+    Ok(Json(report))
 }
 
 pub async fn list_policies_handler(

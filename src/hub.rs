@@ -114,7 +114,8 @@ async fn execute_stage_call(
     let req_body = serde_json::json!({
         "model": preferred_model,
         "messages": messages,
-        "stream": false
+        "stream": false,
+        "think": false
     });
 
     let primary_url = format!("{}/v1/chat/completions", preferred_upstream.trim_end_matches('/'));
@@ -164,7 +165,8 @@ async fn execute_stage_call(
             let fb_body = serde_json::json!({
                 "model": final_model,
                 "messages": messages,
-                "stream": false
+                "stream": false,
+                "think": false
             });
             match cfg
                 .client

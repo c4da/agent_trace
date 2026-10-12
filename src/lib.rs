@@ -1,6 +1,7 @@
 pub mod agent_interface;
 pub mod analytics;
 pub mod antigravity_watcher;
+pub mod contributions;
 pub mod copilot_watcher;
 pub mod db;
 pub mod delegation_engine;
