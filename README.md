@@ -2,17 +2,55 @@
 
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.78%2B-orange.svg)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/Tests-68%20Passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-75%20Passed-brightgreen.svg)](tests/)
 [![Ledger](https://img.shields.io/badge/Ledger-Ed25519%20Signed%20%2B%20SHA--256-green.svg)](src/ledger.rs)
 [![Architecture](https://img.shields.io/badge/Architecture-Actor%20Model%20(MPSC)-blueviolet.svg)](src/ledger_writer.rs)
 [![MCP](https://img.shields.io/badge/Protocol-MCP%20JSON--RPC%202.0-blue.svg)](src/agent_interface/mcp.rs)
+
+## 📖 How-To Guides & Step-by-Step Recipes (Start Here)
+
+Jump straight into installing, running scenarios, locking down agent directories, or routing prompts across your cluster:
+
+| What do you want to do? | Step-by-Step Guide (`.md`) | 1-Liner Quick Command / UI Shortcut |
+| :--- | :--- | :--- |
+| **1. Install & Run in 60 Seconds**<br>Build from source or run the 1-command bootstrap script | 📄 **[How to Install & Set Up](docs/HOW_TO_INSTALL_AND_SETUP.md)**<br>📄 [Worker Node Setup](docs/WORKER_NODE_SETUP.md) · [Cluster Guide](docs/CLUSTER_DEPLOYMENT_GUIDE.md) | `cargo run --release`<br>*(or `curl -sSL http://localhost:8080/install.py \| python3 -`)* |
+| **2. Run & Verify the 6 Live Security Scenarios**<br>Test `.env` leak blocking, live code diffs, token routing, hash proof, freeze, and zones | 📄 **[How to Run the 6 Scenarios](docs/HOW_TO_RUN_SCENARIOS.md)**<br>📄 [Why AgentTrace & Scenarios](docs/WHY_AGENTTRACE_SCENARIOS_AND_VALUE_PROPOSITION.md) | Open `http://localhost:8080/dashboard` or `/console` and click **`[⚡ Live Scenario Demos 1–6]`** |
+| **3. Set Up Safe Zones (Vault) vs. Agent Playground**<br>Guard `.secrets` & core repos while confining untrusted agents to a sandbox directory | 📄 **[How to Configure Safe Zones & Playgrounds](docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md)** | Press <kbd>Z</kbd> in `/dashboard` or run:<br>`python sdk/agent_trace_client.py --confine untrusted-bot` |
+| **4. Use the Central Prompt Hub (`auto` / `pipeline` / `swarm`)**<br>Stop manually choosing models/IPs—auto-route or chain Qwen $\rightarrow$ DeepSeek-R1 | 📄 **[How to Use Prompt Hub & Contribution Graph](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md)** | Press <kbd>H</kbd> in `/dashboard` or run:<br>`python sdk/agent_trace_client.py --pipeline "Audit this code"` |
+| **5. Inspect Multi-Agent Problem Contributions (`/graph`)**<br>See which agent solved which problem across 4 metrics & 2 topic modes | 📄 **[How to Use Contribution Graph (`/graph`)](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md#part-2-multi-agent-problem-contribution-graph-graph)** | Open `http://localhost:8080/graph` (press <kbd>1</kbd>–<kbd>4</kbd> to switch metrics) |
+| **6. Connect Another AI Agent to Pick Up Telemetry**<br>1-call handoff briefing, 17 MCP tools, and zero-dependency Python SDK | 📄 **[How to Connect Agents & Pick Up Telemetry](docs/AGENT_TELEMETRY_PICKUP.md)** | `python sdk/agent_trace_client.py --briefing`<br>*(or `GET /api/v1/agent/handoff`)* |
+| **7. Audit, Pause, & Filter Telemetry Manually**<br>Keyboard-driven forensics (`j`/`k`, `P` freeze, `M` What-If policy tester, `F` flag) | 📄 **[Manual-First Operator Guide](docs/MANUAL_FIRST_OPERATOR_GUIDE.md)**<br>📄 [Terminal Console TUI Design](docs/TERMINAL_CONSOLE_DESIGN_AND_SCENARIOS.md) | Open `http://localhost:8080/console` and press <kbd>?</kbd> for shortcuts |
+
+### ⚡ 30-Second Copy-Paste Quick Recipes
+
+```bash
+# 1. Start the Gateway (:8080) — serves /dashboard, /console, /graph, /v1/chat/completions, and /api/v1/mcp
+cargo run --release
+
+# 2. Send a prompt to the Central Prompt Hub (auto-selects best local model or runs Qwen -> DeepSeek-R1 pipeline)
+python sdk/agent_trace_client.py --ask "Write a Rust unit test for SHA-256 chain continuity"
+python sdk/agent_trace_client.py --pipeline "Check this function for path traversal bugs"
+
+# 3. Lock an untrusted agent strictly inside ./playground (blocks .secrets Vault and makes src/ Read-Only)
+python sdk/agent_trace_client.py --confine experimental-agent-01
+
+# 4. Hand off live cluster telemetry, active alerts, and recent diffs to another AI agent
+python sdk/agent_trace_client.py --briefing
+
+# 5. Mathematically verify the entire SHA-256 + Ed25519 cryptographic audit ledger
+curl -s http://localhost:8080/api/v1/ledger/verify
+```
+
+---
+
+## 🌐 General Overview: What is AgentTrace Gateway?
 
 > **High-throughput, sub-5ms cryptographic audit ledger, actor-based reverse proxy, and multi-agent governance gateway in pure Rust.**  
 > Built for autonomous agent clusters running tools, shell commands, file diffs, and local/remote LLM inferences.
 
 ---
 
-## 🎯 Why AgentTrace? The 5 Real-World Scenarios That Sell The App
+## 🎯 Why AgentTrace? The 6 Real-World Scenarios That Sell The App
 
 Autonomous AI coding agents (GitHub Copilot CLI, Hermes Agent, Antigravity, Claude Code) are rapidly being granted terminal access, shell execution, and write permissions across codebases. **Operating them without a cryptographic proxy is like driving without a seatbelt.**
 
@@ -203,14 +241,16 @@ Exposes **17 native tools** over JSON-RPC 2.0 (`POST /api/v1/mcp`) and REST (`PO
 
 ---
 
-## 📚 Technical & Systems Guides
+## 📚 Complete Documentation Index (`docs/`)
 
-- 📗 **[Agent Telemetry Pickup & Handoff Guide](docs/AGENT_TELEMETRY_PICKUP.md)**  
-  Copy-paste system prompts, 1-call handoff JSON schema, zero-dependency Python SDK examples, and MCP tool reference for connecting secondary agents.
-- 📘 **[Mastering Async Rust Systems: Actor Channels, Bounded Backpressure, and Zero-Trust Origin Security](docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md)**  
-  An in-depth guide detailing why `Arc<Mutex<T>>` causes Tokio worker starvation, how we built the actor-based bounded writer, canonical RFC 3986 origin matching, and in-memory Tower testing.
-- 📙 **[Worker Node Setup Guide](docs/WORKER_NODE_SETUP.md)**  
-  Step-by-step instructions for deploying distributed worker nodes on Linux/Windows.
+- ⚡ **[How to Install & Set Up (`docs/HOW_TO_INSTALL_AND_SETUP.md`)](docs/HOW_TO_INSTALL_AND_SETUP.md)** — 60-second quickstart, single-command bootstrap scripts (`/install.py`, `/install.ps1`, `/install.sh`), and `.env` setup.
+- 🎯 **[How to Run & Verify the 6 Live Scenarios (`docs/HOW_TO_RUN_SCENARIOS.md`)](docs/HOW_TO_RUN_SCENARIOS.md)** — Step-by-step UI and CLI walkthroughs for all 6 security, provenance, and spatial containment scenarios.
+- 🏰 **[How to Configure Safe Zones & Agent Playgrounds (`docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md`)](docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md)** — Setting up `VaultNoAccess`, `GuardedReadOnly`, and `AgentPlayground` directories and confining untrusted agents.
+- 🧠 **[How to Use the Central Prompt Hub & Contribution Graph (`docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md`)](docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md)** — Auto-routing prompts (`auto`, `pipeline`, `swarm`) and inspecting multi-agent problem contributions in `/graph`.
+- 🤝 **[Agent Telemetry Pickup & Handoff Guide (`docs/AGENT_TELEMETRY_PICKUP.md`)](docs/AGENT_TELEMETRY_PICKUP.md)** — Copy-paste system prompts, 1-call handoff JSON schema, zero-dependency Python SDK examples, and 17 MCP tools.
+- 🛠️ **[Manual-First Operator Guide (`docs/MANUAL_FIRST_OPERATOR_GUIDE.md`)](docs/MANUAL_FIRST_OPERATOR_GUIDE.md)** — Keyboard-driven forensics (`j`/`k`, `P` freeze, `M` What-If sandbox, `F` flag) across `/console` and `/dashboard`.
+- 📘 **[Mastering Async Rust Systems: Actor Channels & Zero-Trust Origin Security (`docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md`)](docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md)** — Deep dive into bounded MPSC actor channels, RFC 3986 origin matching, and in-memory Tower testing.
+- 📙 **[Worker Node Setup Guide (`docs/WORKER_NODE_SETUP.md`)](docs/WORKER_NODE_SETUP.md)** & **[Cluster Deployment Guide (`docs/CLUSTER_DEPLOYMENT_GUIDE.md`)](docs/CLUSTER_DEPLOYMENT_GUIDE.md)** — Deploying distributed GPU/CPU worker nodes across Linux and Windows.
 
 ---
 
@@ -230,14 +270,16 @@ cargo build --release
 ```
 
 - **Gateway Port:** `http://0.0.0.0:8080`
-- **Dashboard UI:** `http://localhost:8080/dashboard`
+- **Operator Dashboard UI:** `http://localhost:8080/dashboard`
+- **Terminal Console (Web TUI):** `http://localhost:8080/console`
+- **Problem Contribution Graph:** `http://localhost:8080/graph`
 - **SSE Live Stream:** `http://localhost:8080/api/v1/events/stream`
 
 ### 2. Run Test Suite
 ```bash
 cargo test
 ```
-All **68 unit, integration, and in-memory Tower tests** execute in under 1 second without opening external network ports.
+All **75 unit, integration, and in-memory Tower tests** execute in under 1 second without opening external network ports.
 
 ---
 
