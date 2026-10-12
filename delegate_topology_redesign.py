@@ -9,7 +9,7 @@ The current AgentTrace Gateway dashboard displays topology as two side-by-side c
 Redesign the Distributed Cluster Topology section for `dashboard.html`.
 
 Architecture facts:
-1. PC-1 (Lead Node · VECTOR · 192.168.1.101):
+1. PC-1 (Lead Node · LEAD-NODE · 192.168.1.101):
    - PC-1 Antigravity Lead Agent (Cloud Gemini Pro RPC, System Architect & Orchestrator)
    - PC-1 Local Engines (Ollama :11434 with qwen3.8:27b, gemma4:latest, qwen3:14b)
 2. AgentTrace Gateway & Cryptographic Ledger (:8080) - CENTRAL HUB:

@@ -10,11 +10,11 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 - **Role**: System architecture, multi-file planning, system invariant enforcement, user communication.
 - **Model**: Frontier / Cloud Gemini reasoning engine.
 
-### B. PC-1 Lead Node (VECTOR · 192.168.1.101)
+### B. PC-1 Lead Node (LEAD-NODE · 192.168.1.101)
 - **Endpoints**:
   - AgentTrace Gateway: `http://localhost:8080` / `http://192.168.1.101:8080`
   - Ollama Engine: `http://127.0.0.1:11434` / `http://127.0.0.1:11434/v1`
-  - Hermes CLI: `C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd`
+  - Hermes CLI: `%LOCALAPPDATA%\hermes\bin\hermes.cmd`
 - **Models & Delegation Roles**:
   - `qwen3.8:27b` (Heavy Local Reasoning Partner):
     - Complex architectural refactoring, structural code analysis, deep math/physics problem solving.

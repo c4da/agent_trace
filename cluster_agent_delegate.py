@@ -19,8 +19,10 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+import os
+
 GATEWAY_URL = "http://localhost:8080"
-HERMES_BIN = r"C:\Users\milos\AppData\Local\hermes\bin\hermes.cmd"
+HERMES_BIN = os.path.expandvars(r"%LOCALAPPDATA%\hermes\bin\hermes.cmd")
 
 def post_json(url: str, data: dict, timeout: int = 15) -> dict:
     req = urllib.request.Request(

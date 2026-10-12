@@ -106,7 +106,7 @@ pub fn spawn_discovery_beacon(lead_port: u16, lead_ip: &str) -> tokio::task::Joi
             let _ = socket.set_broadcast(true);
             let beacon = serde_json::json!({
                 "service": "agent_trace_gw",
-                "cluster": "vector-mesh",
+                "cluster": "agent-trace-mesh",
                 "role": "lead",
                 "lead_ip": lead_ip_string,
                 "lead_port": lead_port
@@ -132,7 +132,9 @@ pub fn spawn_host_agent_discoverer(
     tokio::spawn(async move {
         loop {
             // 1. Detect GitHub Copilot CLI
-            let user_profile = std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\milos".to_string());
+            let user_profile = std::env::var("USERPROFILE")
+                .or_else(|_| std::env::var("HOME"))
+                .unwrap_or_default();
             let copilot_exe_links = std::path::PathBuf::from(&user_profile)
                 .join("AppData")
                 .join("Local")
@@ -201,7 +203,7 @@ mod tests {
         let lead_port = 8080;
         let beacon = serde_json::json!({
             "service": "agent_trace_gw",
-            "cluster": "vector-mesh",
+            "cluster": "agent-trace-mesh",
             "role": "lead",
             "lead_ip": lead_ip,
             "lead_port": lead_port

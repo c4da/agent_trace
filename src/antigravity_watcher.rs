@@ -42,7 +42,9 @@ pub fn spawn_watcher(db: Database, tx_events: broadcast::Sender<String>) {
 }
 
 fn get_brain_dir() -> Option<PathBuf> {
-    let user_profile = std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\milos".to_string());
+    let user_profile = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .ok()?;
     let brain_dir = PathBuf::from(user_profile)
         .join(".gemini")
         .join("antigravity")

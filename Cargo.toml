@@ -2,7 +2,7 @@
 name = "agent_trace_gw"
 version = "0.1.0"
 edition = "2021"
-authors = ["Milos Cadek"]
+authors = ["AgentTrace Contributors"]
 license = "MIT OR Apache-2.0"
 description = "High-performance Rust telemetry gateway & reverse proxy for distributed AI agent clusters"
 

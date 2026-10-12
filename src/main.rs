@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let hostname = std::env::var("COMPUTERNAME")
         .or_else(|_| std::env::var("HOSTNAME"))
-        .unwrap_or_else(|_| "VECTOR".to_string());
+        .unwrap_or_else(|_| "LEAD-NODE".to_string());
     let default_node_id = if is_worker { format!("Worker-{}", hostname) } else { "PC-1".to_string() };
     let node_id = std::env::var("NODE_ID").unwrap_or(default_node_id);
 
@@ -79,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Register verified initial cluster topology in lead DB
         let _ = db.upsert_node(&NodeHeartbeat {
             node_id: "PC-1".to_string(),
-            hostname: "VECTOR".to_string(),
+            hostname: hostname.clone(),
             ip_address: "192.168.1.101".to_string(),
             role: "Lead Node (Antigravity + Hermes + Gemma 4)".to_string(),
             status: "ACTIVE".to_string(),

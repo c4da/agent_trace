@@ -219,18 +219,21 @@ impl PolicyEngine {
             policies: HashMap::new(),
         };
 
-        // 1. Default Global Baseline Policy ("*")
+        let mut read_whitelist = vec![
+            "c:/cada/projects".to_string(),
+            "src".to_string(),
+            "tests".to_string(),
+            "crates".to_string(),
+            "target".to_string(),
+            "docs".to_string(),
+        ];
+        if let Ok(profile) = std::env::var("USERPROFILE") {
+            read_whitelist.push(format!("{}/appdata/local/hermes", profile.replace('\\', "/").to_lowercase()));
+        }
+
         let default_policy = AgentAccessPolicy {
             agent_id: "*".to_string(),
-            read_whitelist: vec![
-                "c:/cada/projects".to_string(),
-                "c:/users/milos/appdata/local/hermes".to_string(),
-                "src".to_string(),
-                "tests".to_string(),
-                "crates".to_string(),
-                "target".to_string(),
-                "docs".to_string(),
-            ],
+            read_whitelist,
             write_whitelist: vec![
                 "c:/cada/projects".to_string(),
                 "src".to_string(),

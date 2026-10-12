@@ -123,7 +123,7 @@ mod tests {
 
         let node1 = NodeHeartbeat {
             node_id: "PC-1".to_string(),
-            hostname: "VECTOR".to_string(),
+            hostname: "LEAD-NODE".to_string(),
             ip_address: "192.168.1.101".to_string(),
             role: "Lead Node".to_string(),
             status: "ACTIVE".to_string(),

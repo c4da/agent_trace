@@ -8,7 +8,7 @@ Complete guide for deploying, discovering, and orchestrating distributed AI agen
 
 ```
                  +-------------------------------------------------------------+
-                 |                  PC-1: LEAD NODE (VECTOR)                   |
+                 |                  PC-1: LEAD NODE (LEAD-NODE)                |
                  |  IP: 192.168.1.101                                          |
                  |  Roles:                                                     |
                  |   - Antigravity IDE (Gemini Cloud RPC)                      |
