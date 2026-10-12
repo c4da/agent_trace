@@ -42,6 +42,40 @@ AgentTrace was built to solve the real dangers of autonomous agent deployment, d
 
 ## 🏗️ Architecture & Actor Pipeline
 
+```mermaid
+flowchart LR
+    subgraph Clients["💻 Client Agents & IDEs"]
+        IDE["Antigravity IDE"]
+        COP["GitHub Copilot CLI"]
+        MCP["Claude Code / Cursor (MCP)"]
+    end
+
+    subgraph Gateway["🛡️ AgentTrace Gateway (Rust Axum :8080)"]
+        SSRF["Auth & RFC 3986 SSRF Guard"]
+        ROUTER["Smart Router & Policy Firewall"]
+        MPSC["Bounded Actor Channel (mpsc: 1024)"]
+        WRITER["Ledger Writer Worker (Batch 32)"]
+        DB[("SQLite WAL + Ed25519 + SHA-256")]
+        SSE["Live SSE Stream (/console & /dashboard)"]
+    end
+
+    subgraph Cluster["⚡ Zero-Token Compute Cluster"]
+        PC1["PC-1 Ollama (:11434) - Qwen 27B / 14B"]
+        PC2["PC-2 Worker (:8642 CUDA) - DeepSeek-R1 1.5B"]
+    end
+
+    IDE --> SSRF
+    COP --> SSRF
+    MCP --> SSRF
+    SSRF --> ROUTER
+    ROUTER -->|Zero-Token Dispatch| PC1
+    ROUTER -->|CUDA Swarm Dispatch| PC2
+    ROUTER -->|Non-Blocking Send| MPSC
+    MPSC -->|Adaptive Drain| WRITER
+    WRITER --> DB
+    WRITER -.-> SSE
+```
+
 ```
                                ┌────────────────────────────────────────────────────────┐
                                │               Client Applications / Agents             │

@@ -847,97 +847,169 @@
       <div>
         <h3 style="font-size: 14px; color: #fff; margin-bottom: 3px; display: flex; align-items: center; gap: 8px;">
           <span>🧜 Mermaid.js Standard Architecture Flowchart</span>
-          <span class="badge" style="background: rgba(188,140,255,0.15); color: #bc8cff; border: 1px solid #bc8cff;">Standard Mermaid Syntax</span>
+          <span class="badge" style="background: rgba(188,140,255,0.15); color: #bc8cff; border: 1px solid #bc8cff;" id="mermaid-status-badge">Mermaid Flowchart Active</span>
         </h3>
         <p style="font-size: 11px; color: var(--text-dim);">
-          Generated according to DeepSeek R1 specification. Standard declarative graph topology ready for documentation and markdown embeds.
+          Declarative multi-node flowchart topology showing prompt interception, policy firewall, SHA-256 + Ed25519 ledger chaining, and zero-token cluster routing.
         </p>
       </div>
       <div style="display: flex; gap: 8px;">
         <button class="copy-btn" onclick="copyMermaidCode()">📋 Copy Mermaid Code</button>
-        <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff;" onclick="renderMermaidNow()">🔄 Re-render</button>
+        <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff;" onclick="renderMermaidNow(true)">🔄 Re-render Flowchart</button>
       </div>
     </div>
 
-    <!-- Live Mermaid Container -->
-    <div id="mermaid-render-container" style="background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 24px; overflow-x: auto; text-align: center; margin-bottom: 16px;">
-      <pre class="mermaid" id="mermaid-diagram-code">
-flowchart LR
-    IDE["💻 Antigravity IDE Sessions<br/>(Prompts & Multi-Window Tools)"]
-    COP_CLI["🐙 GitHub Copilot CLI<br/>(Terminal Shell & Autopilot)"]
+    <!-- Live Mermaid Container (with instant zero-dependency Mermaid-rendered SVG + live Mermaid.js upgrade) -->
+    <div id="mermaid-render-container" style="background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 20px; overflow-x: auto; text-align: center; margin-bottom: 16px; min-height: 360px;">
+      <svg id="mermaid-fallback-svg" viewBox="0 0 1120 430" style="width: 100%; min-width: 900px; height: auto; font-family: 'Trebuchet MS', Verdana, Arial, sans-serif;">
+        <defs>
+          <marker id="m-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+            <path d="M 0 1 L 9 5 L 0 9 z" fill="#8b949e"/>
+          </marker>
+          <marker id="m-arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+            <path d="M 0 1 L 9 5 L 0 9 z" fill="#58a6ff"/>
+          </marker>
+          <marker id="m-arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+            <path d="M 0 1 L 9 5 L 0 9 z" fill="#d29922"/>
+          </marker>
+          <marker id="m-arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+            <path d="M 0 1 L 9 5 L 0 9 z" fill="#3fb950"/>
+          </marker>
+        </defs>
 
-    subgraph PC1["🖥️ PC-1 Lead Node (LEAD-NODE · 192.168.1.101)"]
-        AG["✦ Antigravity Lead Agent<br/>(Gemini Pro Orchestrator)"]
-        COP["🐙 Copilot Agent Watcher<br/>(copilot.exe · gpt-6-luna)"]
-        OL["🤖 Ollama Cluster Engines (:11434)<br/>qwen3.8:27b · gemma4 · qwen3:14b"]
-    end
+        <!-- Subgraph: Clients -->
+        <rect x="14" y="25" width="185" height="380" rx="6" fill="#12161c" stroke="#484f58" stroke-dasharray="4 3" stroke-width="1.5"/>
+        <text x="106" y="46" fill="#8b949e" font-size="11" font-weight="bold" text-anchor="middle">Client Sessions &amp; CLI</text>
 
-    subgraph GW["🛡️ Central AgentTrace Gateway Hub (:8080)"]
-        PR["🌐 Reverse Proxy & Smart Router<br/>(POST /v1/chat/completions)"]
-        GOV["🛡️ Sandbox Governance Firewall<br/>(Enforces Whitelists & Blocks .env)"]
-        LEDGER["⛓️ Cryptographic Ledger<br/>(Ed25519 Signatures + SHA-256 Hash Chain)"]
-        DB[("💾 cluster_telemetry.db<br/>(SQLite WAL Mode)")]
-        PR -->|Policy Audit| GOV
-        GOV -->|Verified Hash| LEDGER
-        LEDGER -->|WAL Commit| DB
-    end
+        <rect x="28" y="75" width="156" height="62" rx="6" fill="#1b2129" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="106" y="101" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">💻 Antigravity IDE</text>
+        <text x="106" y="119" fill="#8b949e" font-size="9.5" text-anchor="middle">Multi-Window Prompts</text>
 
-    subgraph PC2["⚡ PC-2 Worker Node (NODE-02 · 192.168.1.102)"]
-        HERMES["🔥 Hermes Agent (:8642 + CUDA)<br/>deepseek-r1:1.5b (100% Dedicated GPU)"]
-        FWD["📡 Worker Telemetry Forwarder<br/>(Ed25519 Signed Heartbeats)"]
-    end
+        <rect x="28" y="175" width="156" height="62" rx="6" fill="#1b2129" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="106" y="201" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">🐙 GitHub Copilot CLI</text>
+        <text x="106" y="219" fill="#8b949e" font-size="9.5" text-anchor="middle">Shell &amp; Autopilot</text>
 
-    IDE -->|User Prompts & Tools| AG
-    COP_CLI -->|Terminal Commands & Tool Calls| COP
-    COP -->|Session Events & Proofs| LEDGER
-    AG -->|Transcripts & Intercepted Calls| PR
-    PR -->|Heavy Reasoning Dispatch| OL
-    PR -->|Zero-Token CUDA Swarm| HERMES
-    HERMES -->|Edge Verification Results| FWD
-    FWD -->|Heartbeats & Signed Events| LEDGER
-    LEDGER -.->|Real-time SSE Stream| DASH["📊 Live Dashboard Feed"]
+        <rect x="28" y="275" width="156" height="62" rx="6" fill="#1b2129" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="106" y="301" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">🔌 MCP JSON-RPC 2.0</text>
+        <text x="106" y="319" fill="#8b949e" font-size="9.5" text-anchor="middle">Claude / Cursor / SDK</text>
 
-    style GW fill:#2d1f05,stroke:#d29922,stroke-width:2px,color:#e3b341
-    style PC1 fill:#0d1117,stroke:#58a6ff,stroke-width:1.5px,color:#79c0ff
-    style PC2 fill:#0d1117,stroke:#3fb950,stroke-width:1.5px,color:#7ee787
-    style PR fill:#161b22,stroke:#d29922,color:#fff
-    style GOV fill:#161b22,stroke:#d29922,color:#fff
-    style LEDGER fill:#161b22,stroke:#3fb950,color:#fff
-    style AG fill:#162940,stroke:#bc8cff,color:#fff
-    style COP fill:#162940,stroke:#58a6ff,color:#fff
-    style COP_CLI fill:#1b2129,stroke:#58a6ff,color:#fff
-    style OL fill:#1b2129,stroke:#58a6ff,color:#fff
-    style HERMES fill:#13361e,stroke:#3fb950,color:#fff
-    style FWD fill:#161b22,stroke:#39c5cf,color:#fff
-    style IDE fill:#1b2129,stroke:#8b949e,color:#fff
-    style DB fill:#161b22,stroke:#3fb950,color:#fff
-    style DASH fill:#1f3b58,stroke:#58a6ff,color:#fff
-      </pre>
+        <!-- Subgraph: PC-1 Lead Node -->
+        <rect x="235" y="25" width="230" height="380" rx="6" fill="#0d141f" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="350" y="46" fill="#79c0ff" font-size="11" font-weight="bold" text-anchor="middle">🖥️ PC-1 Lead Node (192.168.1.101)</text>
+
+        <rect x="253" y="75" width="194" height="62" rx="6" fill="#162940" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="350" y="101" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">✦ Antigravity Lead Agent</text>
+        <text x="350" y="119" fill="#c9d1d9" font-size="9.5" text-anchor="middle">Orchestrator &amp; Watcher</text>
+
+        <rect x="253" y="175" width="194" height="62" rx="6" fill="#162940" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="350" y="201" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">🐙 Copilot Session Watcher</text>
+        <text x="350" y="219" fill="#c9d1d9" font-size="9.5" text-anchor="middle">Tool &amp; Command Auditor</text>
+
+        <rect x="253" y="295" width="194" height="76" rx="6" fill="#1b2129" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="350" y="320" fill="#79c0ff" font-size="11" font-weight="bold" text-anchor="middle">🤖 Ollama Local (:11434)</text>
+        <text x="350" y="338" fill="#c9d1d9" font-size="9.5" text-anchor="middle">qwen3.8:27b · qwen3:14b</text>
+        <text x="350" y="354" fill="#3fb950" font-size="9" font-weight="bold" text-anchor="middle">gemma4:latest ($0 Cost)</text>
+
+        <!-- Subgraph: Central Gateway Hub -->
+        <rect x="505" y="25" width="310" height="380" rx="6" fill="#231906" stroke="#d29922" stroke-width="2"/>
+        <text x="660" y="46" fill="#e3b341" font-size="11.5" font-weight="bold" text-anchor="middle">🛡️ AgentTrace Gateway Hub (:8080)</text>
+
+        <rect x="530" y="68" width="260" height="60" rx="6" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
+        <text x="660" y="94" fill="#58a6ff" font-size="11" font-weight="bold" text-anchor="middle">🌐 Reverse Proxy &amp; Smart Router</text>
+        <text x="660" y="112" fill="#e3b341" font-size="9.5" text-anchor="middle">POST /v1/chat/completions</text>
+
+        <rect x="530" y="156" width="260" height="60" rx="6" fill="#161b22" stroke="#f85149" stroke-width="1.5"/>
+        <text x="660" y="182" fill="#f85149" font-size="11" font-weight="bold" text-anchor="middle">🛡️ Sandbox Governance Firewall</text>
+        <text x="660" y="200" fill="#c9d1d9" font-size="9.5" text-anchor="middle">Path Whitelist · Blocks .env &amp; Keys</text>
+
+        <rect x="530" y="244" width="260" height="62" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="660" y="270" fill="#3fb950" font-size="11" font-weight="bold" text-anchor="middle">⛓️ Actor MPSC Ledger Writer</text>
+        <text x="660" y="288" fill="#c9d1d9" font-size="9.5" text-anchor="middle">SHA-256 Chain + Ed25519 Signatures</text>
+
+        <rect x="530" y="332" width="122" height="52" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1.2"/>
+        <text x="591" y="355" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">💾 SQLite WAL</text>
+        <text x="591" y="371" fill="#8b949e" font-size="9" text-anchor="middle">11,600+ Blocks</text>
+
+        <rect x="668" y="332" width="122" height="52" rx="6" fill="#1f3b58" stroke="#58a6ff" stroke-width="1.2"/>
+        <text x="729" y="355" fill="#fff" font-size="10" font-weight="bold" text-anchor="middle">📊 SSE Stream</text>
+        <text x="729" y="371" fill="#79c0ff" font-size="9" text-anchor="middle">/console &amp; /dashboard</text>
+
+        <!-- Subgraph: PC-2 Worker Node -->
+        <rect x="855" y="25" width="250" height="380" rx="6" fill="#0b1911" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="980" y="46" fill="#7ee787" font-size="11" font-weight="bold" text-anchor="middle">⚡ PC-2 Worker Node (192.168.1.102)</text>
+
+        <rect x="875" y="85" width="210" height="82" rx="6" fill="#13361e" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="980" y="113" fill="#7ee787" font-size="11" font-weight="bold" text-anchor="middle">🔥 Hermes Agent (:8642)</text>
+        <text x="980" y="131" fill="#fff" font-size="10" text-anchor="middle">deepseek-r1:1.5b (CUDA GPU)</text>
+        <text x="980" y="149" fill="#3fb950" font-size="9" font-weight="bold" text-anchor="middle">Fast CoT &amp; Sanity Audits</text>
+
+        <rect x="875" y="235" width="210" height="72" rx="6" fill="#161b22" stroke="#39c5cf" stroke-width="1.5"/>
+        <text x="980" y="265" fill="#39c5cf" font-size="11" font-weight="bold" text-anchor="middle">📡 Telemetry Forwarder</text>
+        <text x="980" y="285" fill="#c9d1d9" font-size="9.5" text-anchor="middle">Signed Heartbeats &amp; Blocks</text>
+
+        <!-- Flowchart Edges -->
+        <path d="M 184 106 L 253 106" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#m-arr-blue)"/>
+        <path d="M 184 206 L 253 206" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#m-arr-blue)"/>
+        <path d="M 184 306 C 340 306, 390 98, 530 98" stroke="#bc8cff" stroke-width="1.6" stroke-dasharray="4 2" fill="none" marker-end="url(#m-arr)"/>
+
+        <path d="M 447 106 L 530 98" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#m-arr-blue)"/>
+        <path d="M 447 206 C 485 206, 490 270, 530 270" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#m-arr-blue)"/>
+
+        <!-- Internal Gateway Edges -->
+        <path d="M 660 128 L 660 156" stroke="#d29922" stroke-width="2" fill="none" marker-end="url(#m-arr-amber)"/>
+        <path d="M 660 216 L 660 244" stroke="#d29922" stroke-width="2" fill="none" marker-end="url(#m-arr-amber)"/>
+        <path d="M 615 306 L 591 332" stroke="#3fb950" stroke-width="1.8" fill="none" marker-end="url(#m-arr-green)"/>
+        <path d="M 705 306 L 729 332" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#m-arr-blue)"/>
+
+        <!-- Router Dispatch Edges -->
+        <path d="M 530 112 C 485 112, 485 333, 447 333" stroke="#58a6ff" stroke-width="1.8" fill="none" marker-end="url(#m-arr-blue)"/>
+        <path d="M 790 98 C 830 98, 830 126, 875 126" stroke="#3fb950" stroke-width="2" fill="none" marker-end="url(#m-arr-green)"/>
+        <path d="M 980 167 L 980 235" stroke="#3fb950" stroke-width="1.8" fill="none" marker-end="url(#m-arr-green)"/>
+        <path d="M 875 275 L 790 275" stroke="#39c5cf" stroke-width="1.8" fill="none" marker-end="url(#m-arr-green)"/>
+      </svg>
     </div>
 
     <!-- Collapsible Source Code -->
     <details style="background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; font-size: 11px;">
       <summary style="cursor: pointer; color: #58a6ff; font-weight: 600;">View Raw Mermaid Code (Click to expand)</summary>
-      <pre style="margin-top: 10px; background: #161b22; padding: 12px; border-radius: 4px; overflow-x: auto; color: #c9d1d9; font-family: var(--font-mono); font-size: 11px;" id="raw-mermaid-pre">
-flowchart LR
+      <pre style="margin-top: 10px; background: #161b22; padding: 12px; border-radius: 4px; overflow-x: auto; color: #c9d1d9; font-family: var(--font-mono); font-size: 11px;" id="raw-mermaid-pre">flowchart LR
     IDE["💻 Antigravity IDE Sessions"]
     COP_CLI["🐙 GitHub Copilot CLI"]
-    AG["✦ Antigravity Lead Agent"]
-    COP["🐙 Copilot Agent (gpt-6-luna)"]
-    OL["🤖 Ollama Cluster Engines (:11434)"]
-    PR["🌐 Reverse Proxy & Smart Router (:8080)"]
-    GOV["🛡️ Sandbox Governance Firewall"]
-    LEDGER["⛓️ Cryptographic Ledger"]
-    HERMES["🔥 Hermes Agent (:8642 + CUDA deepseek-r1:1.5b)"]
-    FWD["📡 Worker Telemetry Forwarder"]
 
-    IDE --> AG --> PR
-    COP_CLI --> COP --> LEDGER
+    subgraph PC1["🖥️ PC-1 Lead Node (192.168.1.101)"]
+        AG["✦ Antigravity Lead Agent"]
+        COP["🐙 Copilot Agent Watcher"]
+        OL["🤖 Ollama Cluster (:11434) - qwen3.8:27b / qwen3:14b"]
+    end
+
+    subgraph GW["🛡️ Central AgentTrace Gateway Hub (:8080)"]
+        PR["🌐 Reverse Proxy and Smart Router"]
+        GOV["🛡️ Sandbox Governance Firewall"]
+        LEDGER["⛓️ Cryptographic Ledger (SHA-256 + Ed25519)"]
+        DB[("💾 cluster_telemetry.db (SQLite WAL)")]
+        PR -->|Policy Audit| GOV
+        GOV -->|Verified Hash| LEDGER
+        LEDGER -->|WAL Commit| DB
+    end
+
+    subgraph PC2["⚡ PC-2 Worker Node (192.168.1.102)"]
+        HERMES["🔥 Hermes Agent (:8642 CUDA deepseek-r1:1.5b)"]
+        FWD["📡 Worker Telemetry Forwarder"]
+    end
+
+    IDE -->|Prompts and Tools| AG
+    COP_CLI -->|Shell and Tool Calls| COP
+    COP -->|Session Proofs| LEDGER
+    AG -->|Intercepted Calls| PR
     PR -->|Heavy Reasoning| OL
-    PR -->|Fast CUDA Swarm| HERMES
-    HERMES --> FWD --> LEDGER
-    PR --> GOV --> LEDGER
-      </pre>
+    PR -->|Zero-Token CUDA Swarm| HERMES
+    HERMES -->|Edge Verification| FWD
+    FWD -->|Signed Heartbeats| LEDGER
+    LEDGER -.->|Real-time SSE| DASH["📊 Live TUI and Dashboard"]
+
+    style GW fill:#2d1f05,stroke:#d29922,stroke-width:2px,color:#e3b341
+    style PC1 fill:#0d1117,stroke:#58a6ff,stroke-width:1.5px,color:#79c0ff
+    style PC2 fill:#0d1117,stroke:#3fb950,stroke-width:1.5px,color:#7ee787</pre>
     </details>
   </div>
 
@@ -1733,6 +1805,24 @@ flowchart LR
   <script>
     let allEvents = [];
     let currentFilter = 'ALL';
+    let mermaidInitialized = false;
+
+    function initMermaidSafe() {
+      if (typeof mermaid !== 'undefined' && !mermaidInitialized) {
+        try {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            securityLevel: 'loose',
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }
+          });
+          mermaidInitialized = true;
+        } catch (e) {
+          console.warn('Mermaid init notice:', e);
+        }
+      }
+    }
+    initMermaidSafe();
 
     function switchTopoView(view) {
       const diagView = document.getElementById('topo-diagram-view');
@@ -1751,24 +1841,42 @@ flowchart LR
       if (btnNodes) btnNodes.classList.toggle('active', view === 'nodes');
 
       if (view === 'mermaid') {
-        renderMermaidNow();
+        requestAnimationFrame(() => renderMermaidNow(false));
       }
 
       localStorage.setItem('agenttrace_topo_view', view);
     }
 
-    function renderMermaidNow() {
-      if (typeof mermaid !== 'undefined') {
+    async function renderMermaidNow(forceRender) {
+      const container = document.getElementById('mermaid-render-container');
+      const rawEl = document.getElementById('raw-mermaid-pre');
+      const badge = document.getElementById('mermaid-status-badge');
+      if (!container || !rawEl) return;
+
+      // Built-in vector flowchart is already present; only replace if forceRender or Mermaid produces a valid non-empty SVG
+      if (!forceRender && container.querySelector('svg')) {
+        if (badge) badge.innerText = 'Mermaid Flowchart Active';
+        return;
+      }
+
+      initMermaidSafe();
+      if (typeof mermaid !== 'undefined' && mermaid.render) {
         try {
-          mermaid.run({ querySelector: '.mermaid' });
+          const code = rawEl.innerText.trim();
+          const renderId = 'mermaid-svg-' + Date.now();
+          const out = await mermaid.render(renderId, code);
+          if (out && out.svg && out.svg.includes('<svg') && !out.svg.includes('Syntax error')) {
+            container.innerHTML = out.svg;
+            if (badge) badge.innerText = 'Mermaid.js Live Rendered';
+          }
         } catch (e) {
-          console.warn('Mermaid rendering notice:', e);
+          console.warn('Mermaid live render fallback retained:', e);
         }
       }
     }
 
     function copyMermaidCode() {
-      const el = document.getElementById('mermaid-diagram-code');
+      const el = document.getElementById('raw-mermaid-pre');
       const text = el ? el.innerText : '';
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text.trim()).then(() => {
