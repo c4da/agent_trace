@@ -62,6 +62,12 @@ async fn dispatch_tool(
         "evaluate_access_policy" => exec_evaluate_access_policy(state, &req.parameters).await,
         "get_delegation_config" => exec_get_delegation_config(state).await,
         "set_delegation_config" => exec_set_delegation_config(state, &req.parameters).await,
+        "get_telemetry_handoff" => exec_get_telemetry_handoff(state, &req.parameters).await,
+        "get_security_alerts" => exec_get_security_alerts(state, &req.parameters),
+        "acknowledge_alert" => exec_acknowledge_alert(state, &req.parameters),
+        "list_containment_zones" => exec_list_containment_zones(state).await,
+        "upsert_containment_zone" => exec_upsert_containment_zone(state, &req.parameters).await,
+        "confine_agent_to_playground" => exec_confine_agent_to_playground(state, &req.parameters).await,
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     }
 }
@@ -385,3 +391,224 @@ async fn exec_set_delegation_config(
     state.delegation_engine.set_config(current.clone()).await;
     (true, serde_json::to_value(current).unwrap_or(json!({})), None)
 }
+
+/// HTTP GET handler for `/api/v1/agent/handoff` — single-call telemetry pickup snapshot for another agent.
+pub async fn handle_agent_handoff(State(state): State<AgentInterfaceState>) -> Json<Value> {
+    let (_, val, _) = exec_get_telemetry_handoff(&state, &json!({ "recent_limit": 15 })).await;
+    Json(val)
+}
+
+/// Builds a compact, high-density Telemetry Pickup & Handoff Snapshot for another AI agent.
+async fn exec_get_telemetry_handoff(
+    state: &AgentInterfaceState,
+    params: &Value,
+) -> (bool, Value, Option<String>) {
+    let limit = params
+        .get("recent_limit")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(15)
+        .clamp(1, 100) as usize;
+
+    let summary = state.db.get_cluster_summary().ok();
+    let ledger = state.db.verify_ledger().ok();
+    let active_alerts = state.db.list_security_alerts(false).unwrap_or_default();
+    let recent_events = state.db.get_recent_events(limit * 2).unwrap_or_default();
+
+    let recent_diffs: Vec<Value> = recent_events
+        .iter()
+        .filter(|e| e.get("diff").and_then(|d| d.as_str()).map(|s| !s.is_empty()).unwrap_or(false))
+        .take(limit)
+        .map(|e| {
+            json!({
+                "event_id": e.get("event_id"),
+                "timestamp": e.get("timestamp"),
+                "node_id": e.get("node_id"),
+                "target": e.get("target"),
+                "security_verdict": e.get("security_verdict"),
+                "diff": e.get("diff")
+            })
+        })
+        .collect();
+
+    let (zones, policies) = {
+        let guard = state.policy.read().await;
+        (guard.list_zones(), guard.list_policies())
+    };
+
+    let reg = state.registry.read().await;
+    let active_models = reg.all_active_models();
+
+    let snapshot = json!({
+        "protocol": "AgentTrace-Telemetry-Handoff-v1",
+        "generated_at": chrono::Utc::now().to_rfc3339(),
+        "cluster_summary": summary,
+        "ledger_integrity": ledger,
+        "active_security_alerts_count": active_alerts.len(),
+        "active_security_alerts": active_alerts.into_iter().take(limit).collect::<Vec<_>>(),
+        "recent_code_diffs": recent_diffs,
+        "recent_events": recent_events.into_iter().take(limit).collect::<Vec<_>>(),
+        "containment_zones": zones,
+        "agent_policies": policies,
+        "active_cluster_models": active_models,
+        "agent_pickup_endpoints": {
+            "handoff_digest_get": "GET /api/v1/agent/handoff",
+            "tool_schemas_get": "GET /api/v1/agent/tools",
+            "tool_execute_post": "POST /api/v1/agent/action",
+            "mcp_jsonrpc_post": "POST /api/v1/mcp",
+            "alerts_get": "GET /api/v1/alerts",
+            "zones_get_post": "GET|POST /api/v1/zones",
+            "playground_confine_post": "POST /api/v1/zones/confine"
+        }
+    });
+
+    (true, snapshot, None)
+}
+
+/// Lists unresolved or historical security alerts for an auditing agent.
+fn exec_get_security_alerts(
+    state: &AgentInterfaceState,
+    params: &Value,
+) -> (bool, Value, Option<String>) {
+    let include_acked = params
+        .get("include_acked")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    match state.db.list_security_alerts(include_acked) {
+        Ok(alerts) => (
+            true,
+            json!({
+                "include_acked": include_acked,
+                "count": alerts.len(),
+                "alerts": alerts
+            }),
+            None,
+        ),
+        Err(e) => (false, json!({}), Some(format!("Failed to list alerts: {}", e))),
+    }
+}
+
+/// Non-destructively acknowledges a single alert or resets all active alerts.
+fn exec_acknowledge_alert(
+    state: &AgentInterfaceState,
+    params: &Value,
+) -> (bool, Value, Option<String>) {
+    let reset_all = params
+        .get("reset_all")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if reset_all {
+        match state.db.acknowledge_all_alerts() {
+            Ok(count) => (
+                true,
+                json!({ "status": "reset_all", "acknowledged_count": count }),
+                None,
+            ),
+            Err(e) => (false, json!({}), Some(format!("Reset alerts error: {}", e))),
+        }
+    } else {
+        let event_id = params.get("event_id").and_then(|v| v.as_str()).unwrap_or("");
+        if event_id.is_empty() {
+            return (
+                false,
+                json!({}),
+                Some("Provide 'event_id' or set 'reset_all': true".to_string()),
+            );
+        }
+        match state.db.acknowledge_alert(event_id) {
+            Ok(updated) => (
+                true,
+                json!({ "status": "acknowledged", "event_id": event_id, "updated": updated }),
+                None,
+            ),
+            Err(e) => (false, json!({}), Some(format!("Acknowledge error: {}", e))),
+        }
+    }
+}
+
+/// Lists all configured Safe Zones and Danger Zone Playgrounds.
+async fn exec_list_containment_zones(
+    state: &AgentInterfaceState,
+) -> (bool, Value, Option<String>) {
+    let guard = state.policy.read().await;
+    let zones = guard.list_zones();
+    (true, json!({ "count": zones.len(), "zones": zones }), None)
+}
+
+/// Adds or updates a Safe Zone or Danger Zone Playground.
+async fn exec_upsert_containment_zone(
+    state: &AgentInterfaceState,
+    params: &Value,
+) -> (bool, Value, Option<String>) {
+    let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    let path_prefix = params.get("path_prefix").and_then(|v| v.as_str()).unwrap_or("");
+    let kind_str = params.get("kind").and_then(|v| v.as_str()).unwrap_or("VaultNoAccess");
+
+    if name.is_empty() || path_prefix.is_empty() {
+        return (
+            false,
+            json!({}),
+            Some("'name' and 'path_prefix' are required".to_string()),
+        );
+    }
+
+    let kind = match kind_str {
+        "GuardedReadOnly" => crate::zones::ZoneKind::GuardedReadOnly,
+        "AgentPlayground" => crate::zones::ZoneKind::AgentPlayground,
+        _ => crate::zones::ZoneKind::VaultNoAccess,
+    };
+
+    let applies_to = params
+        .get("applies_to")
+        .and_then(|v| v.as_str())
+        .unwrap_or("*")
+        .to_string();
+    let zone_id = params
+        .get("zone_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let exempt_agents = params
+        .get("exempt_agents")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let zone = crate::zones::ContainmentZone {
+        zone_id,
+        name: name.to_string(),
+        path_prefix: path_prefix.to_string(),
+        kind,
+        applies_to,
+        exempt_agents,
+        description: String::new(),
+    };
+
+    let saved = {
+        let mut guard = state.policy.write().await;
+        guard.upsert_zone(zone)
+    };
+    (true, serde_json::to_value(saved).unwrap_or(json!({})), None)
+}
+
+/// Locks or unlocks an agent (or '*' all agents) to Danger Zone Playgrounds.
+async fn exec_confine_agent_to_playground(
+    state: &AgentInterfaceState,
+    params: &Value,
+) -> (bool, Value, Option<String>) {
+    let agent_id = params.get("agent_id").and_then(|v| v.as_str()).unwrap_or("*");
+    let confined = params
+        .get("confined")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+
+    let updated = {
+        let mut guard = state.policy.write().await;
+        guard.set_playground_confinement(agent_id, confined)
+    };
+    (true, serde_json::to_value(updated).unwrap_or(json!({})), None)
+}
+

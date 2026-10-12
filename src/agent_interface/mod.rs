@@ -11,7 +11,7 @@ pub mod schemas;
 pub mod types;
 
 // Re-export public types and handlers for clean gateway access
-pub use executor::handle_agent_action;
+pub use executor::{handle_agent_action, handle_agent_handoff};
 pub use mcp::handle_mcp_rpc;
 pub use routes::{
     handle_delegate_decide, handle_delegate_get_config, handle_delegate_list_overrides,
@@ -28,7 +28,7 @@ mod tests {
     async fn test_agent_tools_registration() {
         let axum::Json(body) = get_agent_tools().await;
         let tools = body["tools"].as_array().expect("Expected tools array");
-        assert!(tools.len() >= 7, "Expected at least 7 registered AI agent tools");
+        assert!(tools.len() >= 17, "Expected at least 17 registered AI agent tools");
 
         let tool_names: Vec<String> = tools
             .iter()
@@ -46,6 +46,12 @@ mod tests {
         assert!(tool_names.contains(&"evaluate_access_policy".to_string()));
         assert!(tool_names.contains(&"get_delegation_config".to_string()));
         assert!(tool_names.contains(&"set_delegation_config".to_string()));
+        assert!(tool_names.contains(&"get_telemetry_handoff".to_string()));
+        assert!(tool_names.contains(&"get_security_alerts".to_string()));
+        assert!(tool_names.contains(&"acknowledge_alert".to_string()));
+        assert!(tool_names.contains(&"list_containment_zones".to_string()));
+        assert!(tool_names.contains(&"upsert_containment_zone".to_string()));
+        assert!(tool_names.contains(&"confine_agent_to_playground".to_string()));
 
         for t in tools {
             assert!(t["description"].is_string());

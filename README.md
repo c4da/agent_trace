@@ -25,6 +25,7 @@ AgentTrace was built to solve the real dangers of autonomous agent deployment, d
 | **3** | **Zero-Token Cost & Code Leakage Prevention**<br>*"Did my proprietary code leak to paid commercial APIs?"* | Standard HTTP proxies cannot classify prompt semantics or enforce cost circuit breakers. | **Zero-Token Router** classifies intent and auto-delegates prompts to local Ollama (`qwen3.8:27b`) or cluster workers (`deepseek-r1:1.5b`) at **$0 token cost**. | Click **`[3. 🔀 Zero-Token Route]`**. Shows original model intercepted, local destination, latency ms, and tokens saved. |
 | **4** | **1-Keystroke Proof of Non-Tampering**<br>*"Can I mathematically prove logs have not been altered?"* | Traditional SQLite rows and text logs can be edited or deleted by attackers or rogue scripts with disk access. | Every event is chained with **SHA-256** and signed with **Ed25519**. Over **11,600+ blocks** mathematically verified in milliseconds. | Click **`[4. ⛓️ Cryptographic Proof]`** or press <kbd>V</kbd>. Headless verifier checks hash continuity across all blocks. |
 | **5** | **Instant Runtime Agent Sandboxing**<br>*"An agent is stuck in an infinite loop. How do I freeze it?"* | Killing the gateway drops IDE sessions and kills active streams. Standard watchdogs take seconds to kick in. | **Runtime Policy Gate** injects in-memory restrictions (`StrictSandbox`) instantly, halting destructive actions without server restart. | Click **`[5. 🛑 Runtime Sandbox Freeze]`**. Locks agent in memory, dropping subsequent command executions. |
+| **6** | **Safe Zone vs. Agent Playground Containment**<br>*"How do I guard secrets and core repos while letting agents experiment freely?"* | String-matching whitelists get bypassed by `..` path traversal or inline shell scripts (`rm`, `cp`, `>`). | **Spatial Containment Engine** lexically resolves `..` traversals and inspects shell command tokens across **Vault (`No Access`)**, **Guarded (`Read-Only`)**, and **Playground (`Read+Write+Exec`)** zones. | Click **`[6. ☣️ Safe Zone vs Playground]`**. Shows blocked `..` escape alongside allowed Playground write. |
 
 ---
 
@@ -167,33 +168,45 @@ Any attempt to edit a database row, modify an action detail, or tamper with an a
 
 ---
 
-## 🛠️ Model Context Protocol (MCP) Server
+## 🤝 Agent Telemetry Pickup, Python SDK & MCP Server
 
-AgentTrace Gateway implements the **Model Context Protocol (2024-11-05)** over JSON-RPC 2.0 at `/api/v1/mcp`:
+AgentTrace makes it effortless for a secondary AI agent (Hermes, Qwen, DeepSeek, Claude Code, Copilot CLI, or custom watchdog) to pick up live telemetry, inspect active alerts, and enforce **Safe Zone vs. Playground** containment:
 
-### Claude Desktop / Cursor / Windsurf Configuration
-```json
-{
-  "mcpServers": {
-    "agent-trace": {
-      "url": "http://localhost:8080/api/v1/mcp"
-    }
-  }
-}
+### 1. One-Call Telemetry Handoff (`GET /api/v1/agent/handoff`)
+```bash
+curl -s "http://localhost:8080/api/v1/agent/handoff?limit=25"
+```
+Returns a single JSON digest with `gateway_status`, `ledger_integrity`, `containment_zones`, `active_alerts`, `recent_file_diffs`, and `recent_events`.
+
+### 2. Zero-Dependency Python SDK & CLI ([`sdk/agent_trace_client.py`](sdk/agent_trace_client.py))
+Built with 100% Python standard library (`urllib.request`, `json`, `argparse`):
+```bash
+# Generate a compact markdown briefing for an incoming agent's context window
+python sdk/agent_trace_client.py --briefing
+
+# Inspect or reset active security alerts
+python sdk/agent_trace_client.py --alerts
+python sdk/agent_trace_client.py --reset-alerts
+
+# List Safe Zones / Playgrounds or confine a specific agent to the Playground
+python sdk/agent_trace_client.py --zones
+python sdk/agent_trace_client.py --confine untrusted-agent-01
 ```
 
-Exposed MCP tools:
-- `verify_ledger`: Verify cryptographic hash chain integrity and digital signatures.
-- `query_telemetry`: Search past agent actions, file reads/writes, and execution times.
-- `inspect_cluster`: Inspect active cluster nodes, parameter tiers, and model health.
-- `flag_incident`: Flag anomalous agent behavior or policy violations directly in the ledger.
-- `set_route_override`: Mandate runtime routing overrides for specific sessions or agent IDs.
-- `get_access_policies`: Inspect agent sandbox whitelists and path restrictions.
+### 3. Model Context Protocol (MCP) Server (`/api/v1/mcp`)
+Exposes **17 native tools** over JSON-RPC 2.0 (`POST /api/v1/mcp`) and REST (`POST /api/v1/agent/action`):
+- **Handoff & Observability:** `get_telemetry_handoff`, `get_system_status`, `query_events`, `get_event_detail`
+- **Security Alerts:** `get_security_alerts`, `acknowledge_alert`
+- **Safe Zones & Playground:** `list_containment_zones`, `upsert_containment_zone`, `confine_agent_to_playground`
+- **Policy & HITL:** `get_policy`, `add_blocked_command`, `add_protected_path`, `list_pending_approvals`, `resolve_approval`
+- **Forensics & Cluster:** `verify_ledger`, `submit_trace_event`, `delegate_cluster_task`
 
 ---
 
 ## 📚 Technical & Systems Guides
 
+- 📗 **[Agent Telemetry Pickup & Handoff Guide](docs/AGENT_TELEMETRY_PICKUP.md)**  
+  Copy-paste system prompts, 1-call handoff JSON schema, zero-dependency Python SDK examples, and MCP tool reference for connecting secondary agents.
 - 📘 **[Mastering Async Rust Systems: Actor Channels, Bounded Backpressure, and Zero-Trust Origin Security](docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md)**  
   An in-depth guide detailing why `Arc<Mutex<T>>` causes Tokio worker starvation, how we built the actor-based bounded writer, canonical RFC 3986 origin matching, and in-memory Tower testing.
 - 📙 **[Worker Node Setup Guide](docs/WORKER_NODE_SETUP.md)**  

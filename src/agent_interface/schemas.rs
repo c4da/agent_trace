@@ -278,6 +278,115 @@ pub async fn get_agent_tools() -> Json<Value> {
                         }
                     }
                 }
+            },
+            {
+                "name": "get_telemetry_handoff",
+                "description": "Returns a single-call Telemetry Pickup & Handoff Snapshot for another AI agent joining or auditing the session: cluster health, SHA-256/Ed25519 ledger validity, active unresolved security alerts, recent unified code diffs, Safe Zones / Playgrounds, and agent policies.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "recent_limit": {
+                            "type": "integer",
+                            "description": "Max recent events/diffs to include in the snapshot (default 15).",
+                            "default": 15
+                        }
+                    }
+                }
+            },
+            {
+                "name": "get_security_alerts",
+                "description": "Retrieves security policy violations (Blocked or Flagged events). By default returns only active unresolved alerts; set include_acked=true for full historical alerts.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "include_acked": {
+                            "type": "boolean",
+                            "description": "Include already-acknowledged/dismissed alerts.",
+                            "default": false
+                        }
+                    }
+                }
+            },
+            {
+                "name": "acknowledge_alert",
+                "description": "Non-destructively acknowledges/dismisses a security alert by event_id (or all active alerts when reset_all=true) without mutating the SHA-256 ledger hash chain.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "event_id": {
+                            "type": "string",
+                            "description": "Event ID of the alert to acknowledge."
+                        },
+                        "reset_all": {
+                            "type": "boolean",
+                            "description": "If true, acknowledges all currently active alerts.",
+                            "default": false
+                        }
+                    }
+                }
+            },
+            {
+                "name": "list_containment_zones",
+                "description": "Lists all configured Safe Zones (VaultNoAccess, GuardedReadOnly) and Danger Zone Playgrounds (AgentPlayground).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "upsert_containment_zone",
+                "description": "Creates or updates a Spatial Containment Zone (VaultNoAccess, GuardedReadOnly, or AgentPlayground) enforced globally ('*') or for a specific agent.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["name", "path_prefix", "kind"],
+                    "properties": {
+                        "zone_id": {
+                            "type": "string",
+                            "description": "Optional zone ID (auto-generated if empty)."
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Human-readable name for the zone."
+                        },
+                        "path_prefix": {
+                            "type": "string",
+                            "description": "Filesystem path prefix for the zone."
+                        },
+                        "kind": {
+                            "type": "string",
+                            "enum": ["VaultNoAccess", "GuardedReadOnly", "AgentPlayground"],
+                            "description": "Zone posture: VaultNoAccess (blocks all access), GuardedReadOnly (allows Read, blocks Write), or AgentPlayground (allows Read/Write/Execute)."
+                        },
+                        "applies_to": {
+                            "type": "string",
+                            "description": "'*' for all agents, or a specific agent_id.",
+                            "default": "*"
+                        },
+                        "exempt_agents": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Optional list of trusted agent IDs exempt from VaultNoAccess/GuardedReadOnly restrictions."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "confine_agent_to_playground",
+                "description": "Locks or unlocks an agent (or '*' all agents) so they can ONLY write or execute commands inside Danger Zone Playgrounds.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["agent_id", "confined"],
+                    "properties": {
+                        "agent_id": {
+                            "type": "string",
+                            "description": "Target agent ID (or '*' for all agents)."
+                        },
+                        "confined": {
+                            "type": "boolean",
+                            "description": "True to confine writes/executes strictly to AgentPlaygrounds; false to lift confinement."
+                        }
+                    }
+                }
             }
         ]
     });
