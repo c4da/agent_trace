@@ -12,9 +12,10 @@ import urllib.request
 class AgentTraceClient:
     """Pure standard-library client for AgentTrace Gateway telemetry pickup and governance."""
 
-    def __init__(self, base_url: str = "", token: str = "") -> None:
+    def __init__(self, base_url: str = "", token: str = "", timeout: float = 90.0) -> None:
         self.base_url = (base_url or os.environ.get("AGENTTRACE_URL", "http://localhost:8080")).rstrip("/")
         self.token = token or os.environ.get("AGENTTRACE_TOKEN", "")
+        self.timeout = timeout
 
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict | list:
         url = f"{self.base_url}{path}"
@@ -25,7 +26,7 @@ class AgentTraceClient:
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
