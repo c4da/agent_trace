@@ -45,6 +45,9 @@ pub fn matches_pattern(target: &str, pattern: &str) -> bool {
         return true;
     }
 
+    if let Some(inner) = p_norm.strip_prefix('*').and_then(|s| s.strip_suffix('*')) {
+        return !inner.is_empty() && target.contains(inner);
+    }
     if let Some(prefix) = p_norm.strip_suffix("/**") {
         return target == prefix || target.starts_with(&format!("{}/", prefix));
     }
@@ -556,7 +559,7 @@ mod tests {
         let vault_read = engine.evaluate(
             "PC-1-Antigravity",
             AccessAction::Read,
-            r"C:\Users\milos\.ssh\known_hosts",
+            r"C:\Users\operator\.ssh\known_hosts",
         );
         assert_eq!(vault_read.verdict, SecurityVerdict::Blocked);
         assert!(vault_read.reasons[0].contains("SAFE ZONE VIOLATION"));

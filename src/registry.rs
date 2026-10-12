@@ -282,40 +282,64 @@ impl ClusterModelRegistry {
             RoutingIntent::GeneralExecution => ModelCapability::GeneralExecution,
         };
 
-        // Filter healthy models supporting the required capability
+        let is_http = |m: &&ModelManifest| {
+            m.endpoint.starts_with("http://") || m.endpoint.starts_with("https://")
+        };
+
+        // Filter healthy HTTP models supporting the required capability
         let mut candidates: Vec<&ModelManifest> = self
             .models
             .values()
-            .filter(|m| m.is_healthy && m.capabilities.contains(&target_cap))
+            .filter(|m| m.is_healthy && is_http(&m) && m.capabilities.contains(&target_cap))
             .collect();
 
         if candidates.is_empty() {
-            // Graceful fallback: pick any healthy model with GeneralExecution
+            // Graceful fallback: pick any healthy HTTP model with GeneralExecution
             candidates = self
                 .models
                 .values()
-                .filter(|m| m.is_healthy && m.capabilities.contains(&ModelCapability::GeneralExecution))
+                .filter(|m| m.is_healthy && is_http(&m) && m.capabilities.contains(&ModelCapability::GeneralExecution))
                 .collect();
         }
 
         if candidates.is_empty() {
-            // Absolute fallback: pick any healthy model
-            candidates = self.models.values().filter(|m| m.is_healthy).collect();
+            // Absolute fallback: pick any healthy HTTP model
+            candidates = self.models.values().filter(|m| m.is_healthy && is_http(&m)).collect();
         }
 
-        // Rank candidates
-        candidates.sort_by(|a, b| {
-            // For ComplexReasoning: favor Large/Frontier
-            if *intent == RoutingIntent::ComplexReasoning {
-                b.parameter_tier_rank().cmp(&a.parameter_tier_rank())
-            } else if *intent == RoutingIntent::SanityVerification {
-                // For SanityVerification: favor Small (sub-second latency)
-                a.parameter_tier_rank().cmp(&b.parameter_tier_rank())
-            } else {
-                // For code/general: balanced
-                b.parameter_tier_rank().cmp(&a.parameter_tier_rank())
+        // Rank candidates by intent-specific tier fitness
+        let fitness = |m: &ModelManifest| -> u8 {
+            match intent {
+                RoutingIntent::ComplexReasoning => match m.parameter_tier {
+                    ParameterTier::Large => 4,
+                    ParameterTier::Frontier => 3,
+                    ParameterTier::Medium => 2,
+                    ParameterTier::Small => 1,
+                },
+                RoutingIntent::FastCodeGeneration => match m.parameter_tier {
+                    ParameterTier::Medium => 4, // Prefer 8B-14B fast code models over heavy 27B
+                    ParameterTier::Large => 3,
+                    ParameterTier::Frontier => 2,
+                    ParameterTier::Small => 1,
+                },
+                RoutingIntent::SanityVerification => match m.parameter_tier {
+                    ParameterTier::Small => {
+                        if m.node_id != "PC-1" { 5 } else { 4 } // Prefer remote CUDA worker (PC-2) when online
+                    }
+                    ParameterTier::Medium => 3,
+                    ParameterTier::Large => 2,
+                    ParameterTier::Frontier => 1,
+                },
+                RoutingIntent::GeneralExecution => match m.parameter_tier {
+                    ParameterTier::Medium => 4,
+                    ParameterTier::Small => 3,
+                    ParameterTier::Large => 2,
+                    ParameterTier::Frontier => 1,
+                },
             }
-        });
+        };
+
+        candidates.sort_by(|a, b| fitness(b).cmp(&fitness(a)));
 
         candidates.first().cloned().cloned()
     }
@@ -332,17 +356,6 @@ impl ClusterModelRegistry {
             if now - m.last_seen_epoch > ttl_secs {
                 m.is_healthy = false;
             }
-        }
-    }
-}
-
-impl ModelManifest {
-    fn parameter_tier_rank(&self) -> u8 {
-        match self.parameter_tier {
-            ParameterTier::Small => 1,
-            ParameterTier::Medium => 2,
-            ParameterTier::Large => 3,
-            ParameterTier::Frontier => 4,
         }
     }
 }

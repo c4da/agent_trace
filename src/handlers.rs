@@ -67,6 +67,7 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/dist/agent_trace_gw.exe", get(serve_dist_binary))
         .route("/v1/chat/completions", post(handle_chat_completions).with_state(state.proxy_cfg.clone()))
         .route("/v1/models", get(handle_models).with_state(state.proxy_cfg.clone()))
+        .route("/api/v1/hub/dispatch", post(crate::hub::handle_hub_dispatch).with_state(state.proxy_cfg.clone()))
         .route("/api/v1/events", post(ingest_event).get(get_events))
         .route("/api/v1/heartbeat", post(register_heartbeat))
         .route("/api/v1/summary", get(get_summary))

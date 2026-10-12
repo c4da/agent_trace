@@ -5,6 +5,7 @@ pub mod copilot_watcher;
 pub mod db;
 pub mod delegation_engine;
 pub mod handlers;
+pub mod hub;
 pub mod ledger;
 pub mod ledger_writer;
 pub mod policy;

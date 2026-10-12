@@ -613,6 +613,7 @@
       <button class="filter-pill" style="padding: 4px 10px; font-size: 11px;" onclick="setFilter('PC-2')">🔥 PC-2 CUDA</button>
     </div>
     <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <button class="copy-btn" style="border-color: #a371f7; color: #d2a8ff; background: rgba(163,113,247,0.12); font-size: 11px; font-weight: bold;" onclick="togglePromptHub()" title="Open Central Prompt Hub — type once, auto-route or pipeline across Qwen & DeepSeek (Shortcut: H)">🧠 Prompt Hub (H)</button>
       <button class="copy-btn" id="btn-dash-pause" style="border-color: #d29922; color: #e3b341; font-size: 11px;" onclick="toggleDashboardPause()" title="Freeze stream so table doesn't scroll while investigating (Shortcut: P)">⏸ Pause (P)</button>
       <button class="copy-btn" style="border-color: #58a6ff; color: #58a6ff; font-size: 11px;" onclick="openGovernanceModal('simulator')" title="Test 'What If?' rules manually before running agents (Shortcut: M)">🛡️ Sandbox (M)</button>
       <button class="copy-btn" style="font-size: 11px;" onclick="togglePinSelectedDashboardEvent()" title="Pin/Flag selected row for post-mortem (Shortcut: F)">🚩 Flag (F)</button>
@@ -621,6 +622,38 @@
       <button class="copy-btn" style="border-color: #f85149; color: #ff7b72; font-size: 11px;" onclick="openAlertsModal()">🚨 Triage / Reset</button>
       <input type="text" id="search-input" class="search-input" style="width: 240px; padding: 4px 10px; font-size: 12px; font-family: var(--font-mono);" placeholder="/ grep (verdict:Blocked target:.env)" oninput="renderFilteredEvents()">
     </div>
+  </div>
+
+  <!-- CENTRAL PROMPT HUB WORKBENCH (Zero-Manual-Routing Multi-Node Dispatcher) -->
+  <div id="dash-prompt-hub" style="display: none; background: #10151f; border: 1px solid #8957e5; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.5);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <strong style="color: #d2a8ff; font-size: 13px; font-family: var(--font-mono);">🧠 CENTRAL PROMPT HUB (ZERO-CONFIG CLUSTER ROUTER)</strong>
+        <span id="hub-live-intent-badge" class="badge" style="background: rgba(56,139,253,0.15); color: #79c0ff; border: 1px solid #388bfd; font-family: var(--font-mono);">Intent: Auto-Detecting...</span>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+        <span style="font-size: 10px; color: #8b949e;">Quick Presets:</span>
+        <button class="copy-btn" style="font-size: 10px; padding: 2px 7px;" onclick="fillHubPreset('code')">⚡ Fast Code (Qwen 9B)</button>
+        <button class="copy-btn" style="font-size: 10px; padding: 2px 7px;" onclick="fillHubPreset('verify')">🔍 Sanity Audit (DeepSeek 1.5B)</button>
+        <button class="copy-btn" style="font-size: 10px; padding: 2px 7px;" onclick="fillHubPreset('arch')">🏗️ Deep Architecture (Qwen 27B)</button>
+        <button class="copy-btn" style="font-size: 10px; padding: 2px 7px;" onclick="togglePromptHub()">✕ Close</button>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 270px; gap: 10px; align-items: start;">
+      <textarea id="hub-prompt-input" rows="3" oninput="previewPromptHubIntent()" style="width: 100%; background: #090d13; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font-family: var(--font-mono); font-size: 12px; resize: vertical;" placeholder="Type any task or prompt once — no need to pick a node or model. The Hub classifies intent and dispatches automatically..."></textarea>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <select id="hub-mode-select" style="background: #090d13; color: #e6edf3; border: 1px solid #30363d; border-radius: 5px; padding: 6px 8px; font-size: 11px; font-family: var(--font-mono);">
+          <option value="auto">⚡ Auto-Route (Best Single Model)</option>
+          <option value="pipeline">🔗 Pipeline (Qwen Draft ➔ DeepSeek Verify)</option>
+          <option value="swarm">🐝 Parallel Swarm (Qwen + DeepSeek)</option>
+        </select>
+        <label style="font-size: 10px; color: #8b949e; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" id="hub-unload-vram" checked> Auto-unload heavy 27B VRAM after run
+        </label>
+        <button id="hub-dispatch-btn" class="copy-btn" style="background: #8957e5; color: #fff; border-color: #a371f7; font-weight: bold; padding: 7px 12px; font-size: 12px; text-align: center;" onclick="dispatchPromptHub()">🚀 Dispatch to Cluster Hub</button>
+      </div>
+    </div>
+    <div id="hub-result-container" style="display: none; margin-top: 10px; border-top: 1px solid #21262d; padding-top: 10px;"></div>
   </div>
 
   <!-- High-Density Live Event Stream Table -->
@@ -3580,6 +3613,130 @@
         }
       } catch (e) {
         console.error('Sandbox agent error:', e);
+      }
+    }
+
+    function togglePromptHub() {
+      const el = document.getElementById('dash-prompt-hub');
+      if (!el) return;
+      const isHidden = el.style.display === 'none' || !el.style.display;
+      el.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) {
+        const inp = document.getElementById('hub-prompt-input');
+        if (inp) inp.focus();
+        previewPromptHubIntent();
+      }
+    }
+
+    function previewPromptHubIntent() {
+      const inp = document.getElementById('hub-prompt-input');
+      const badge = document.getElementById('hub-live-intent-badge');
+      if (!inp || !badge) return;
+      const text = (inp.value || '').toLowerCase();
+      if (!text.trim()) {
+        badge.textContent = 'Intent: Auto-Detecting as you type...';
+        badge.style.color = '#79c0ff';
+        return;
+      }
+      if (text.includes('architect') || text.includes('refactor') || text.includes('proof') || text.includes('physics') || text.includes('math') || text.includes('algorithm') || text.includes('invariant') || text.includes('plan') || text.length > 1000) {
+        badge.textContent = '🎯 ComplexReasoning ➔ PC-1 (qwen3.8:27b)';
+        badge.style.color = '#d2a8ff';
+      } else if (text.includes('unit test') || text.includes('cargo test') || text.includes('boilerplate') || text.includes('docstring') || text.includes('parser') || text.includes('generate') || text.includes('scaffold')) {
+        badge.textContent = '⚡ FastCodeGeneration ➔ PC-1 (qwen3.5:9b)';
+        badge.style.color = '#7ee787';
+      } else if (text.includes('verify') || text.includes('regex') || text.includes('assertion') || text.includes('sanity') || text.includes('validate') || text.includes('lint') || text.length < 60) {
+        badge.textContent = '🔍 SanityVerification ➔ PC-2 / PC-1 (deepseek-r1:1.5b)';
+        badge.style.color = '#39c5cf';
+      } else {
+        badge.textContent = '🤖 GeneralExecution ➔ PC-1 (gemma4:latest / qwen3.5:9b)';
+        badge.style.color = '#e3b341';
+      }
+    }
+
+    function fillHubPreset(kind) {
+      const inp = document.getElementById('hub-prompt-input');
+      const mode = document.getElementById('hub-mode-select');
+      if (!inp) return;
+      if (kind === 'code') {
+        inp.value = 'Write a concise Rust unit test verifying that resolve_canonical_target collapses .. path traversal segments.';
+        if (mode) mode.value = 'auto';
+      } else if (kind === 'verify') {
+        inp.value = 'Verify regex pattern ^[a-zA-Z0-9_-]+$ for command injection safety.';
+        if (mode) mode.value = 'auto';
+      } else if (kind === 'arch') {
+        inp.value = 'Design a lock-free ring buffer architecture in Rust with bounded backpressure and explain the invariants.';
+        if (mode) mode.value = 'pipeline';
+      }
+      previewPromptHubIntent();
+    }
+
+    async function dispatchPromptHub() {
+      const inp = document.getElementById('hub-prompt-input');
+      const modeSel = document.getElementById('hub-mode-select');
+      const unloadChk = document.getElementById('hub-unload-vram');
+      const btn = document.getElementById('hub-dispatch-btn');
+      const out = document.getElementById('hub-result-container');
+      if (!inp || !inp.value.trim()) return;
+
+      const promptText = inp.value.trim();
+      const modeVal = modeSel ? modeSel.value : 'auto';
+      const unloadVal = unloadChk ? unloadChk.checked : true;
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Routing & Executing...';
+      }
+      if (out) {
+        out.style.display = 'block';
+        out.innerHTML = `<div style="color:#8b949e; font-size:12px; font-family:var(--font-mono);">Arbitrating route &amp; dispatching across cluster (${escapeHtml(modeVal)} mode)...</div>`;
+      }
+
+      try {
+        const res = await fetch('/api/v1/hub/dispatch', {
+          method: 'POST',
+          headers: getGovHeaders(),
+          body: JSON.stringify({
+            prompt: promptText,
+            mode: modeVal,
+            agent_id: 'Dashboard-Prompt-Hub',
+            unload_heavy_after: unloadVal
+          })
+        });
+        const data = await res.json();
+        if (out) {
+          const stagesHtml = (data.stages || []).map(st => `
+            <div style="background:#090d13; border:1px solid #30363d; border-radius:6px; padding:10px; margin-top:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px; font-size:11px; font-family:var(--font-mono);">
+                <strong style="color:#79c0ff;">${escapeHtml(st.stage_name)}</strong>
+                <div style="display:flex; gap:6px;">
+                  <span class="badge" style="background:rgba(46,160,67,0.15); color:#7ee787; border:1px solid #2ea043;">Node: ${escapeHtml(st.node_id)}</span>
+                  <span class="badge" style="background:rgba(163,113,247,0.15); color:#d2a8ff; border:1px solid #8957e5;">Model: ${escapeHtml(st.selected_model)}</span>
+                  <span class="badge" style="background:#161b22; color:#8b949e;">${Math.round(st.duration_ms)} ms</span>
+                  ${st.vram_unloaded ? '<span class="badge" style="background:rgba(210,153,34,0.15); color:#e3b341;">VRAM Unloaded</span>' : ''}
+                </div>
+              </div>
+              <div style="font-size:10px; color:#8b949e; margin-bottom:6px;">${escapeHtml(st.reasoning)}</div>
+              <pre style="white-space:pre-wrap; font-family:var(--font-mono); font-size:11.5px; color:#e6edf3; margin:0; max-height:240px; overflow-y:auto;">${escapeHtml(st.response)}</pre>
+            </div>
+          `).join('');
+          out.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#8b949e;">
+              <span>✅ Completed in <strong>${Math.round(data.total_duration_ms || 0)} ms</strong> · Classified Intent: <strong style="color:#d2a8ff;">${escapeHtml(data.classified_intent)}</strong> · Signed &amp; Logged to Ledger</span>
+            </div>
+            ${stagesHtml}
+          `;
+        }
+        fetchEvents();
+        fetchSummary();
+      } catch (e) {
+        if (out) {
+          out.innerHTML = `<div style="color:#ff7b72; font-size:12px;">Error dispatching prompt: ${escapeHtml(String(e))}</div>`;
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '🚀 Dispatch to Cluster Hub';
+        }
       }
     }
 

@@ -68,6 +68,30 @@ class AgentTraceClient:
         """Verifies the SHA-256 hash chain and Ed25519 signatures across all blocks."""
         return self.call_tool("verify_ledger", {})
 
+    def dispatch_prompt(
+        self,
+        prompt: str,
+        mode: str = "auto",
+        agent_id: str = "SDK-Hub-Client",
+        unload_heavy_after: bool = True,
+    ) -> dict:
+        """Dispatches a prompt to the Central Prompt Hub (/api/v1/hub/dispatch).
+        Modes:
+          - 'auto': Smart intent classification -> best single cluster model
+          - 'pipeline': Stage 1 Qwen Builder -> Stage 2 DeepSeek-R1 Sanity Verifier
+          - 'swarm': Parallel execution on Qwen + DeepSeek-R1
+        """
+        return self._request(
+            "POST",
+            "/api/v1/hub/dispatch",
+            {
+                "prompt": prompt,
+                "mode": mode,
+                "agent_id": agent_id,
+                "unload_heavy_after": unload_heavy_after,
+            },
+        )
+
 
 def format_markdown_briefing(snapshot: dict) -> str:
     """Formats a compact Markdown situational briefing for an LLM context window."""
@@ -111,7 +135,7 @@ def format_markdown_briefing(snapshot: dict) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="AgentTrace Telemetry Pickup CLI for AI Agents")
+    parser = argparse.ArgumentParser(description="AgentTrace Telemetry Pickup & Prompt Hub CLI")
     parser.add_argument("--url", default="", help="Gateway base URL (default: http://localhost:8080)")
     parser.add_argument("--handoff", action="store_true", help="Fetch full JSON telemetry handoff snapshot")
     parser.add_argument("--briefing", action="store_true", help="Print compact Markdown briefing for an LLM prompt")
@@ -121,10 +145,22 @@ def main() -> int:
     parser.add_argument("--confine", metavar="AGENT_ID", help="Confine an agent (or '*') to Danger Zone Playgrounds")
     parser.add_argument("--unconfine", metavar="AGENT_ID", help="Lift Playground confinement for an agent (or '*')")
     parser.add_argument("--verify", action="store_true", help="Verify SHA-256 + Ed25519 ledger integrity")
+    parser.add_argument("--ask", metavar="PROMPT", help="Auto-route a prompt to the best cluster model via Prompt Hub")
+    parser.add_argument("--pipeline", metavar="PROMPT", help="Run 2-stage Pipeline (Qwen Draft -> DeepSeek-R1 Verify) via Prompt Hub")
+    parser.add_argument("--swarm", metavar="PROMPT", help="Run parallel Swarm (Qwen + DeepSeek-R1) via Prompt Hub")
     args = parser.parse_args()
 
-    client = AgentTraceClient(base_url=args.url)
+    client = AgentTraceClient(base_url=args.url, timeout=120.0)
 
+    if args.ask:
+        print(json.dumps(client.dispatch_prompt(args.ask, mode="auto"), indent=2))
+        return 0
+    if args.pipeline:
+        print(json.dumps(client.dispatch_prompt(args.pipeline, mode="pipeline"), indent=2))
+        return 0
+    if args.swarm:
+        print(json.dumps(client.dispatch_prompt(args.swarm, mode="swarm"), indent=2))
+        return 0
     if args.briefing:
         snap = client.get_handoff_snapshot()
         print(format_markdown_briefing(snap))
@@ -155,3 +191,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
