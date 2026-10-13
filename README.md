@@ -23,6 +23,7 @@ Jump straight into installing, running scenarios, locking down agent directories
 | **8. Audit, Pause, & Filter Telemetry Manually**<br>Keyboard-driven forensics (`j`/`k`, `P` freeze, `M` What-If policy tester, `F` flag) | 📄 **[Manual-First Operator Guide](docs/MANUAL_FIRST_OPERATOR_GUIDE.md)**<br>📄 [Terminal Console TUI Design](docs/TERMINAL_CONSOLE_DESIGN_AND_SCENARIOS.md) | Open `http://localhost:8080/console` and press <kbd>?</kbd> for shortcuts |
 | **9. Enforce Anti-Monolith & Code Refactoring Rules**<br>Decompose files $> 800$ lines into SRP modules with pure math invariants and headless tests | 📄 **[Code Refactor & Engineering Rules](docs/CODE_REFACTOR_AND_ENGINEERING_RULES.md)** | `python sdk/agent_trace_client.py --workgroup wg-code-refactor --ask "Modularize god object"` |
 | **10. Follow Documentation Standards & Line 0 Indexing**<br>Maintain modular feature-per-file docs and fast-path recipes with zero local paths | 📄 **[Documentation Standards](docs/DOCUMENTATION_STANDARDS.md)** | `python sdk/agent_trace_client.py --workgroup wg-documentation --ask "Audit README"` |
+| **11. Run 15-Agent Cluster Simulation & Showcase**<br>Simulate a 15-agent engineering team with live security interception & token savings | 📄 **[15-Agent Cluster Showcase](docs/SIMULATION_15_AGENTS_CLUSTER_SHOWCASE.md)** | `python scripts/simulate_15_agents_cluster.py 3` |
 
 ### ⚡ 30-Second Copy-Paste Quick Recipes
 
