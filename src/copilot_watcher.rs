@@ -198,6 +198,7 @@ fn run_copilot_watcher_loop(db: Database, tx: broadcast::Sender<String>) {
 }
 
 fn process_copilot_line(line: &str, session_id: &str, db: &Database, tx: &broadcast::Sender<String>) {
+    crate::idle_worker::record_user_activity();
     let val: serde_json::Value = match serde_json::from_str(line) {
         Ok(v) => v,
         Err(_) => return,

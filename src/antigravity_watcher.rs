@@ -198,6 +198,9 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
 
     // 1. User Prompt
     if source == "USER_EXPLICIT" && stype == "USER_INPUT" {
+        // Preempt autonomous idle background worker immediately upon developer prompt input
+        crate::idle_worker::record_user_activity();
+
         let content = val.get("content").and_then(|c| c.as_str()).unwrap_or("");
         let prompt_clean = if content.contains("<USER_REQUEST>") {
             content.split("<USER_REQUEST>")

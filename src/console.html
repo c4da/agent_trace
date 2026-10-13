@@ -634,6 +634,7 @@
       <a href="/policies" class="term-btn">Policies</a>
       <a href="/workgroups" class="term-btn">Workgroups</a>
       <a href="/graph" class="term-btn">Graph</a>
+      <button class="term-btn" id="btn-idle-worker" onclick="toggleIdleWorkerModal()" style="border-color:#38bdf8;color:#38bdf8;" title="Preemptive Autonomous Keep-Busy Worker (W)">⚡ Busy: <span id="idle-badge-text">STANDBY</span> (W)</button>
       <button class="term-btn accent" onclick="triggerLedgerVerification()">Verify (V)</button>
       <button class="term-btn" onclick="togglePolicyModal()" title="Manual policy evaluation & rule editor">Sandbox (M)</button>
       <button class="term-btn" onclick="exportEvents('json')" title="Manually export filtered events to JSON">JSON</button>
@@ -909,6 +910,118 @@
     </div>
   </div>
 
+  <!-- Autonomous Preemptive Keep-Busy Worker Modal -->
+  <div class="modal-overlay" id="idle-worker-modal">
+    <div class="modal-box" style="width: 840px;">
+      <div class="modal-head">
+        <span>⚡ AUTONOMOUS PREEMPTIVE KEEP-BUSY AGENT ENGINE</span>
+        <button class="term-btn" onclick="toggleIdleWorkerModal()">✕ Close</button>
+      </div>
+      <div class="modal-body">
+        <!-- Live Status Strip -->
+        <div style="background: #080c12; border: 1px solid var(--border-term); border-radius: 3px; padding: 10px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-size: 11px; color: var(--text-muted);">ENGINE STATUS: </span>
+            <span id="iw-status-badge" style="font-weight: bold; padding: 2px 8px; border-radius: 2px; font-size: 11px; background: #1b4424; color: #7ee787; border: 1px solid #2ea043;">● ACTIVE WORKING</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted);">
+            USER IDLE: <strong id="iw-idle-time" style="color: var(--accent-cyan);">0s</strong> (Grace: <span id="iw-threshold-label">30s</span>)
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted);">
+            COMPLETED: <strong id="iw-tasks-run" style="color: var(--accent-green);">0</strong> tasks / <strong id="iw-cycles-count" style="color: var(--accent-purple);">0</strong> passes
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="term-btn accent" onclick="triggerIdleWorkerTaskNow()">⚡ Run Next Task</button>
+            <button class="term-btn warn" onclick="simulateUserPreemption()" title="Simulate user prompt to verify sub-millisecond preemption">⏸ Simulate Preempt</button>
+          </div>
+        </div>
+
+        <!-- Mode & Sub-Tabs -->
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--border-term); padding-bottom: 8px;">
+          <button class="term-btn accent" id="iw-tab-config-btn" onclick="switchIdleTab('config')">⚙️ Backlog &amp; Policy</button>
+          <button class="term-btn" id="iw-tab-proposals-btn" onclick="switchIdleTab('proposals')">📋 Staged Findings &amp; Proposals (<span id="iw-proposals-count">0</span>)</button>
+          <button class="term-btn" id="iw-tab-history-btn" onclick="switchIdleTab('history')">📜 Execution History</button>
+        </div>
+
+        <!-- Tab 1: Config & Backlog -->
+        <div id="iw-sub-config">
+          <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 12px; align-items: center;">
+            <label class="proof-key">Keep-Busy Engine:</label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
+              <input type="checkbox" id="iw-enabled-toggle" checked onchange="saveIdleWorkerConfig()">
+              <span style="color: var(--accent-green); font-weight: bold;">Enable Autonomous Background Execution When User is Idle</span>
+            </label>
+
+            <label class="proof-key">Idle Grace Period:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="iw-threshold-select" class="cmd-input" style="width: 140px;" onchange="saveIdleWorkerConfig()">
+                <option value="15">15 seconds (Immediate)</option>
+                <option value="30" selected>30 seconds (Default)</option>
+                <option value="60">60 seconds (Standard)</option>
+                <option value="300">300 seconds (5 mins)</option>
+              </select>
+              <span style="color: var(--text-muted); font-size: 11px;">Time of zero user prompts before background tasks start.</span>
+            </div>
+
+            <label class="proof-key">Target Local Model:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="iw-model-select" class="cmd-input" style="width: 180px;" onchange="saveIdleWorkerConfig()">
+                <option value="qwen3.5:9b">qwen3.5:9b (PC-1 Fast Code)</option>
+                <option value="deepseek-r1:1.5b">deepseek-r1:1.5b (PC-2 CUDA)</option>
+                <option value="qwen3.8:27b">qwen3.8:27b (PC-1 Heavy)</option>
+                <option value="auto">auto (Smart Router)</option>
+              </select>
+              <span style="color: #7ee787; font-size: 11px;">Zero cloud API tokens ($0.00 cost)</span>
+            </div>
+
+            <label class="proof-key">Backlog Tasks:</label>
+            <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-code" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Code Quality &amp; Anti-Monolith Scan:</strong> Audit modules against 800-line SRP target &amp; locate unwraps/TODOs</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-invariants" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Mathematical &amp; Security Invariants:</strong> Verify spatial Safe Vaults &amp; Guarded Core integrity</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-ledger" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Cryptographic Ledger Check:</strong> Audit Ed25519 signatures and SHA-256 block hash chains</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-docs" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Autonomous Docs &amp; Use Case Generator:</strong> Draft use cases, API guides, and docstrings</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-tests" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Unit Test &amp; Regression Verification:</strong> Run headless regression checks headlessly</span>
+              </label>
+            </div>
+
+            <label class="proof-key">Continuous Goal:</label>
+            <div>
+              <textarea id="iw-custom-objective" class="cmd-input" rows="2" style="width: 100%; resize: vertical;" placeholder="Custom background objective when idle..." onchange="saveIdleWorkerConfig()"></textarea>
+              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Local models will iteratively work toward this objective while you are away.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Staged Proposals -->
+        <div id="iw-sub-proposals" style="display: none;">
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+            Inspected artifacts, docstrings, and improvements generated while the developer was away.
+          </div>
+          <div id="iw-proposals-list" style="max-height: 280px; overflow-y: auto;">No staged proposals yet.</div>
+        </div>
+
+        <!-- Tab 3: Execution History -->
+        <div id="iw-sub-history" style="display: none;">
+          <div id="iw-history-list" style="max-height: 280px; overflow-y: auto;">Loading execution history...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // State
     let events = [];
@@ -926,7 +1039,9 @@
       fetchInitialEvents();
       initSSE();
       initKeyboardNavigation();
+      pollIdleWorkerStatus();
       setInterval(fetchSummary, 5000);
+      setInterval(pollIdleWorkerStatus, 3000);
     });
 
     // 1. Fetch Cluster Summary
@@ -1468,6 +1583,9 @@
         } else if (e.key === 'm' || e.key === 'M') {
           e.preventDefault();
           togglePolicyModal();
+        } else if (e.key === 'w' || e.key === 'W') {
+          e.preventDefault();
+          toggleIdleWorkerModal();
         } else if (e.key === 'f' || e.key === 'F') {
           e.preventDefault();
           toggleFlagCurrentEvent();
@@ -1484,6 +1602,8 @@
           document.getElementById('help-modal').style.display = 'none';
           document.getElementById('verify-modal').style.display = 'none';
           document.getElementById('policy-modal').style.display = 'none';
+          const iwm = document.getElementById('idle-worker-modal');
+          if (iwm) iwm.style.display = 'none';
         }
       });
     }
@@ -1939,6 +2059,229 @@
     function escapeHtml(str) {
       if (typeof str !== 'string') return '';
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // =========================================================================
+    // Autonomous Preemptive Keep-Busy Worker Frontend Functions
+    // =========================================================================
+    function toggleIdleWorkerModal() {
+      const m = document.getElementById('idle-worker-modal');
+      m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+      if (m.style.display === 'flex') {
+        loadIdleWorkerStatus();
+      }
+    }
+
+    function switchIdleTab(tab) {
+      document.getElementById('iw-sub-config').style.display = tab === 'config' ? 'block' : 'none';
+      document.getElementById('iw-sub-proposals').style.display = tab === 'proposals' ? 'block' : 'none';
+      document.getElementById('iw-sub-history').style.display = tab === 'history' ? 'block' : 'none';
+
+      document.getElementById('iw-tab-config-btn').className = 'term-btn' + (tab === 'config' ? ' accent' : '');
+      document.getElementById('iw-tab-proposals-btn').className = 'term-btn' + (tab === 'proposals' ? ' accent' : '');
+      document.getElementById('iw-tab-history-btn').className = 'term-btn' + (tab === 'history' ? ' accent' : '');
+    }
+
+    async function pollIdleWorkerStatus() {
+      try {
+        const res = await fetch('/api/v1/idle_worker/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        const badgeBtn = document.getElementById('btn-idle-worker');
+        const badgeText = document.getElementById('idle-badge-text');
+        if (!badgeBtn || !badgeText) return;
+
+        let status = data.status || 'Disabled';
+        if (!data.enabled) {
+          badgeText.textContent = 'OFF';
+          badgeBtn.style.borderColor = 'var(--text-muted)';
+          badgeBtn.style.color = 'var(--text-muted)';
+        } else if (status === 'ActiveWorking') {
+          badgeText.textContent = '● WORKING';
+          badgeBtn.style.borderColor = '#7ee787';
+          badgeBtn.style.color = '#7ee787';
+        } else if (status === 'PausedUserPreempted') {
+          badgeText.textContent = '⏸ PAUSED';
+          badgeBtn.style.borderColor = '#f0883e';
+          badgeBtn.style.color = '#f0883e';
+        } else {
+          badgeText.textContent = `STANDBY (${data.seconds_idle}s)`;
+          badgeBtn.style.borderColor = '#38bdf8';
+          badgeBtn.style.color = '#38bdf8';
+        }
+
+        const modal = document.getElementById('idle-worker-modal');
+        if (modal && modal.style.display === 'flex') {
+          updateIdleWorkerModalUI(data);
+        }
+      } catch (err) {
+        // Silently tolerate transient connection glitches
+      }
+    }
+
+    async function loadIdleWorkerStatus() {
+      try {
+        const res = await fetch('/api/v1/idle_worker/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        updateIdleWorkerModalUI(data);
+
+        if (data.config) {
+          document.getElementById('iw-enabled-toggle').checked = !!data.config.enabled;
+          document.getElementById('iw-threshold-select').value = String(data.config.idle_threshold_secs || 30);
+          document.getElementById('iw-model-select').value = data.config.target_model || 'qwen3.5:9b';
+          document.getElementById('iw-custom-objective').value = data.config.custom_objective || '';
+
+          const tasks = data.config.tasks || [];
+          document.getElementById('iw-task-code').checked = tasks.includes('CodeQualityAudit');
+          document.getElementById('iw-task-invariants').checked = tasks.includes('InvariantAudit');
+          document.getElementById('iw-task-ledger').checked = tasks.includes('LedgerAudit');
+          document.getElementById('iw-task-docs').checked = tasks.includes('DocsGenerator');
+          document.getElementById('iw-task-tests').checked = tasks.includes('UnitTests');
+        }
+      } catch (err) {
+        console.error('Error loading idle worker status:', err);
+      }
+    }
+
+    function updateIdleWorkerModalUI(data) {
+      const badge = document.getElementById('iw-status-badge');
+      if (badge) {
+        if (!data.enabled) {
+          badge.textContent = '○ DISABLED';
+          badge.style.background = '#21262d';
+          badge.style.color = 'var(--text-muted)';
+          badge.style.borderColor = 'var(--border-term)';
+        } else if (data.status === 'ActiveWorking') {
+          badge.textContent = `● WORKING: ${data.current_task || 'Task in progress'}`;
+          badge.style.background = '#1b4424';
+          badge.style.color = '#7ee787';
+          badge.style.borderColor = '#2ea043';
+        } else if (data.status === 'PausedUserPreempted') {
+          badge.textContent = '⏸ PREEMPTED (USER ACTIVE)';
+          badge.style.background = '#382307';
+          badge.style.color = '#f0883e';
+          badge.style.borderColor = '#9e6a03';
+        } else {
+          badge.textContent = 'STANDBY (WAITING FOR IDLE)';
+          badge.style.background = '#0c1a29';
+          badge.style.color = '#38bdf8';
+          badge.style.borderColor = '#1d4ed8';
+        }
+      }
+
+      document.getElementById('iw-idle-time').textContent = `${data.seconds_idle || 0}s`;
+      document.getElementById('iw-threshold-label').textContent = `${data.idle_threshold_secs || 30}s`;
+      document.getElementById('iw-tasks-run').textContent = data.total_tasks_run || 0;
+      document.getElementById('iw-cycles-count').textContent = data.completed_cycles || 0;
+      document.getElementById('iw-proposals-count').textContent = (data.proposals || []).length;
+
+      const pContainer = document.getElementById('iw-proposals-list');
+      if (pContainer) {
+        const proposals = data.proposals || [];
+        if (proposals.length === 0) {
+          pContainer.innerHTML = '<div style="color:var(--text-muted);font-size:11px;padding:8px;">No proposals staged yet. The agent will stage documentation or fixes when idle.</div>';
+        } else {
+          pContainer.innerHTML = proposals.map(p => `
+            <div style="background:#080c12;border:1px solid var(--border-term);padding:10px;border-radius:3px;margin-bottom:8px;font-size:11px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-weight:bold;color:var(--accent-cyan);">${escapeHtml(p.title)}</span>
+                <span style="padding:1px 6px;border-radius:2px;font-size:10px;background:#161c26;color:${p.status === 'applied' ? '#7ee787' : p.status === 'dismissed' ? 'var(--text-muted)' : '#f0883e'};border:1px solid var(--border-term);">${escapeHtml(p.status.toUpperCase())}</span>
+              </div>
+              <div style="color:var(--text-muted);margin-bottom:6px;">${escapeHtml(p.summary)}</div>
+              <div style="display:flex;gap:6px;">
+                ${p.status === 'pending' ? `
+                  <button class="term-btn accent" onclick="applyStagedProposal('${escapeHtml(p.id)}')">✓ Apply Proposal</button>
+                  <button class="term-btn" onclick="dismissStagedProposal('${escapeHtml(p.id)}')">✕ Dismiss</button>
+                ` : `<span style="color:var(--text-muted);font-size:10px;">Processed (${escapeHtml(p.status)})</span>`}
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      const hContainer = document.getElementById('iw-history-list');
+      if (hContainer) {
+        const history = data.recent_history || [];
+        if (history.length === 0) {
+          hContainer.innerHTML = '<div style="color:var(--text-muted);font-size:11px;padding:8px;">No execution history recorded yet.</div>';
+        } else {
+          hContainer.innerHTML = history.map(h => {
+            const isPass = h.outcome === 'PASS';
+            const isPreempt = h.outcome === 'PREEMPTED';
+            const color = isPass ? '#7ee787' : isPreempt ? '#f0883e' : '#ff7b72';
+            return `
+              <div style="background:#080c12;border:1px solid var(--border-term);padding:8px;border-radius:3px;margin-bottom:6px;font-size:11px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-weight:bold;color:var(--text-main);">${escapeHtml(h.task_name)}</span>
+                  <span style="color:${color};font-weight:bold;">[${escapeHtml(h.outcome)}] ${h.duration_ms}ms</span>
+                </div>
+                <div style="color:var(--text-muted);margin-top:2px;">${escapeHtml(h.summary)}</div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    async function saveIdleWorkerConfig() {
+      const enabled = document.getElementById('iw-enabled-toggle').checked;
+      const idle_threshold_secs = parseInt(document.getElementById('iw-threshold-select').value, 10) || 30;
+      const target_model = document.getElementById('iw-model-select').value;
+      const custom_objective = document.getElementById('iw-custom-objective').value.trim();
+
+      const tasks = [];
+      if (document.getElementById('iw-task-code').checked) tasks.push('CodeQualityAudit');
+      if (document.getElementById('iw-task-invariants').checked) tasks.push('InvariantAudit');
+      if (document.getElementById('iw-task-ledger').checked) tasks.push('LedgerAudit');
+      if (document.getElementById('iw-task-docs').checked) tasks.push('DocsGenerator');
+      if (document.getElementById('iw-task-tests').checked) tasks.push('UnitTests');
+
+      try {
+        await fetch('/api/v1/idle_worker/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled,
+            idle_threshold_secs,
+            tasks,
+            custom_objective,
+            target_model,
+            auto_stage_proposals: true
+          })
+        });
+        loadIdleWorkerStatus();
+      } catch (err) {
+        console.error('Failed to save idle worker config:', err);
+      }
+    }
+
+    async function triggerIdleWorkerTaskNow() {
+      try {
+        await fetch('/api/v1/idle_worker/trigger', { method: 'POST' });
+        loadIdleWorkerStatus();
+      } catch (err) {
+        alert('Failed to trigger idle task: ' + err.message);
+      }
+    }
+
+    async function simulateUserPreemption() {
+      try {
+        await fetch('/api/v1/idle_worker/user_activity', { method: 'POST' });
+        loadIdleWorkerStatus();
+      } catch (err) {
+        alert('Preemption failed: ' + err.message);
+      }
+    }
+
+    async function applyStagedProposal(id) {
+      await fetch(`/api/v1/idle_worker/proposals/${encodeURIComponent(id)}/apply`, { method: 'POST' });
+      loadIdleWorkerStatus();
+    }
+
+    async function dismissStagedProposal(id) {
+      await fetch(`/api/v1/idle_worker/proposals/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
+      loadIdleWorkerStatus();
     }
   </script>
 </body>

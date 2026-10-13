@@ -117,6 +117,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         antigravity_watcher::spawn_watcher(db.clone(), tx_events.clone());
         // Spawn native autonomous GitHub Copilot CLI session watcher on Lead
         copilot_watcher::spawn_watcher(db.clone(), tx_events.clone());
+        // Spawn autonomous preemptive Keep-Busy Idle Worker Engine on Lead
+        agent_trace_gw::idle_worker::spawn_engine(db.clone());
     }
 
     let client = reqwest::Client::builder()

@@ -414,6 +414,25 @@
       </div>
     </div>
 
+    <!-- Autonomous Keep-Busy Worker Engine Status Banner -->
+    <div style="background: #0d121c; border: 1px solid var(--border); border-left: 3px solid #38bdf8; border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-family: var(--mono); font-size: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 14px;">⚡</span>
+        <div>
+          <span style="color: var(--text-muted); font-size: 11px;">AUTONOMOUS KEEP-BUSY AGENT ENGINE:</span>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+            <span id="dash-idle-status" style="padding: 1px 6px; border-radius: 2px; font-size: 11px; font-weight: bold; background: #1b4424; color: #7ee787; border: 1px solid #2ea043;">● ACTIVE WORKING</span>
+            <span style="color: var(--text-muted); font-size: 11px;" id="dash-idle-detail">Idle threshold: 30s · Local cluster models ($0.00 cost)</span>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--text-muted); font-size: 11px;" id="dash-idle-stats">Completed: 0 tasks</span>
+        <button class="btn btn-sm" onclick="triggerDashIdleTask()" style="border-color: #38bdf8; color: #38bdf8;">Run Task</button>
+        <a href="/console" class="btn btn-sm">Manage in Console (W) &rarr;</a>
+      </div>
+    </div>
+
     <!-- Top Operational Grid: Cluster Nodes (Left) + Prompt Hub (Right) -->
     <div class="top-grid">
 
@@ -844,8 +863,56 @@
       };
     }
 
+    async function pollDashIdleWorker() {
+      try {
+        const res = await fetch('/api/v1/idle_worker/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        const statusEl = document.getElementById('dash-idle-status');
+        const detailEl = document.getElementById('dash-idle-detail');
+        const statsEl = document.getElementById('dash-idle-stats');
+        if (!statusEl || !detailEl || !statsEl) return;
+
+        if (!data.enabled) {
+          statusEl.textContent = '○ DISABLED';
+          statusEl.style.background = '#21262d';
+          statusEl.style.color = 'var(--text-muted)';
+          statusEl.style.borderColor = 'var(--border)';
+        } else if (data.status === 'ActiveWorking') {
+          statusEl.textContent = `● WORKING: ${data.current_task || 'Task in progress'}`;
+          statusEl.style.background = '#1b4424';
+          statusEl.style.color = '#7ee787';
+          statusEl.style.borderColor = '#2ea043';
+        } else if (data.status === 'PausedUserPreempted') {
+          statusEl.textContent = '⏸ PREEMPTED (USER ACTIVE)';
+          statusEl.style.background = '#382307';
+          statusEl.style.color = '#f0883e';
+          statusEl.style.borderColor = '#9e6a03';
+        } else {
+          statusEl.textContent = `STANDBY (${data.seconds_idle}s)`;
+          statusEl.style.background = '#0c1a29';
+          statusEl.style.color = '#38bdf8';
+          statusEl.style.borderColor = '#1d4ed8';
+        }
+
+        detailEl.textContent = `Idle threshold: ${data.idle_threshold_secs}s · Model: ${data.target_model} · Preemption: sub-millisecond`;
+        statsEl.textContent = `Completed: ${data.total_tasks_run || 0} tasks (${data.completed_cycles || 0} passes)`;
+      } catch (_) {}
+    }
+
+    async function triggerDashIdleTask() {
+      try {
+        await fetch('/api/v1/idle_worker/trigger', { method: 'POST' });
+        pollDashIdleWorker();
+      } catch (err) {
+        alert('Failed to trigger idle task: ' + err.message);
+      }
+    }
+
     loadSummaryAndEvents();
     connectSse();
+    pollDashIdleWorker();
+    setInterval(pollDashIdleWorker, 3000);
   </script>
 </body>
 </html>

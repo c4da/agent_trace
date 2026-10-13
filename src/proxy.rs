@@ -52,6 +52,9 @@ pub async fn handle_chat_completions(
         .unwrap_or("")
         .to_string();
 
+    // Preempt autonomous idle workers immediately upon user chat completion request
+    crate::idle_worker::record_user_activity();
+
     // Extract or resolve session_id across headers, payload, or active Antigravity session
     let resolved_session_id = headers.get("x-session-id")
         .and_then(|v| v.to_str().ok())

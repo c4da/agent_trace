@@ -99,6 +99,13 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/workgroups/:workgroup_id/rules", post(crate::workgroups::attach_markdown_rule_handler))
         .route("/api/v1/workgroups/:workgroup_id/rules/:rule_id", delete(crate::workgroups::remove_markdown_rule_handler))
         .route("/api/v1/workgroups/:workgroup_id/preview", get(crate::workgroups::preview_workgroup_prompt_handler))
+        // Autonomous Keep-Busy Idle Worker Endpoints
+        .route("/api/v1/idle_worker/status", get(crate::idle_worker::get_idle_worker_status_handler))
+        .route("/api/v1/idle_worker/config", post(crate::idle_worker::update_idle_worker_config_handler))
+        .route("/api/v1/idle_worker/trigger", post(crate::idle_worker::trigger_idle_task_handler))
+        .route("/api/v1/idle_worker/user_activity", post(crate::idle_worker::record_user_activity_handler))
+        .route("/api/v1/idle_worker/proposals/:proposal_id/dismiss", post(crate::idle_worker::dismiss_proposal_handler))
+        .route("/api/v1/idle_worker/proposals/:proposal_id/apply", post(crate::idle_worker::apply_proposal_handler))
         // AI Agent Control, MCP & Dynamic Delegation Endpoints
         .route("/api/v1/agent/handoff", get(agent_interface::handle_agent_handoff).with_state(agent_state.clone()))
         .route("/api/v1/agent/tools", get(agent_interface::get_agent_tools))
