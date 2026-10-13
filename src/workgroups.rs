@@ -430,10 +430,10 @@ impl WorkgroupRegistry {
             tasks_completed: 9,
         };
 
-        // 4. Work-First UI & TUI Engineering Workgroup (Gemini -> Parallel Qwen & DeepSeek)
+        // 4. Work-First UI & TUI Engineering Workgroup (DeepSeek Ergonomics + Qwen UI Builder)
         let wg_ui = ProblemWorkgroup {
-            id: "wg-ui-workfirst".to_string(),
-            name: "Work-First UI & TUI".to_string(),
+            id: "wg-ui-development".to_string(),
+            name: "UI Development & Ergonomics".to_string(),
             problem_domain: "ui_design".to_string(),
             icon: "🖥️".to_string(),
             color: "#d29922".to_string(),
@@ -441,31 +441,24 @@ impl WorkgroupRegistry {
             execution_strategy: "pipeline".to_string(),
             members: vec![
                 WorkgroupMember {
-                    agent_id: "gemini-pro".to_string(),
-                    display_name: "Gemini / Antigravity".to_string(),
-                    node_id: "PC-1".to_string(),
-                    role: WorkgroupRole::LeadArchitect,
-                    parent_agent_id: None,
-                },
-                WorkgroupMember {
-                    agent_id: "qwen3.5:9b".to_string(),
-                    display_name: "Qwen 3.5 (9B Code)".to_string(),
-                    node_id: "PC-1".to_string(),
-                    role: WorkgroupRole::PrimaryBuilder,
-                    parent_agent_id: Some("gemini-pro".to_string()),
-                },
-                WorkgroupMember {
                     agent_id: "deepseek-r1:1.5b".to_string(),
                     display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
                     node_id: "PC-2".to_string(),
                     role: WorkgroupRole::SanityVerifier,
-                    parent_agent_id: Some("gemini-pro".to_string()),
+                    parent_agent_id: None,
+                },
+                WorkgroupMember {
+                    agent_id: "qwen3.5:9b".to_string(),
+                    display_name: "Qwen 3.5 (9B Fast Code)".to_string(),
+                    node_id: "PC-1".to_string(),
+                    role: WorkgroupRole::PrimaryBuilder,
+                    parent_agent_id: Some("deepseek-r1:1.5b".to_string()),
                 },
             ],
             markdown_rules: vec![
                 MarkdownRuleAttachment {
                     id: "rule-work-first-ui".to_string(),
-                    title: "Work-First UI Blueprint (6 Principles)".to_string(),
+                    title: "Work-First UI Blueprint & Ergonomics Standard".to_string(),
                     file_path: Some("docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md".to_string()),
                     inline_markdown: Some(
                         "- High density: 30-50 records visible without scrolling.\n- Scenario-first toolbar & 3-part explainer cards.\n- Manual-first operator toolbox (j/k navigation, P pause, M sandbox, F flag).".to_string(),
@@ -475,11 +468,17 @@ impl WorkgroupRegistry {
             ],
             trigger_keywords: vec![
                 "ui".to_string(),
+                "frontend".to_string(),
                 "dashboard".to_string(),
                 "console".to_string(),
                 "tui".to_string(),
                 "html".to_string(),
                 "css".to_string(),
+                "layout".to_string(),
+                "widget".to_string(),
+                "view".to_string(),
+                "button".to_string(),
+                "toolbar".to_string(),
                 "keyboard".to_string(),
             ],
             tasks_completed: 8,
@@ -544,11 +543,63 @@ impl WorkgroupRegistry {
             tasks_completed: 11,
         };
 
+        // 6. Code Refactoring & Anti-Monolith Architecture Workgroup (DeepSeek Lead Architect -> Qwen Primary Builder)
+        let wg_refactor = ProblemWorkgroup {
+            id: "wg-code-refactor".to_string(),
+            name: "Code Refactoring & Architecture".to_string(),
+            problem_domain: "code_refactoring".to_string(),
+            icon: "🔨".to_string(),
+            color: "#58a6ff".to_string(),
+            description: "Anti-monolith decomposition, Single Responsibility Principle modularization, pure math crate extraction, and feature-per-file refactoring.".to_string(),
+            execution_strategy: "pipeline".to_string(),
+            members: vec![
+                WorkgroupMember {
+                    agent_id: "deepseek-r1:1.5b".to_string(),
+                    display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
+                    node_id: "PC-2".to_string(),
+                    role: WorkgroupRole::LeadArchitect,
+                    parent_agent_id: None,
+                },
+                WorkgroupMember {
+                    agent_id: "qwen3.8:27b".to_string(),
+                    display_name: "Qwen 3.8 (27B Heavy Reasoning)".to_string(),
+                    node_id: "PC-1".to_string(),
+                    role: WorkgroupRole::PrimaryBuilder,
+                    parent_agent_id: Some("deepseek-r1:1.5b".to_string()),
+                },
+            ],
+            markdown_rules: vec![
+                MarkdownRuleAttachment {
+                    id: "rule-code-refactor".to_string(),
+                    title: "Anti-Monolith & Feature-per-File Refactoring Rules".to_string(),
+                    file_path: Some("docs/CODE_REFACTOR_AND_ENGINEERING_RULES.md".to_string()),
+                    inline_markdown: Some(
+                        "- Decompose files exceeding 800 lines into cohesive, single-responsibility modules.\n- Top-level mod.rs/lib.rs acts strictly as coordinators, never hoarding raw logic.\n- Pure math crates depend ONLY on lightweight math (glam, serde) with ZERO UI dependencies.\n- Pair all refactors with headless unit & invariant tests.".to_string(),
+                    ),
+                    enforce_strict: true,
+                },
+            ],
+            trigger_keywords: vec![
+                "refactor".to_string(),
+                "clean code".to_string(),
+                "anti-monolith".to_string(),
+                "modularize".to_string(),
+                "split file".to_string(),
+                "srp".to_string(),
+                "architecture".to_string(),
+                "decompose".to_string(),
+                "restructure".to_string(),
+                "god object".to_string(),
+            ],
+            tasks_completed: 14,
+        };
+
         groups.insert(wg_coding.id.clone(), wg_coding);
         groups.insert(wg_image.id.clone(), wg_image);
         groups.insert(wg_security.id.clone(), wg_security);
         groups.insert(wg_ui.id.clone(), wg_ui);
         groups.insert(wg_reasoning.id.clone(), wg_reasoning);
+        groups.insert(wg_refactor.id.clone(), wg_refactor);
 
         if let Some(ref path) = persistence_path {
             if let Ok(raw) = fs::read_to_string(path) {

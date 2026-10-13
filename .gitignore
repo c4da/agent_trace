@@ -24,3 +24,6 @@ cluster_config.json
 # IDE
 .idea/
 .vscode/
+
+# Runtime Cache & Local State
+.agent_trace/
