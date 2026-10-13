@@ -7,6 +7,10 @@
 [![Architecture](https://img.shields.io/badge/Architecture-Actor%20Model%20(MPSC)-blueviolet.svg)](src/ledger_writer.rs)
 [![MCP](https://img.shields.io/badge/Protocol-MCP%20JSON--RPC%202.0-blue.svg)](src/agent_interface/mcp.rs)
 
+<p align="center">
+  <img src="docs/assets/agenttrace_feature_flyer.jpg" alt="AgentTrace Gateway System Architecture Flowchart Flyer" width="650">
+</p>
+
 ## 📖 How-To Guides & Step-by-Step Recipes (Start Here)
 
 Jump straight into installing, running scenarios, locking down agent directories, or routing prompts across your cluster:
