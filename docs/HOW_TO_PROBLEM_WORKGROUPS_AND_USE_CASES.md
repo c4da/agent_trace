@@ -9,15 +9,17 @@ Instead of manually deciding which agent (`qwen3.8:27b`, `qwen3.5:9b`, `deepseek
 
 ---
 
-## 1. Quick Overview of the 5 Built-In Problem Workgroups
+## 1. Quick Overview of the Built-In Problem Workgroups
 
 | Workgroup ID | Problem Domain | Assigned Agents & Roles | Default Attached `.MD` Rule Files |
 | :--- | :--- | :--- | :--- |
 | **`wg-image-gen`** | 🎨 **Image & SVG Generation** | **Stage 1**: `DeepSeek-R1 (1.5B CUDA)` (*LeadArchitect*)<br>**Stage 2**: `GitHub Copilot CLI` (*PrimaryBuilder*) | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md`<br>*(Zero device frames, `#0d1117` dark palette, crisp SVG geometry)* |
 | **`wg-coding`** | 💻 **Coding & Architecture** | **Stage 1**: `Qwen 3.5 (9B Code)` (*PrimaryBuilder*)<br>**Stage 2**: `Gemini / Antigravity` (*LeadArchitect*) + `Qwen 3.8 (27B)` (*SanityVerifier*) | `docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md`<br>*(Anti-Monolith SRP, $\le 3$ args/fn, $\ge 85\%$ test coverage)* |
+| **`wg-code-refactor`** | 🔨 **Code Refactor & Architecture** | **Stage 1**: `DeepSeek-R1 (1.5B CUDA)` (*LeadArchitect*)<br>**Stage 2**: `Qwen 3.8 (27B Heavy)` (*PrimaryBuilder*) | `docs/CODE_REFACTOR_AND_ENGINEERING_RULES.md`<br>*(Anti-Monolith, SRP < 800 lines, pure math invariant, zero framework bloat)* |
 | **`wg-reasoning-debug`** | 🧠 **Reasoning & Coding Issues** | **Stage 1**: `DeepSeek-R1 (1.5B CUDA)` (*SanityVerifier*)<br>**Stage 2**: `Qwen 3.5 (9B)` / `Qwen 3.8 (27B)` (*LeadArchitect*) + `GitHub Copilot CLI` (*ToolExecutor*) | `docs/RUST_ENGINEERING_GUIDE_CHANNELS_AND_SSRF.md`<br>*(Isolate minimal failure, inspect async lock contention, add regression test)* |
 | **`wg-security-audit`** | 🛡️ **Security & Zone Audit** | **Swarm**: `DeepSeek-R1 (1.5B)` + `Qwen 3.5 (9B)` + `GitHub Copilot CLI` | `docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md`<br>*(Block `VaultNoAccess`, collapse lexical `..` traversals, RFC 3986 SSRF check)* |
-| **`wg-ui-workfirst`** | 🖥️ **Work-First UI & TUI** | **Stage 1**: `Gemini / Antigravity` (*LeadArchitect*)<br>**Stage 2**: `Qwen 3.5 (9B)` (*PrimaryBuilder*) + `DeepSeek-R1` (*SanityVerifier*) | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md`<br>*(30–50 visible rows, keyboard shortcuts `j`/`k`/`P`/`M`/`F`/`W`, scenario bar)* |
+| **`wg-ui-development`** | 🖥️ **UI Development & Ergonomics** | **Stage 1**: `DeepSeek-R1 (1.5B CUDA)` (*SanityVerifier*)<br>**Stage 2**: `Qwen 3.5 (9B Fast Code)` (*PrimaryBuilder*) | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md`<br>*(High density 30–50 records, scenario toolbars, j/k/P/M/F/W operator tools)* |
+| **`wg-documentation`** | 📚 **Documentation & Technical Writing** | **Solo / Pipeline**: `DeepSeek-R1 (1.5B CUDA)` (*LeadArchitect / TechnicalWriter*) | `docs/DOCUMENTATION_STANDARDS.md`<br>*(Line 0 How-To index, feature-per-file modular docs, no personal paths)* |
 
 ---
 
@@ -104,14 +106,38 @@ Instead of manually deciding which agent (`qwen3.8:27b`, `qwen3.5:9b`, `deepseek
 
 ---
 
-### Use Case 5: 🖥️ Work-First Operator UI & TUI Engineering (`wg-ui-workfirst`)
+### Use Case 5: 🖥️ Work-First Operator UI & TUI Engineering (`wg-ui-development`)
 - **The Problem**: AI agents default to generating SaaS marketing fluff (giant gradient cards, huge padding, 4 rows visible per screen, and no keyboard navigation).
-- **Assigned Agents**: `Gemini / Antigravity` + `Qwen 3.5 (9B)` + `DeepSeek-R1 (1.5B)`.
+- **Assigned Agents**: `DeepSeek-R1 (1.5B CUDA)` (*SanityVerifier*) $\rightarrow$ `Qwen 3.5 (9B Fast Code)` (*PrimaryBuilder*).
 - **Attached `.MD` Rules**: `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md`
   - *Rule Enforced*: 30–50 visible records without scrolling, monospace operator aesthetics, `[⚡ Live Scenario Demos]` toolbar, and single-key shortcuts (`j`/`k`, `P`, `M`, `F`, `H`, `W`, `?`).
 - **CLI Command**:
   ```bash
-  python sdk/agent_trace_client.py --workgroup wg-ui-workfirst --ask "Design a compact keyboard-driven alert triage table row with j/k selection"
+  python sdk/agent_trace_client.py --workgroup wg-ui-development --ask "Design a compact keyboard-driven alert triage table row with j/k selection"
+  ```
+
+---
+
+### Use Case 6: 🔨 Code Refactoring & Anti-Monolith Architecture (`wg-code-refactor`)
+- **The Problem**: Codebases degrade over time into monolithic 1,000+ line "god objects" with tangled UI, math, and engine side-effects.
+- **Assigned Agents**: `DeepSeek-R1 (1.5B CUDA)` (*LeadArchitect*) $\rightarrow$ `Qwen 3.8 (27B Heavy)` (*PrimaryBuilder*).
+- **Attached `.MD` Rules**: `docs/CODE_REFACTOR_AND_ENGINEERING_RULES.md`
+  - *Rule Enforced*: Decompose files $> 800$ lines into SRP modules; feature-per-file architecture; pure math library invariants (zero framework dependencies); headless invariant tests ($\chi = V - E + F = 2$, watertightness, volume divergence).
+- **CLI Command**:
+  ```bash
+  python sdk/agent_trace_client.py --workgroup wg-code-refactor --ask "Refactor this file into single-responsibility modules and extract pure math algorithms"
+  ```
+
+---
+
+### Use Case 7: 📚 Documentation & Technical Writing (`wg-documentation`)
+- **The Problem**: Documentation drifts from reality, buries quick starts under marketing fluff, hardcodes machine-specific local paths, or reports outdated test metrics.
+- **Assigned Agents**: `DeepSeek-R1 (1.5B CUDA)` (*Lead Technical Writer*).
+- **Attached `.MD` Rules**: `docs/DOCUMENTATION_STANDARDS.md`
+  - *Rule Enforced*: Root README must place the How-To table and 30s quick recipes on Line 0; feature-per-file modular docs in `docs/`; zero personal paths; every guide must follow Problem $\rightarrow$ Command $\rightarrow$ Concrete Proof; test badges must reflect live test suites (87+ Passed).
+- **CLI Command**:
+  ```bash
+  python sdk/agent_trace_client.py --workgroup wg-documentation --ask "Audit and update the How-To index on Line 0 of README.md"
   ```
 
 ---
@@ -120,3 +146,5 @@ Instead of manually deciding which agent (`qwen3.8:27b`, `qwen3.5:9b`, `deepseek
 - [How to Use the Central Prompt Hub & Contribution Graph (`docs/HOW_TO_PROMPT_HUB_AND_GRAPH.md`)](./HOW_TO_PROMPT_HUB_AND_GRAPH.md)
 - [How to Configure Safe Zones & Agent Playgrounds (`docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md`)](./HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md)
 - [Manual-First Operator Guide (`docs/MANUAL_FIRST_OPERATOR_GUIDE.md`)](./MANUAL_FIRST_OPERATOR_GUIDE.md)
+- [Code Refactoring & Engineering Rules (`docs/CODE_REFACTOR_AND_ENGINEERING_RULES.md`)](./CODE_REFACTOR_AND_ENGINEERING_RULES.md)
+- [Documentation Standards (`docs/DOCUMENTATION_STANDARDS.md`)](./DOCUMENTATION_STANDARDS.md)

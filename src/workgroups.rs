@@ -594,12 +594,57 @@ impl WorkgroupRegistry {
             tasks_completed: 14,
         };
 
+        // 7. Documentation & Technical Writing Workgroup (DeepSeek-R1 Lead Technical Writer)
+        let wg_docs = ProblemWorkgroup {
+            id: "wg-documentation".to_string(),
+            name: "Documentation & Technical Writing".to_string(),
+            problem_domain: "documentation".to_string(),
+            icon: "📚".to_string(),
+            color: "#f59e0b".to_string(),
+            description: "Authors, audits, and maintains modular documentation, scenario walkthroughs, API references, and root README with 'Line 0 How-To' index.".to_string(),
+            execution_strategy: "auto".to_string(),
+            members: vec![
+                WorkgroupMember {
+                    agent_id: "deepseek-r1:1.5b".to_string(),
+                    display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
+                    node_id: "PC-2".to_string(),
+                    role: WorkgroupRole::LeadArchitect,
+                    parent_agent_id: None,
+                },
+            ],
+            markdown_rules: vec![
+                MarkdownRuleAttachment {
+                    id: "rule-documentation-standards".to_string(),
+                    title: "Documentation Standards & Line 0 How-To Rules".to_string(),
+                    file_path: Some("docs/DOCUMENTATION_STANDARDS.md".to_string()),
+                    inline_markdown: Some(
+                        "- Root README must place the How-To table and 30s quick recipes on Line 0.\n- Feature-per-file modular docs in docs/ (no monolithic multi-thousand line files).\n- Never hardcode personal paths; use repo-relative paths.\n- Every guide must provide Problem -> Command -> Concrete Proof.\n- Synchronize badge test counts with real cargo test results.".to_string(),
+                    ),
+                    enforce_strict: true,
+                },
+            ],
+            trigger_keywords: vec![
+                "documentation".to_string(),
+                "docs".to_string(),
+                "readme".to_string(),
+                "guide".to_string(),
+                "tutorial".to_string(),
+                "use case".to_string(),
+                "how to".to_string(),
+                "manual".to_string(),
+                "api doc".to_string(),
+                "markdown".to_string(),
+            ],
+            tasks_completed: 5,
+        };
+
         groups.insert(wg_coding.id.clone(), wg_coding);
         groups.insert(wg_image.id.clone(), wg_image);
         groups.insert(wg_security.id.clone(), wg_security);
         groups.insert(wg_ui.id.clone(), wg_ui);
         groups.insert(wg_reasoning.id.clone(), wg_reasoning);
         groups.insert(wg_refactor.id.clone(), wg_refactor);
+        groups.insert(wg_docs.id.clone(), wg_docs);
 
         if let Some(ref path) = persistence_path {
             if let Ok(raw) = fs::read_to_string(path) {
@@ -1372,6 +1417,13 @@ mod tests {
         assert_eq!(reasoning.problem_domain, "reasoning_debugging");
         assert!(reasoning.members.iter().any(|m| m.agent_id.contains("deepseek")));
         assert!(reasoning.members.iter().any(|m| m.agent_id.contains("qwen")));
+
+        let docs = reg
+            .get("wg-documentation")
+            .expect("wg-documentation should exist");
+        assert_eq!(docs.problem_domain, "documentation");
+        assert!(docs.members.iter().any(|m| m.agent_id.contains("deepseek")));
+        assert_eq!(docs.markdown_rules.len(), 1);
     }
 
     #[test]
@@ -1454,6 +1506,11 @@ mod tests {
             .match_workgroup_by_prompt("Implement a Rust struct and unit test for the parser")
             .expect("should match coding workgroup");
         assert_eq!(matched_code.id, "wg-coding");
+
+        let matched_docs = reg
+            .match_workgroup_by_prompt("Update the documentation and README with step-by-step tutorial guides")
+            .expect("should match documentation workgroup");
+        assert_eq!(matched_docs.id, "wg-documentation");
     }
 
     #[test]
