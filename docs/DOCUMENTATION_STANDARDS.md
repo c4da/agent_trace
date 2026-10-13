@@ -25,7 +25,7 @@ This document establishes the mandatory standards for all documentation, user gu
 ---
 
 ## 3. Zero Personal Paths & Environment Neutrality
-- **Strict Anonymity & Portability**: Documentation must never contain personal system paths (e.g., `C:\cada\...`, `C:\Users\milos\...`), internal private tokens, or hardcoded personal credentials.
+- **Strict Anonymity & Portability**: Documentation must never contain personal system paths (e.g., `/home/developer/...`, `C:\Users\username\...`), internal private tokens, or hardcoded personal credentials.
 - **Relative Linking**: Use repository-relative paths (`docs/...`, `src/...`, `tests/...`) for all internal markdown hyperlinks.
 
 ---

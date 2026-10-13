@@ -20,7 +20,7 @@ AgentTrace Gateway is built around **Scenario-First Verification**: you don't ha
 ## Step-by-Step Guide for Each Scenario (UI + CLI)
 
 ### Scenario 1: 🚨 Catch `.env` Secret Leak & Prompt Injection
-- **What it tests**: An autonomous agent attempts to read `.secrets/production.env` or execute a shell command containing `AWS_SECRET_ACCESS_KEY` / `BEGIN OPENSSH PRIVATE KEY`.
+- **What it tests**: An autonomous agent attempts to read `.secrets/production.env` or execute a shell command containing `AWS_SECRET_ACCESS_KEY` / `id_rsa private credentials`.
 - **How to run in UI**: Click **`[1. 🚨 Catch .env Secret Leak]`** on `/dashboard` or `/console`.
 - **How to run via CLI**:
   ```bash
