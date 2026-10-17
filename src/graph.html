@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrace // Multi-Agent Contribution &amp; Problem Graph</title>
+  <style>
+    :root {
+      --bg: #070a0f;
+      --panel: #0d1117;
+      --panel-alt: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --dim: #8b949e;
+      --purple: #bc8cff;
+      --blue: #58a6ff;
+      --cyan: #39c5cf;
+      --green: #3fb950;
+      --amber: #d29922;
+      --red: #f85149;
+      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 14px 20px 36px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+    .btn {
+      background: var(--panel-alt);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 5px 11px;
+      font-size: 11px;
+      font-family: var(--mono);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .btn:hover { border-color: var(--blue); color: #fff; }
+    .btn.active {
+      background: rgba(88, 166, 255, 0.16);
+      border-color: var(--blue);
+      color: #79c0ff;
+      font-weight: 700;
+    }
+    .btn.metric-active {
+      background: rgba(188, 140, 255, 0.18);
+      border-color: var(--purple);
+      color: #d2a8ff;
+      font-weight: 700;
+    }
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .agent-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .agent-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .agent-card:hover, .agent-card.selected {
+      border-color: var(--blue);
+      background: #131922;
+    }
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 1100px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stacked-row {
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      background: #090d13;
+      border: 1px solid #21262d;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .stacked-row:hover, .stacked-row.selected {
+      border-color: var(--cyan);
+    }
+    .stacked-bar {
+      display: flex;
+      height: 18px;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #161b22;
+      margin: 6px 0;
+    }
+    .stacked-seg {
+      height: 100%;
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #05070a;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11.5px;
+    }
+    th, td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #21262d;
+      text-align: left;
+    }
+    th {
+      color: var(--dim);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      background: #090d13;
+    }
+    tr:hover td { background: rgba(88, 166, 255, 0.05); }
+    @keyframes dashFlow {
+      to { stroke-dashoffset: -24; }
+    }
+    .edge-anim {
+      stroke-dasharray: 6 6;
+      animation: dashFlow 1.2s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation & Status -->
+  <div class="topbar">
+    <div class="brand">
+      <span style="color: var(--purple);">🕸️ AGENTTRACE // PROBLEM CONTRIBUTION GRAPH</span>
+      <span class="badge" style="background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid var(--green);" id="events-count-badge">0 Events Analyzed</span>
+      <span class="badge" style="background: rgba(88,166,255,0.15); color: var(--blue); border: 1px solid var(--blue);" id="active-filter-badge">Filter: ALL AGENTS &amp; TOPICS</span>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <button class="btn" onclick="simulateMultiAgentSprint()">Simulate Sprint</button>
+      <button class="btn" onclick="clearGraphSelection()">Reset Filter</button>
+      <a href="/dashboard" class="btn">Dashboard</a>
+      <a href="/policies" class="btn">Policies</a>
+      <a href="/workgroups" class="btn">Workgroups</a>
+      <a href="/console" class="btn">Console</a>
+    </div>
+  </div>
+
+  <!-- Topic Dimension & Metric Switcher Bar -->
+  <div class="controls-bar">
+    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+      <span style="font-family: var(--mono); font-size: 11px; color: var(--dim); font-weight: bold;">1. TOPIC GROUPING:</span>
+      <button class="btn active" id="mode-feature" onclick="setTopicMode('feature')">📦 Feature / Subsystem Topics</button>
+      <button class="btn" id="mode-prompt_role" onclick="setTopicMode('prompt_role')">🧠 Prompt &amp; Cognitive Role Topics</button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+      <span style="font-family: var(--mono); font-size: 11px; color: var(--dim); font-weight: bold;">2. CONTRIBUTION METRIC:</span>
+      <button class="btn metric-active" id="metric-weighted_impact" onclick="setMetric('weighted_impact')" title="FileWrite+Diff=5x, LlmInference=3.5x, CommandRun=2x, FileRead=1x">⚖️ Weighted Impact</button>
+      <button class="btn" id="metric-touchpoint_count" onclick="setMetric('touchpoint_count')" title="Total actions (reads + writes + commands + prompts)">🔨 Touchpoints</button>
+      <button class="btn" id="metric-compute_ms" onclick="setMetric('compute_ms')" title="Cumulative LLM & execution duration (ms)">⏱️ Compute Time (ms)</button>
+      <button class="btn" id="metric-write_diff_score" onclick="setMetric('write_diff_score')" title="Code modifications & unified diff lines">📝 Code Diff Volume</button>
+    </div>
+  </div>
+
+  <!-- Top-Level Agent Contribution Share Cards -->
+  <div class="agent-cards" id="agent-summary-cards"></div>
+
+  <!-- Primary Split Workbench: Bipartite Network Graph (Left) + 100% Stacked Problem Bars (Right) -->
+  <div class="main-grid">
+    <div class="card">
+      <div class="card-title">
+        <span>🕸️ Bipartite Attribution Network (Agents ◀──▶ Problem Topics)</span>
+        <span style="font-size: 10px; color: var(--dim); font-weight: normal;">Click any Agent or Topic node to isolate</span>
+      </div>
+      <div id="network-svg-container" style="background: #06090e; border: 1px solid #21262d; border-radius: 6px; min-height: 410px; display: flex; align-items: center; justify-content: center; overflow-x: auto;">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span id="stacked-title">📊 Who Solved How Much? (100% Stacked Share per Problem)</span>
+        <span style="font-size: 10px; color: var(--dim); font-weight: normal;" id="metric-subtitle">Metric: Weighted Impact Score</span>
+      </div>
+      <div id="stacked-bars-container" style="max-height: 410px; overflow-y: auto; padding-right: 4px;"></div>
+    </div>
+  </div>
+
+  <!-- High-Density Forensic Attribution Matrix -->
+  <div class="card">
+    <div class="card-title">
+      <span>🔬 Granular Agent × Problem Topic Attribution Matrix</span>
+      <span style="font-size: 10px; color: var(--dim); font-weight: normal;">Sorted by selected contribution metric</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Problem / Feature Topic</th>
+            <th>Agent Identity</th>
+            <th>Share in Topic</th>
+            <th>⚖️ Weighted Impact</th>
+            <th>🔨 Touchpoints</th>
+            <th>📝 Writes (Diff Score)</th>
+            <th>🧠 LLM Prompts</th>
+            <th>⚙️ Cmds</th>
+            <th>📖 Reads</th>
+            <th>⏱️ Compute Time</th>
+          </tr>
+        </thead>
+        <tbody id="matrix-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let reportData = null;
+    let currentTopicMode = 'feature'; // 'feature' | 'prompt_role'
+    let currentMetric = 'weighted_impact'; // 'weighted_impact' | 'touchpoint_count' | 'compute_ms' | 'write_diff_score'
+    let selectedAgent = null;
+    let selectedTopic = null;
+
+    const AGENT_COLORS = {
+      'PC-1-Antigravity': '#bc8cff',
+      'PC-1-Qwen': '#58a6ff',
+      'PC-2-DeepSeek': '#3fb950',
+      'PC-1-Copilot': '#39c5cf',
+      'Cluster-Governance': '#d29922'
+    };
+
+    function getAgentColor(agentId) {
+      if (AGENT_COLORS[agentId]) return AGENT_COLORS[agentId];
+      const palette = ['#f0883e', '#ff7b72', '#79c0ff', '#7ee787', '#e3b341'];
+      let h = 0;
+      for (let i = 0; i < agentId.length; i++) h = (h * 31 + agentId.charCodeAt(i)) & 0xffffffff;
+      return palette[Math.abs(h) % palette.length];
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function formatMetricVal(val, metric) {
+      if (metric === 'weighted_impact') return Number(val || 0).toFixed(1) + ' pts';
+      if (metric === 'compute_ms') {
+        const ms = Number(val || 0);
+        return ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : Math.round(ms) + ' ms';
+      }
+      if (metric === 'write_diff_score') return Math.round(val || 0) + ' Δ';
+      return Math.round(val || 0) + ' ops';
+    }
+
+    function setTopicMode(mode) {
+      currentTopicMode = mode;
+      selectedTopic = null;
+      document.getElementById('mode-feature').classList.toggle('active', mode === 'feature');
+      document.getElementById('mode-prompt_role').classList.toggle('active', mode === 'prompt_role');
+      renderAll();
+    }
+
+    function setMetric(metric) {
+      currentMetric = metric;
+      ['weighted_impact', 'touchpoint_count', 'compute_ms', 'write_diff_score'].forEach(m => {
+        const el = document.getElementById('metric-' + m);
+        if (el) el.classList.toggle('metric-active', m === metric);
+      });
+      const labels = {
+        weighted_impact: 'Metric: Weighted Engineering Impact (Diffs=5x, LLM=3.5x, Cmd=2x, Read=1x)',
+        touchpoint_count: 'Metric: Feature Touchpoints (Total Actions)',
+        compute_ms: 'Metric: Prompt & Execution Compute Time (ms)',
+        write_diff_score: 'Metric: Code Diff & File Write Volume'
+      };
+      document.getElementById('metric-subtitle').textContent = labels[metric] || '';
+      renderAll();
+    }
+
+    function toggleAgentSelect(agentId) {
+      selectedAgent = (selectedAgent === agentId) ? null : agentId;
+      updateFilterBadge();
+      renderAll();
+    }
+
+    function toggleTopicSelect(topic) {
+      selectedTopic = (selectedTopic === topic) ? null : topic;
+      updateFilterBadge();
+      renderAll();
+    }
+
+    function clearGraphSelection() {
+      selectedAgent = null;
+      selectedTopic = null;
+      updateFilterBadge();
+      renderAll();
+    }
+
+    function updateFilterBadge() {
+      const b = document.getElementById('active-filter-badge');
+      if (!selectedAgent && !selectedTopic) {
+        b.textContent = 'Filter: ALL AGENTS & TOPICS';
+      } else {
+        b.textContent = `Filter: ${selectedAgent || '*'} ➔ ${selectedTopic || '*'}`;
+      }
+    }
+
+    async function fetchContributions() {
+      try {
+        const res = await fetch('/api/v1/telemetry/contributions?limit=1500');
+        reportData = await res.json();
+        document.getElementById('events-count-badge').textContent =
+          `${reportData.total_events_analyzed || 0} Events Analyzed`;
+        renderAll();
+      } catch (e) {
+        console.error('Failed to load contribution graph:', e);
+      }
+    }
+
+    function getActiveCells() {
+      if (!reportData) return [];
+      return currentTopicMode === 'feature'
+        ? (reportData.feature_cells || [])
+        : (reportData.prompt_role_cells || []);
+    }
+
+    function renderAgentCards() {
+      const container = document.getElementById('agent-summary-cards');
+      if (!reportData || !reportData.agents) return;
+      const cells = getActiveCells();
+
+      // Compute per-agent total for the currently active metric
+      const totalsByAgent = {};
+      let grandTotal = 0;
+      cells.forEach(c => {
+        const v = Number(c[currentMetric] || 0);
+        totalsByAgent[c.agent_id] = (totalsByAgent[c.agent_id] || 0) + v;
+        grandTotal += v;
+      });
+      if (grandTotal <= 0) grandTotal = 1;
+
+      container.innerHTML = reportData.agents.map(ag => {
+        const color = getAgentColor(ag.agent_id);
+        const val = totalsByAgent[ag.agent_id] || 0;
+        const pct = ((val / grandTotal) * 100).toFixed(1);
+        const isSel = selectedAgent === ag.agent_id;
+        return `
+          <div class="agent-card ${isSel ? 'selected' : ''}" onclick="toggleAgentSelect('${escapeHtml(ag.agent_id)}')" style="border-left: 4px solid ${color};">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="color:#fff; font-family:var(--mono); font-size:12px;">${escapeHtml(ag.agent_id)}</strong>
+              <span class="badge" style="background:rgba(255,255,255,0.08); color:${color}; border:1px solid ${color};">${pct}% Share</span>
+            </div>
+            <div style="font-size:11px; color:var(--dim); margin: 3px 0 6px;">${escapeHtml(ag.agent_label)}</div>
+            <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:#c9d1d9;">
+              <span>${formatMetricVal(val, currentMetric)}</span>
+              <span style="color:var(--dim);">${ag.topics_touched} topics · ${ag.total_touchpoints} ops</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderBipartiteSvg() {
+      const box = document.getElementById('network-svg-container');
+      if (!reportData) return;
+      const cells = getActiveCells();
+      const topics = currentTopicMode === 'feature'
+        ? (reportData.feature_topics || [])
+        : (reportData.prompt_role_topics || []);
+      const agents = reportData.agents || [];
+
+      if (agents.length === 0 || topics.length === 0) {
+        box.innerHTML = '<div style="color:var(--dim); padding:30px;">No telemetry events recorded yet. Click [⚡ Simulate Multi-Agent Sprint] above!</div>';
+        return;
+      }
+
+      const maxRows = Math.max(agents.length, topics.length);
+      const svgH = Math.max(380, maxRows * 64 + 40);
+      const svgW = 680;
+
+      // Positions
+      const agentPos = {};
+      agents.forEach((ag, i) => {
+        const y = 45 + i * ((svgH - 70) / Math.max(1, agents.length - 1 || 1));
+        agentPos[ag.agent_id] = { x: 165, y: agents.length === 1 ? svgH / 2 : y, ag };
+      });
+
+      const topicPos = {};
+      topics.forEach((tp, i) => {
+        const y = 45 + i * ((svgH - 70) / Math.max(1, topics.length - 1 || 1));
+        topicPos[tp.topic] = { x: 485, y: topics.length === 1 ? svgH / 2 : y, tp };
+      });
+
+      let maxCellVal = 1;
+      cells.forEach(c => {
+        const v = Number(c[currentMetric] || 0);
+        if (v > maxCellVal) maxCellVal = v;
+      });
+
+      // Draw edges
+      let edgesSvg = '';
+      cells.forEach(c => {
+        const val = Number(c[currentMetric] || 0);
+        if (val <= 0) return;
+        const a = agentPos[c.agent_id];
+        const t = topicPos[c.topic];
+        if (!a || !t) return;
+
+        const dimmed = (selectedAgent && selectedAgent !== c.agent_id) ||
+                       (selectedTopic && selectedTopic !== c.topic);
+        const opacity = dimmed ? 0.12 : 0.82;
+        const strokeW = Math.max(1.5, (val / maxCellVal) * 9.0);
+        const color = getAgentColor(c.agent_id);
+        const midX = (a.x + t.x) / 2;
+        const pathD = `M ${a.x + 15} ${a.y} C ${midX} ${a.y}, ${midX} ${t.y}, ${t.x - 15} ${t.y}`;
+
+        edgesSvg += `
+          <path d="${pathD}" fill="none" stroke="${color}" stroke-width="${strokeW.toFixed(1)}" stroke-opacity="${opacity}" class="${dimmed ? '' : 'edge-anim'}">
+            <title>${escapeHtml(c.agent_id)} ➔ ${escapeHtml(c.topic)}: ${formatMetricVal(val, currentMetric)}</title>
+          </path>
+        `;
+      });
+
+      // Draw Agent nodes (Left)
+      let nodesSvg = '';
+      agents.forEach(ag => {
+        const p = agentPos[ag.agent_id];
+        const color = getAgentColor(ag.agent_id);
+        const isSel = selectedAgent === ag.agent_id;
+        nodesSvg += `
+          <g style="cursor:pointer;" onclick="toggleAgentSelect('${escapeHtml(ag.agent_id)}')">
+            <rect x="14" y="${p.y - 20}" width="162" height="40" rx="6" fill="#121822" stroke="${color}" stroke-width="${isSel ? 2.8 : 1.5}"/>
+            <text x="24" y="${p.y - 3}" fill="#fff" font-family="monospace" font-size="11" font-weight="bold">${escapeHtml(ag.agent_id)}</text>
+            <text x="24" y="${p.y + 12}" fill="${color}" font-family="monospace" font-size="9.5">${ag.share_pct}% overall · ${ag.total_touchpoints} ops</text>
+          </g>
+        `;
+      });
+
+      // Draw Topic nodes (Right)
+      topics.forEach(tp => {
+        const p = topicPos[tp.topic];
+        const isSel = selectedTopic === tp.topic;
+        const topColor = getAgentColor(tp.top_contributor);
+        const metricVal = Number(tp['total_' + currentMetric] || tp.total_weighted_impact || 0);
+        nodesSvg += `
+          <g style="cursor:pointer;" onclick="toggleTopicSelect('${escapeHtml(tp.topic)}')">
+            <rect x="${p.x - 15}" y="${p.y - 20}" width="198" height="40" rx="6" fill="#121822" stroke="${isSel ? '#39c5cf' : '#30363d'}" stroke-width="${isSel ? 2.5 : 1.5}"/>
+            <text x="${p.x - 5}" y="${p.y - 3}" fill="#e6edf3" font-family="monospace" font-size="10.5" font-weight="bold">${escapeHtml(tp.topic.slice(0, 26))}</text>
+            <text x="${p.x - 5}" y="${p.y + 12}" fill="#8b949e" font-family="monospace" font-size="9.5">${formatMetricVal(metricVal, currentMetric)} · Lead: <tspan fill="${topColor}">${escapeHtml(tp.top_contributor)}</tspan></text>
+          </g>
+        `;
+      });
+
+      box.innerHTML = `
+        <svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%; height:auto; max-height:460px;">
+          ${edgesSvg}
+          ${nodesSvg}
+        </svg>
+      `;
+    }
+
+    function renderStackedBars() {
+      const container = document.getElementById('stacked-bars-container');
+      if (!reportData) return;
+      const cells = getActiveCells();
+      const topics = currentTopicMode === 'feature'
+        ? (reportData.feature_topics || [])
+        : (reportData.prompt_role_topics || []);
+
+      container.innerHTML = topics.map(tp => {
+        const tCells = cells
+          .filter(c => c.topic === tp.topic && (!selectedAgent || c.agent_id === selectedAgent))
+          .sort((a, b) => Number(b[currentMetric] || 0) - Number(a[currentMetric] || 0));
+
+        const total = tCells.reduce((acc, c) => acc + Number(c[currentMetric] || 0), 0);
+        if (total <= 0) return '';
+
+        const segsHtml = tCells.map(c => {
+          const val = Number(c[currentMetric] || 0);
+          const pct = (val / total) * 100;
+          if (pct <= 0) return '';
+          const color = getAgentColor(c.agent_id);
+          const label = pct >= 14 ? `${c.agent_id.replace('PC-1-', '').replace('PC-2-', '')} ${Math.round(pct)}%` : '';
+          return `<div class="stacked-seg" style="width:${pct.toFixed(1)}%; background:${color};" title="${escapeHtml(c.agent_id)}: ${formatMetricVal(val, currentMetric)} (${pct.toFixed(1)}%)">${escapeHtml(label)}</div>`;
+        }).join('');
+
+        const legendHtml = tCells.map(c => {
+          const val = Number(c[currentMetric] || 0);
+          const pct = ((val / total) * 100).toFixed(1);
+          const color = getAgentColor(c.agent_id);
+          return `<span style="font-family:var(--mono); font-size:10.5px; color:#c9d1d9; margin-right:10px;"><span style="color:${color};">●</span> ${escapeHtml(c.agent_id)}: <strong>${pct}%</strong> (${formatMetricVal(val, currentMetric)})</span>`;
+        }).join('');
+
+        const isSel = selectedTopic === tp.topic;
+        return `
+          <div class="stacked-row ${isSel ? 'selected' : ''}" onclick="toggleTopicSelect('${escapeHtml(tp.topic)}')">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-family:var(--mono); font-size:11.5px;">
+              <strong style="color:#fff;">${escapeHtml(tp.topic)}</strong>
+              <span style="color:var(--dim); font-size:10.5px;">Total: ${formatMetricVal(total, currentMetric)}</span>
+            </div>
+            <div class="stacked-bar">${segsHtml}</div>
+            <div style="display:flex; flex-wrap:wrap; gap:4px;">${legendHtml}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMatrixTable() {
+      const tbody = document.getElementById('matrix-tbody');
+      if (!reportData) return;
+      let cells = getActiveCells().slice();
+
+      if (selectedAgent) cells = cells.filter(c => c.agent_id === selectedAgent);
+      if (selectedTopic) cells = cells.filter(c => c.topic === selectedTopic);
+
+      cells.sort((a, b) => Number(b[currentMetric] || 0) - Number(a[currentMetric] || 0));
+
+      // Compute topic totals for share %
+      const topicTotals = {};
+      getActiveCells().forEach(c => {
+        topicTotals[c.topic] = (topicTotals[c.topic] || 0) + Number(c[currentMetric] || 0);
+      });
+
+      tbody.innerHTML = cells.map(c => {
+        const val = Number(c[currentMetric] || 0);
+        const tTot = topicTotals[c.topic] || 1;
+        const pct = ((val / tTot) * 100).toFixed(1);
+        const color = getAgentColor(c.agent_id);
+        return `
+          <tr>
+            <td style="color:#fff; font-weight:bold;">${escapeHtml(c.topic)}</td>
+            <td><span style="color:${color}; font-weight:bold;">● ${escapeHtml(c.agent_id)}</span></td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <div style="width:55px; height:7px; background:#161b22; border-radius:3px; overflow:hidden;">
+                  <div style="width:${pct}%; height:100%; background:${color};"></div>
+                </div>
+                <span>${pct}%</span>
+              </div>
+            </td>
+            <td style="color:#d2a8ff; font-weight:bold;">${c.weighted_impact.toFixed(1)} pts</td>
+            <td>${c.touchpoint_count}</td>
+            <td style="color:#7ee787;">${c.writes} (${c.write_diff_score} Δ)</td>
+            <td style="color:#79c0ff;">${c.llm_calls}</td>
+            <td>${c.commands}</td>
+            <td>${c.reads}</td>
+            <td>${formatMetricVal(c.compute_ms, 'compute_ms')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderAll() {
+      renderAgentCards();
+      renderBipartiteSvg();
+      renderStackedBars();
+      renderMatrixTable();
+    }
+
+    async function simulateMultiAgentSprint() {
+      const now = new Date().toISOString();
+      const sprintEvents = [
+        {
+          event_id: 'sprint-ag-' + Date.now(),
+          node_id: 'PC-1-Antigravity',
+          session_id: 'sprint-containment',
+          timestamp: now,
+          event_type: 'FileWrite',
+          target: 'src/zones.rs',
+          action_details: { prompt: 'Architect Safe Zone vs Agent Playground containment rules' },
+          diff: '--- a/src/zones.rs\n+++ b/src/zones.rs\n@@ -1,3 +1,12 @@\n+pub enum ZoneKind { VaultNoAccess, GuardedReadOnly, AgentPlayground }\n+pub fn resolve_canonical_target(raw: &str) -> String {}\n+pub fn evaluate_zones_for_path() -> Option<PolicyDecision> {}\n',
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 42.0,
+          prev_hash: '0'.repeat(64),
+          event_hash: ''
+        },
+        {
+          event_id: 'sprint-qwen-' + (Date.now() + 1),
+          node_id: 'PC-1',
+          session_id: 'sprint-containment',
+          timestamp: now,
+          event_type: 'LlmInference',
+          target: 'http://127.0.0.1:11434/v1/chat/completions [qwen3.5:9b]',
+          action_details: { model: 'qwen3.5:9b', prompt: 'Generate unit tests for Safe Zone policy and Contribution Graph' },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 680.0,
+          prev_hash: '0'.repeat(64),
+          event_hash: ''
+        },
+        {
+          event_id: 'sprint-ds-' + (Date.now() + 2),
+          node_id: 'PC-2',
+          session_id: 'sprint-containment',
+          timestamp: now,
+          event_type: 'LlmInference',
+          target: 'http://127.0.0.1:8642/v1/chat/completions [deepseek-r1:1.5b]',
+          action_details: { model: 'deepseek-r1:1.5b', prompt: 'Verify path traversal regex and sanity check ledger signatures' },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 210.0,
+          prev_hash: '0'.repeat(64),
+          event_hash: ''
+        },
+        {
+          event_id: 'sprint-cop-' + (Date.now() + 3),
+          node_id: 'PC-1-Copilot',
+          session_id: 'sprint-containment',
+          timestamp: now,
+          event_type: 'CommandRun',
+          target: 'cargo test --workspace',
+          action_details: { command: 'cargo test --workspace' },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 390.0,
+          prev_hash: '0'.repeat(64),
+          event_hash: ''
+        }
+      ];
+
+      for (const ev of sprintEvents) {
+        await fetch('/api/v1/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ev)
+        });
+      }
+      await fetchContributions();
+    }
+
+    fetchContributions();
+    setInterval(fetchContributions, 8000);
+  </script>
+</body>
+</html>

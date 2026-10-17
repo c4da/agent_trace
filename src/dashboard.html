@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrace Gateway // Telemetry &amp; Prompt Hub</title>
+  <style>
+    :root {
+      --bg-base: #0b0e14;
+      --bg-panel: #11161f;
+      --bg-elevated: #161c28;
+      --bg-input: #090c10;
+      --border: #222936;
+      --border-focus: #3b82f6;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #3b82f6;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+
+    /* Unified Top Navigation Bar */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      height: 48px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      color: var(--text-main);
+    }
+    .brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      transition: all 0.12s ease;
+    }
+    .nav-link:hover {
+      color: var(--text-main);
+      background: var(--bg-elevated);
+    }
+    .nav-link.active {
+      color: var(--text-main);
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.4);
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 1640px;
+      margin: 0 auto;
+      padding: 16px 20px 36px;
+    }
+
+    /* Buttons & Inputs */
+    .btn {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 5px 11px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .btn:hover {
+      border-color: var(--text-muted);
+      background: #1e2636;
+    }
+    .btn.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: var(--accent);
+      color: var(--text-main);
+      font-weight: 600;
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+    .btn-sm {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    input[type="text"], select, textarea {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      outline: none;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus {
+      border-color: var(--border-focus);
+    }
+
+    /* Metric Strip */
+    .metrics-strip {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 1200px) {
+      .metrics-strip { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .metrics-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+    .metric-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .metric-label {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 4px;
+    }
+    .metric-sub {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* Top Operational Grid: Cluster Nodes (Left) + Prompt Hub (Right) */
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 1100px) {
+      .top-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .panel-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-body {
+      padding: 14px;
+      flex: 1;
+    }
+
+    /* Node Rows */
+    .node-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .node-item {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      margin-right: 6px;
+    }
+
+    /* Bottom Forensic Stream & Inspector Split */
+    .stream-grid {
+      display: grid;
+      grid-template-columns: 1.45fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 1150px) {
+      .stream-grid { grid-template-columns: 1fr; }
+    }
+
+    .table-scroll {
+      max-height: 540px;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11.5px;
+    }
+    th, td {
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-size: 10.5px;
+      text-transform: uppercase;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    tbody tr {
+      cursor: pointer;
+    }
+    tbody tr:hover td {
+      background: rgba(255, 255, 255, 0.025);
+    }
+    tbody tr.selected td {
+      background: rgba(59, 130, 246, 0.12);
+    }
+
+    .verdict-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 10.5px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .v-allowed {
+      color: var(--green);
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+    .v-flagged {
+      color: var(--amber);
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    .v-blocked {
+      color: var(--red);
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+
+    /* Diff & Code Inspector */
+    .code-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      overflow-x: auto;
+      max-height: 240px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .diff-add { color: var(--green); background: rgba(16, 185, 129, 0.08); display: block; }
+    .diff-del { color: var(--red); background: rgba(239, 68, 68, 0.08); display: block; }
+  </style>
+</head>
+<body>
+
+  <!-- Unified Top Navigation Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot" id="sse-dot"></span>
+      <span>AGENTTRACE GATEWAY // TELEMETRY &amp; PROMPT HUB</span>
+    </div>
+    <nav class="nav-links">
+      <a href="/dashboard" class="nav-link active">Dashboard</a>
+      <a href="/policies" class="nav-link">Policies &amp; Whitelists</a>
+      <a href="/workgroups" class="nav-link">Workgroups Mesh</a>
+      <a href="/graph" class="nav-link">Contribution Graph</a>
+      <a href="/console" class="nav-link">Terminal TUI</a>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- 6-Metric Telemetry Strip -->
+    <div class="metrics-strip">
+      <div class="metric-card">
+        <div class="metric-label"><span>Total Events</span></div>
+        <div class="metric-value" id="m-total">0</div>
+        <div class="metric-sub" id="m-stream-state">SSE Stream: Connected</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><span>File Writes &amp; Diffs</span></div>
+        <div class="metric-value" id="m-writes">0</div>
+        <div class="metric-sub">Tracked mutations</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><span>Shell Commands</span></div>
+        <div class="metric-value" id="m-commands">0</div>
+        <div class="metric-sub">Audited executions</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><span>LLM Inferences</span></div>
+        <div class="metric-value" id="m-llm">0</div>
+        <div class="metric-sub">Proxied completions</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">
+          <span>Security Alerts</span>
+          <button class="btn btn-sm" onclick="acknowledgeAllAlerts()" title="Reset active alert counter">Reset</button>
+        </div>
+        <div class="metric-value" id="m-alerts" style="color: var(--green);">0</div>
+        <div class="metric-sub"><a href="/policies" style="color: var(--text-muted);">Manage Whitelists &rarr;</a></div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">
+          <span>Cryptographic Ledger</span>
+          <button class="btn btn-sm" onclick="verifyLedger()">Verify</button>
+        </div>
+        <div class="metric-value" id="m-ledger" style="color: var(--green); font-size: 16px;">VERIFIED</div>
+        <div class="metric-sub" id="m-head-hash">SHA-256 + Ed25519</div>
+      </div>
+    </div>
+
+    <!-- Autonomous Keep-Busy Worker Engine Status Banner -->
+    <div style="background: #0d121c; border: 1px solid var(--border); border-left: 3px solid #38bdf8; border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-family: var(--mono); font-size: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 14px;">⚡</span>
+        <div>
+          <span style="color: var(--text-muted); font-size: 11px;">AUTONOMOUS KEEP-BUSY AGENT ENGINE:</span>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+            <span id="dash-idle-status" style="padding: 1px 6px; border-radius: 2px; font-size: 11px; font-weight: bold; background: #1b4424; color: #7ee787; border: 1px solid #2ea043;">● ACTIVE WORKING</span>
+            <span style="color: var(--text-muted); font-size: 11px;" id="dash-idle-detail">Idle threshold: 30s · Local cluster models ($0.00 cost)</span>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--text-muted); font-size: 11px;" id="dash-idle-stats">Completed: 0 tasks</span>
+        <button class="btn btn-sm" onclick="triggerDashIdleTask()" style="border-color: #38bdf8; color: #38bdf8;">Run Task</button>
+        <a href="/console" class="btn btn-sm">Manage in Console (W) &rarr;</a>
+      </div>
+    </div>
+
+    <!-- Top Operational Grid: Cluster Nodes (Left) + Prompt Hub (Right) -->
+    <div class="top-grid">
+
+      <!-- Left: Cluster Node Topology & Containment Summary -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>Cluster Nodes &amp; Containment Status</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <a href="/policies" class="btn btn-sm">Configure Policies</a>
+            <a href="/workgroups" class="btn btn-sm">Edit Agent Mesh</a>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="node-list" id="nodes-container">
+            <div class="node-item">
+              <div><span class="status-dot"></span><strong>PC-1 (LEAD-NODE)</strong> · 127.0.0.1:11434</div>
+              <div style="color: var(--text-muted);">qwen3.5:9b, qwen3.8:27b, gemma4</div>
+            </div>
+            <div class="node-item">
+              <div><span class="status-dot"></span><strong>PC-2 (WORKER-NODE)</strong> · 127.0.0.1:8642</div>
+              <div style="color: var(--text-muted);">deepseek-r1:1.5b (CUDA)</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 11.5px;">
+            <span style="color: var(--text-muted);" id="active-zones-summary">Active Zones: Loading...</span>
+            <a href="/policies" style="color: var(--accent); text-decoration: none;">Open Whitelist &amp; Zone Firewall &rarr;</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Prompt Hub Dispatcher -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>Cluster Prompt Hub Dispatcher</span>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <select id="hub-mode" style="padding: 3px 8px; font-size: 11px;">
+              <option value="workgroup:auto">Mode: Auto-Match Problem Workgroup</option>
+              <option value="workgroup:wg-coding">Workgroup: Coding &amp; Architecture</option>
+              <option value="workgroup:wg-image-gen">Workgroup: Image &amp; SVG Generation</option>
+              <option value="workgroup:wg-reasoning-debug">Workgroup: Reasoning &amp; Coding Issues</option>
+              <option value="workgroup:wg-security-audit">Workgroup: Security &amp; Zone Audit</option>
+              <option value="pipeline">Mode: 2-Stage Pipeline (Qwen + DeepSeek)</option>
+              <option value="single">Mode: Single Best Model</option>
+            </select>
+            <a href="/workgroups" class="btn btn-sm">Mesh Builder</a>
+          </div>
+        </div>
+        <div class="panel-body" style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="hub-prompt" placeholder="Enter a prompt to route across the cluster workgroups..." style="flex: 1;" onkeydown="if(event.key==='Enter') dispatchHubPrompt()">
+            <button class="btn btn-primary" id="btn-hub-send" onclick="dispatchHubPrompt()">Dispatch</button>
+          </div>
+          <div id="hub-response-box" class="code-box" style="display: none; max-height: 135px;"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Bottom Full-Width Live Forensic Stream & Event Inspector -->
+    <div class="stream-grid">
+
+      <!-- Left: Event Stream Table -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>Live Telemetry Stream</span>
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;" id="stream-count-label">(0 events)</span>
+          </div>
+          <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-sm active" id="flt-all" onclick="setStreamFilter('all')">All</button>
+            <button class="btn btn-sm" id="flt-blocked" onclick="setStreamFilter('blocked')">Blocked / Flagged</button>
+            <button class="btn btn-sm" id="flt-writes" onclick="setStreamFilter('writes')">Writes &amp; Diffs</button>
+            <button class="btn btn-sm" id="flt-commands" onclick="setStreamFilter('commands')">Commands</button>
+            <button class="btn btn-sm" id="flt-llm" onclick="setStreamFilter('llm')">LLM Routes</button>
+            <input type="text" id="stream-search" placeholder="Filter target / agent..." style="width: 155px; padding: 3px 8px; font-size: 11px;" oninput="renderEventTable()">
+            <button class="btn btn-sm" id="btn-pause" onclick="togglePauseStream()">Pause</button>
+            <button class="btn btn-sm" onclick="simulateQuickTestEvents()" title="Inject sampleAllowed + Blocked events">Simulate</button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Node / Agent</th>
+                <th>Type</th>
+                <th>Target Path / Endpoint</th>
+                <th>Verdict</th>
+                <th>Latency</th>
+                <th>Hash</th>
+              </tr>
+            </thead>
+            <tbody id="events-tbody">
+              <tr><td colspan="7" style="color: var(--text-muted);">Loading telemetry stream...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Right: Forensic Event Inspector -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>Forensic Event Inspector</span>
+          </div>
+          <span style="font-family: var(--mono); font-size: 11px; color: var(--text-muted);" id="insp-event-id">Select an event row</span>
+        </div>
+        <div class="panel-body" id="inspector-body" style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="color: var(--text-muted); font-family: var(--mono); font-size: 12px;">Click any event row in the stream to inspect its unified code diff, policy evaluation reasons, JSON payload, and Ed25519 signature.</div>
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <script>
+    let allEvents = [];
+    let activeFilter = 'all';
+    let selectedEventId = null;
+    let streamPaused = false;
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function loadSummaryAndEvents() {
+      try {
+        const [sumRes, evRes, zonesRes] = await Promise.all([
+          fetch('/api/v1/summary'),
+          fetch('/api/v1/events?limit=120'),
+          fetch('/api/v1/zones')
+        ]);
+        const sum = await sumRes.json();
+        const evs = await evRes.json();
+        const zData = await zonesRes.json();
+
+        updateMetrics(sum, zData);
+        allEvents = Array.isArray(evs) ? evs : [];
+        if (!selectedEventId && allEvents.length > 0) {
+          selectedEventId = allEvents[0].event_id;
+        }
+        renderEventTable();
+        renderInspector();
+      } catch (e) {
+        console.error('Failed to load dashboard data:', e);
+      }
+    }
+
+    function updateMetrics(sum, zData) {
+      document.getElementById('m-total').textContent = sum.total_events ?? 0;
+      document.getElementById('m-writes').textContent = sum.total_writes ?? 0;
+      document.getElementById('m-commands').textContent = sum.total_commands ?? 0;
+      document.getElementById('m-llm').textContent = sum.total_llm_calls ?? 0;
+
+      const alerts = (sum.blocked_count ?? 0) + (sum.flagged_count ?? 0);
+      const alertEl = document.getElementById('m-alerts');
+      alertEl.textContent = alerts;
+      alertEl.style.color = alerts > 0 ? 'var(--red)' : 'var(--green)';
+
+      const ledgerEl = document.getElementById('m-ledger');
+      if (sum.ledger_verified) {
+        ledgerEl.textContent = 'VERIFIED';
+        ledgerEl.style.color = 'var(--green)';
+      } else {
+        ledgerEl.textContent = 'CHECK';
+        ledgerEl.style.color = 'var(--amber)';
+      }
+
+      if (Array.isArray(sum.active_nodes) && sum.active_nodes.length > 0) {
+        const nodesContainer = document.getElementById('nodes-container');
+        nodesContainer.innerHTML = sum.active_nodes.map(n => `
+          <div class="node-item">
+            <div><span class="status-dot"></span><strong>${escapeHtml(n.node_id)}</strong> · ${escapeHtml(n.ip_address)}</div>
+            <div style="color: var(--text-muted);">${escapeHtml(n.role)}</div>
+          </div>
+        `).join('');
+      }
+
+      const zones = zData?.zones || [];
+      document.getElementById('active-zones-summary').textContent =
+        `${zones.length} Spatial Zones Enforced (${zones.filter(z => z.kind === 'VaultNoAccess').length} Vaults, ${zones.filter(z => z.kind === 'GuardedReadOnly').length} Guarded, ${zones.filter(z => z.kind === 'AgentPlayground').length} Playgrounds)`;
+    }
+
+    function setStreamFilter(flt) {
+      activeFilter = flt;
+      ['all', 'blocked', 'writes', 'commands', 'llm'].forEach(k => {
+        const btn = document.getElementById('flt-' + k);
+        if (btn) btn.classList.toggle('active', k === flt);
+      });
+      renderEventTable();
+    }
+
+    function getFilteredEvents() {
+      const q = (document.getElementById('stream-search').value || '').toLowerCase().trim();
+      return allEvents.filter(ev => {
+        if (activeFilter === 'blocked' && ev.security_verdict === 'Allowed') return false;
+        if (activeFilter === 'writes' && ev.event_type !== 'FileWrite') return false;
+        if (activeFilter === 'commands' && ev.event_type !== 'CommandRun') return false;
+        if (activeFilter === 'llm' && ev.event_type !== 'LlmInference' && ev.event_type !== 'DecisionStep') return false;
+        if (q) {
+          const hay = `${ev.node_id} ${ev.event_type} ${ev.target} ${ev.security_verdict}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderEventTable() {
+      const filtered = getFilteredEvents();
+      document.getElementById('stream-count-label').textContent = `(${filtered.length} shown)`;
+      const tbody = document.getElementById('events-tbody');
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--text-muted);">No matching events in view.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.slice(0, 80).map(ev => {
+        const isSel = ev.event_id === selectedEventId;
+        const ts = (ev.timestamp || '').split('T')[1]?.slice(0, 8) || ev.timestamp || '';
+        let vClass = 'v-allowed';
+        if (ev.security_verdict === 'Blocked') vClass = 'v-blocked';
+        else if (ev.security_verdict === 'Flagged') vClass = 'v-flagged';
+
+        const shortTarget = (ev.target || '').length > 52 ? (ev.target.slice(0, 50) + '…') : (ev.target || '');
+        const shortHash = (ev.event_hash || '').slice(0, 10) || '—';
+
+        return `
+          <tr class="${isSel ? 'selected' : ''}" onclick="selectEvent('${escapeHtml(ev.event_id)}')">
+            <td style="color: var(--text-muted);">${escapeHtml(ts)}</td>
+            <td style="font-weight: 600;">${escapeHtml(ev.node_id)}</td>
+            <td>${escapeHtml(ev.event_type)}</td>
+            <td title="${escapeHtml(ev.target)}">${escapeHtml(shortTarget)}</td>
+            <td><span class="verdict-badge ${vClass}">${escapeHtml(ev.security_verdict)}</span></td>
+            <td style="color: var(--text-muted);">${Math.round(ev.duration_ms || 0)}ms</td>
+            <td style="color: var(--text-dim);">${escapeHtml(shortHash)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function selectEvent(eventId) {
+      selectedEventId = eventId;
+      renderEventTable();
+      renderInspector();
+    }
+
+    function formatUnifiedDiff(diffText) {
+      if (!diffText) return '<span style="color: var(--text-dim);">No file diff attached to this event.</span>';
+      return diffText.split('\n').map(line => {
+        if (line.startsWith('+') && !line.startsWith('+++')) {
+          return `<span class="diff-add">${escapeHtml(line)}</span>`;
+        }
+        if (line.startsWith('-') && !line.startsWith('---')) {
+          return `<span class="diff-del">${escapeHtml(line)}</span>`;
+        }
+        return escapeHtml(line);
+      }).join('\n');
+    }
+
+    function renderInspector() {
+      const ev = allEvents.find(e => e.event_id === selectedEventId);
+      const body = document.getElementById('inspector-body');
+      const idLabel = document.getElementById('insp-event-id');
+      if (!ev) {
+        idLabel.textContent = 'No event selected';
+        return;
+      }
+      idLabel.textContent = ev.event_id;
+
+      const reasons = (ev.security_reasons && ev.security_reasons.length)
+        ? ev.security_reasons.join(' | ')
+        : 'Passed policy & spatial zone evaluation';
+
+      body.innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--mono); font-size: 11.5px;">
+          <div style="background: var(--bg-base); border: 1px solid var(--border); padding: 8px; border-radius: 4px;">
+            <div style="color: var(--text-dim); font-size: 10px;">NODE / AGENT</div>
+            <div style="font-weight: 700;">${escapeHtml(ev.node_id)}</div>
+          </div>
+          <div style="background: var(--bg-base); border: 1px solid var(--border); padding: 8px; border-radius: 4px;">
+            <div style="color: var(--text-dim); font-size: 10px;">SECURITY VERDICT</div>
+            <div style="font-weight: 700; color: ${ev.security_verdict === 'Allowed' ? 'var(--green)' : 'var(--red)'};">
+              ${escapeHtml(ev.security_verdict)}
+            </div>
+          </div>
+        </div>
+
+        <div style="font-family: var(--mono); font-size: 11.5px; background: var(--bg-base); border: 1px solid var(--border); padding: 8px; border-radius: 4px;">
+          <div style="color: var(--text-dim); font-size: 10px;">TARGET PATH / RESOURCE</div>
+          <div style="word-break: break-all; color: var(--text-main);">${escapeHtml(ev.target)}</div>
+          <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px;">Policy Note: ${escapeHtml(reasons)}</div>
+        </div>
+
+        <div>
+          <div style="font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase;">Unified Code Diff</div>
+          <div class="code-box">${formatUnifiedDiff(ev.diff)}</div>
+        </div>
+
+        <div>
+          <div style="font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase;">Action Details &amp; Cryptographic Hash</div>
+          <div class="code-box" style="max-height: 150px;">${escapeHtml(JSON.stringify({
+            action_details: ev.action_details,
+            prev_hash: ev.prev_hash,
+            event_hash: ev.event_hash,
+            signature: ev.signature
+          }, null, 2))}</div>
+        </div>
+      `;
+    }
+
+    function togglePauseStream() {
+      streamPaused = !streamPaused;
+      const btn = document.getElementById('btn-pause');
+      btn.textContent = streamPaused ? 'Resume' : 'Pause';
+      btn.classList.toggle('active', streamPaused);
+      document.getElementById('m-stream-state').textContent = streamPaused ? 'SSE Stream: Paused' : 'SSE Stream: Connected';
+    }
+
+    async function acknowledgeAllAlerts() {
+      await fetch('/api/v1/alerts/acknowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: 'all' })
+      });
+      await loadSummaryAndEvents();
+    }
+
+    async function verifyLedger() {
+      const res = await fetch('/api/v1/ledger/verify');
+      const d = await res.json();
+      const headEl = document.getElementById('m-head-hash');
+      headEl.textContent = `${d.total_blocks} blocks · ${(d.latest_block_hash || '').slice(0, 12)}…`;
+      await loadSummaryAndEvents();
+    }
+
+    async function dispatchHubPrompt() {
+      const promptInput = document.getElementById('hub-prompt');
+      const prompt = (promptInput.value || '').trim();
+      if (!prompt) return;
+
+      const rawMode = document.getElementById('hub-mode').value;
+      let mode = rawMode;
+      let workgroup_id = null;
+      if (rawMode.startsWith('workgroup:')) {
+        mode = 'workgroup';
+        workgroup_id = rawMode.split(':')[1];
+      }
+
+      const btn = document.getElementById('btn-hub-send');
+      const box = document.getElementById('hub-response-box');
+      btn.disabled = true;
+      btn.textContent = 'Routing...';
+      box.style.display = 'block';
+      box.textContent = 'Dispatching prompt through AgentTrace Hub...';
+
+      try {
+        const res = await fetch('/api/v1/hub/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, mode, workgroup_id })
+        });
+        const d = await res.json();
+        const header = `[${d.mode}] Intent: ${d.classified_intent} (${Math.round(d.total_duration_ms || 0)}ms)\n`;
+        box.textContent = header + (d.primary_response || JSON.stringify(d, null, 2));
+        await loadSummaryAndEvents();
+      } catch (e) {
+        box.textContent = 'Error: ' + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Dispatch';
+      }
+    }
+
+    async function simulateQuickTestEvents() {
+      await fetch('/api/v1/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          node_id: 'PC-1-Qwen',
+          event_type: 'FileWrite',
+          target: '/workspace/playground/module_test.rs',
+          diff: '--- a/module_test.rs\n+++ b/module_test.rs\n@@ -1,2 +1,4 @@\n+#[test]\n+fn test_invariant() { assert!(true); }',
+          action_details: { tool: 'write_to_file', summary: 'Add unit test inside allowed playground' },
+          duration_ms: 11.4
+        })
+      });
+      await fetch('/api/v1/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          node_id: 'PC-2-Rogue-Subagent',
+          event_type: 'FileRead',
+          target: '/workspace/.secrets/cluster_keys.env',
+          action_details: { tool: 'view_file', summary: 'Attempted credential read' },
+          duration_ms: 1.8
+        })
+      });
+      await loadSummaryAndEvents();
+    }
+
+    // Live SSE Stream
+    function connectSse() {
+      const es = new EventSource('/api/v1/stream');
+      es.onmessage = (msg) => {
+        if (streamPaused) return;
+        try {
+          const ev = JSON.parse(msg.data);
+          if (ev && ev.event_id) {
+            allEvents.unshift(ev);
+            if (allEvents.length > 200) allEvents.pop();
+            renderEventTable();
+          }
+        } catch (_) {}
+      };
+      es.onerror = () => {
+        document.getElementById('sse-dot').style.background = 'var(--amber)';
+      };
+    }
+
+    async function pollDashIdleWorker() {
+      try {
+        const res = await fetch('/api/v1/idle_worker/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        const statusEl = document.getElementById('dash-idle-status');
+        const detailEl = document.getElementById('dash-idle-detail');
+        const statsEl = document.getElementById('dash-idle-stats');
+        if (!statusEl || !detailEl || !statsEl) return;
+
+        if (!data.enabled) {
+          statusEl.textContent = '○ DISABLED';
+          statusEl.style.background = '#21262d';
+          statusEl.style.color = 'var(--text-muted)';
+          statusEl.style.borderColor = 'var(--border)';
+        } else if (data.status === 'ActiveWorking') {
+          statusEl.textContent = `● WORKING: ${data.current_task || 'Task in progress'}`;
+          statusEl.style.background = '#1b4424';
+          statusEl.style.color = '#7ee787';
+          statusEl.style.borderColor = '#2ea043';
+        } else if (data.status === 'PausedUserPreempted') {
+          statusEl.textContent = '⏸ PREEMPTED (USER ACTIVE)';
+          statusEl.style.background = '#382307';
+          statusEl.style.color = '#f0883e';
+          statusEl.style.borderColor = '#9e6a03';
+        } else {
+          statusEl.textContent = `STANDBY (${data.seconds_idle}s)`;
+          statusEl.style.background = '#0c1a29';
+          statusEl.style.color = '#38bdf8';
+          statusEl.style.borderColor = '#1d4ed8';
+        }
+
+        detailEl.textContent = `Idle threshold: ${data.idle_threshold_secs}s · Model: ${data.target_model} · Preemption: sub-millisecond`;
+        statsEl.textContent = `Completed: ${data.total_tasks_run || 0} tasks (${data.completed_cycles || 0} passes)`;
+      } catch (_) {}
+    }
+
+    async function triggerDashIdleTask() {
+      try {
+        await fetch('/api/v1/idle_worker/trigger', { method: 'POST' });
+        pollDashIdleWorker();
+      } catch (err) {
+        alert('Failed to trigger idle task: ' + err.message);
+      }
+    }
+
+    loadSummaryAndEvents();
+    connectSse();
+    pollDashIdleWorker();
+    setInterval(pollDashIdleWorker, 3000);
+  </script>
+</body>
+</html>

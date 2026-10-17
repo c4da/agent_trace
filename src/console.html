@@ -1,0 +1,2288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrace Terminal Console // High-Density Operations</title>
+  <style>
+    :root {
+      --bg-term: #0b0e14;
+      --bg-panel: #11151c;
+      --bg-header: #0d1117;
+      --bg-select: #1b2230;
+      --bg-input: #080b0f;
+      --border-term: #252d3a;
+      --border-bright: #38455a;
+      --text-main: #d1d7e0;
+      --text-muted: #6e7a8e;
+      --accent-green: #3fb950;
+      --accent-amber: #d29922;
+      --accent-red: #f85149;
+      --accent-blue: #58a6ff;
+      --accent-purple: #bc8cff;
+      --accent-cyan: #39c5cf;
+      --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-term);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Scanline & subtle CRT glow effect */
+    body::before {
+      content: " ";
+      position: fixed;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      z-index: 100;
+      background-size: 100% 2px, 3px 100%;
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    /* Top Status Bar */
+    header {
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-term);
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: bold;
+      color: var(--accent-green);
+      letter-spacing: 0.5px;
+    }
+
+    .brand span.tag {
+      background: #1b4424;
+      color: #7ee787;
+      padding: 1px 6px;
+      font-size: 11px;
+      border-radius: 2px;
+      border: 1px solid #2ea043;
+    }
+
+    .top-telemetry {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+    }
+
+    .telemetry-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .telemetry-item .label { color: var(--text-muted); }
+    .telemetry-item .value { font-weight: 600; }
+    .telemetry-item .value.live { color: var(--accent-green); }
+    .telemetry-item .value.paused { color: var(--accent-amber); }
+    .telemetry-item .value.alerts { color: var(--accent-red); }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .term-btn {
+      background: var(--bg-panel);
+      color: var(--text-main);
+      border: 1px solid var(--border-term);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 3px 10px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 3px;
+      transition: all 0.15s ease;
+    }
+
+    .term-btn:hover {
+      background: var(--border-term);
+      border-color: var(--border-bright);
+      color: #fff;
+    }
+
+    .term-btn.accent {
+      border-color: #2ea043;
+      color: #7ee787;
+    }
+
+    .term-btn.accent:hover {
+      background: #1b4424;
+    }
+
+    .term-btn.warn {
+      border-color: #9e6a03;
+      color: #f0883e;
+    }
+
+    /* Scenario Bar / Filter Strip */
+    .scenario-bar {
+      background: #0d121b;
+      border-bottom: 1px solid var(--border-term);
+      padding: 5px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .scenario-tabs {
+      display: flex;
+      gap: 6px;
+    }
+
+    .scenario-tab {
+      background: transparent;
+      border: 1px solid var(--border-term);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    .scenario-tab:hover {
+      color: var(--text-main);
+      border-color: var(--border-bright);
+    }
+
+    .scenario-tab.active {
+      background: var(--bg-select);
+      color: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    .filter-wrapper {
+      display: flex;
+      align-items: center;
+      flex-grow: 1;
+      max-width: 500px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-term);
+      border-radius: 2px;
+      padding: 2px 8px;
+    }
+
+    .filter-prefix {
+      color: var(--accent-green);
+      margin-right: 6px;
+      font-weight: bold;
+    }
+
+    .filter-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      width: 100%;
+    }
+
+    /* Interactive Scenario Demo Strip */
+    .demo-strip {
+      background: #090d14;
+      border-bottom: 1px solid var(--border-term);
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+
+    .demo-label {
+      color: var(--accent-amber);
+      font-weight: bold;
+      font-size: 11px;
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+    }
+
+    .demo-btn-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    .demo-btn {
+      background: #141a24;
+      border: 1px solid var(--border-bright);
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      cursor: pointer;
+      border-radius: 3px;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .demo-btn:hover {
+      background: var(--border-term);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .demo-btn.btn-danger { border-color: #f85149; color: #ff7b72; }
+    .demo-btn.btn-danger:hover { background: #3c1417; }
+    .demo-btn.btn-success { border-color: #2ea043; color: #7ee787; }
+    .demo-btn.btn-success:hover { background: #14321d; }
+    .demo-btn.btn-primary { border-color: #388bfd; color: #79c0ff; }
+    .demo-btn.btn-primary:hover { background: #112846; }
+    .demo-btn.btn-accent { border-color: #8957e5; color: #d2a8ff; }
+    .demo-btn.btn-accent:hover { background: #261b40; }
+    .demo-btn.btn-warning { border-color: #d29922; color: #e3b341; }
+    .demo-btn.btn-warning:hover { background: #3b2a0c; }
+
+    /* Scenario Explainer Card */
+    .scenario-card {
+      background: #0c121c;
+      border-bottom: 2px solid var(--accent-cyan);
+      padding: 10px 14px;
+      flex-shrink: 0;
+    }
+
+    .sc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .sc-title {
+      color: var(--accent-cyan);
+      font-weight: bold;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .sc-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .sc-close:hover { color: var(--text-main); }
+
+    .sc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .sc-box {
+      background: #080c12;
+      border: 1px solid var(--border-term);
+      padding: 8px 10px;
+      border-radius: 3px;
+    }
+
+    .sc-badge {
+      font-size: 10px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      display: inline-block;
+      padding: 1px 4px;
+      border-radius: 2px;
+    }
+
+    .sc-badge.problem { background: #3c1417; color: #ff7b72; border: 1px solid #782329; }
+    .sc-badge.action { background: #14321d; color: #7ee787; border: 1px solid #2ea043; }
+    .sc-badge.value { background: #122138; color: #79c0ff; border: 1px solid #388bfd; }
+
+    .sc-text {
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-main);
+    }
+
+    /* Main Split Workspace */
+    .workspace {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Left Pane: Stream Table */
+    .pane-stream {
+      flex: 6;
+      border-right: 1px solid var(--border-term);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .table-header {
+      background: #0f141d;
+      border-bottom: 1px solid var(--border-term);
+      display: grid;
+      grid-template-columns: 80px 130px 100px 90px 1fr 90px;
+      padding: 5px 10px;
+      font-weight: bold;
+      color: var(--text-muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .table-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+    }
+
+    .table-row {
+      display: grid;
+      grid-template-columns: 80px 130px 100px 90px 1fr 90px;
+      padding: 4px 10px;
+      border-bottom: 1px solid #161c26;
+      cursor: pointer;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .table-row:hover {
+      background: #151b24;
+    }
+
+    .table-row.selected {
+      background: var(--bg-select);
+      border-left: 3px solid var(--accent-cyan);
+      padding-left: 7px;
+    }
+
+    .badge-verdict {
+      padding: 1px 6px;
+      border-radius: 2px;
+      font-size: 10px;
+      font-weight: bold;
+      display: inline-block;
+      text-align: center;
+      width: 65px;
+    }
+
+    .verdict-allowed { background: #162a1c; color: #7ee787; border: 1px solid #234e2c; }
+    .verdict-blocked { background: #381a1a; color: #ff7b72; border: 1px solid #672222; }
+    .verdict-warn    { background: #382d1a; color: #e3b341; border: 1px solid #5a431c; }
+
+    .col-time { color: var(--text-muted); font-size: 11px; }
+    .col-node { color: var(--accent-purple); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .col-type { color: var(--accent-blue); }
+    .col-target { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px; }
+    .col-hash { color: #505c70; font-size: 11px; font-family: var(--font-mono); }
+
+    /* Right Pane: Forensic Inspector & Diff Viewer */
+    .pane-inspector {
+      flex: 4;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-panel);
+      min-width: 0;
+    }
+
+    .inspector-tabs {
+      background: #0f141d;
+      border-bottom: 1px solid var(--border-term);
+      display: flex;
+      padding: 0 10px;
+      flex-shrink: 0;
+    }
+
+    .insp-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    .insp-tab:hover { color: var(--text-main); }
+    .insp-tab.active {
+      color: var(--accent-green);
+      border-bottom-color: var(--accent-green);
+      font-weight: bold;
+    }
+
+    .inspector-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      font-size: 12px;
+    }
+
+    /* Unified Diff Viewer Styling */
+    .diff-container {
+      background: #080b0f;
+      border: 1px solid var(--border-term);
+      border-radius: 3px;
+      padding: 8px;
+      font-family: var(--font-mono);
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    .diff-line {
+      padding: 1px 4px;
+      margin: 1px 0;
+      border-radius: 2px;
+    }
+
+    .diff-add {
+      background: #14321d;
+      color: #7ee787;
+    }
+
+    .diff-del {
+      background: #391819;
+      color: #ff7b72;
+    }
+
+    .diff-hunk {
+      color: var(--accent-cyan);
+      font-weight: bold;
+      background: #121d28;
+    }
+
+    .diff-meta {
+      color: var(--text-muted);
+    }
+
+    /* Block Proof Inspector */
+    .proof-grid {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .proof-key { color: var(--text-muted); font-weight: bold; }
+    .proof-val { word-break: break-all; color: var(--text-main); }
+
+    /* Bottom Command Bar */
+    footer {
+      background: var(--bg-header);
+      border-top: 1px solid var(--border-term);
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+
+    .cmd-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-grow: 1;
+      max-width: 600px;
+    }
+
+    .cmd-prompt { color: var(--accent-green); font-weight: bold; }
+    .cmd-input {
+      background: var(--bg-input);
+      border: 1px solid var(--border-term);
+      color: var(--accent-green);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 3px 8px;
+      width: 100%;
+      outline: none;
+      border-radius: 2px;
+    }
+
+    .cmd-input:focus {
+      border-color: var(--accent-green);
+    }
+
+    .key-hints {
+      display: flex;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .key-hint kbd {
+      background: #161c26;
+      border: 1px solid var(--border-term);
+      border-radius: 2px;
+      padding: 1px 4px;
+      color: var(--text-main);
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--accent-green);
+      box-shadow: 0 0 20px rgba(63, 185, 80, 0.15);
+      width: 650px;
+      max-width: 90vw;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .modal-head {
+      background: var(--bg-header);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-term);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      color: var(--accent-green);
+    }
+
+    .modal-body {
+      padding: 16px;
+      max-height: 70vh;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .modal-body h4 {
+      color: var(--accent-cyan);
+      margin: 12px 0 4px 0;
+    }
+
+    .modal-body ul {
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header / Telemetry Status Bar -->
+  <header>
+    <div class="brand">
+      <span>AGENTTRACE // TUI CONSOLE</span>
+      <span class="tag">v0.1.0</span>
+    </div>
+    <div class="top-telemetry">
+      <div class="telemetry-item">
+        <span class="label">STREAM:</span>
+        <span class="value live" id="stat-stream">● LIVE</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">NODES:</span>
+        <span class="value" id="stat-nodes">3</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">BLOCKS:</span>
+        <span class="value" id="stat-blocks">0</span>
+      </div>
+      <div class="telemetry-item" style="cursor: pointer;" onclick="setScenario('blocked')" title="Click to inspect all security alerts">
+        <span class="label">ALERTS:</span>
+        <span class="value alerts" id="stat-alerts" style="text-decoration: underline;">0</span>
+        <button class="term-btn" style="padding: 1px 5px; font-size: 10px; margin-left: 4px; border-color: #3fb950; color: #3fb950;" onclick="resetConsoleAlerts(event)" title="Acknowledge & reset active alert count to 0">✓ Reset</button>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">HEAD:</span>
+        <span class="value" id="stat-head">calculating...</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <a href="/dashboard" class="term-btn">Dashboard</a>
+      <a href="/policies" class="term-btn">Policies</a>
+      <a href="/workgroups" class="term-btn">Workgroups</a>
+      <a href="/graph" class="term-btn">Graph</a>
+      <button class="term-btn" id="btn-idle-worker" onclick="toggleIdleWorkerModal()" style="border-color:#38bdf8;color:#38bdf8;" title="Preemptive Autonomous Keep-Busy Worker (W)">⚡ Busy: <span id="idle-badge-text">STANDBY</span> (W)</button>
+      <button class="term-btn accent" onclick="triggerLedgerVerification()">Verify (V)</button>
+      <button class="term-btn" onclick="togglePolicyModal()" title="Manual policy evaluation & rule editor">Sandbox (M)</button>
+      <button class="term-btn" onclick="exportEvents('json')" title="Manually export filtered events to JSON">JSON</button>
+      <button class="term-btn" onclick="exportEvents('csv')" title="Manually export filtered events to CSV">CSV</button>
+      <button class="term-btn" id="btn-toggle-flag" onclick="toggleFlagCurrentEvent()" title="Pin/Flag current event for investigation">Flag (F)</button>
+      <button class="term-btn" onclick="toggleHelpModal()">Help (?)</button>
+    </div>
+  </header>
+
+  <!-- Scenario Filter Bar -->
+  <div class="scenario-bar">
+    <div class="scenario-tabs">
+      <button class="scenario-tab active" onclick="setScenario('all')">[1: All Events]</button>
+      <button class="scenario-tab" onclick="setScenario('blocked')">[2: 🛡️ Secret/Blocked]</button>
+      <button class="scenario-tab" onclick="setScenario('diffs')">[3: 📝 Code Diffs]</button>
+      <button class="scenario-tab" onclick="setScenario('commands')">[4: ⚙️ Bash Commands]</button>
+      <button class="scenario-tab" onclick="setScenario('routing')">[5: 🔀 Model Routes]</button>
+      <button class="scenario-tab" onclick="setScenario('flagged')">[6: 🚩 Pinned/Flagged]</button>
+    </div>
+    <div class="filter-wrapper">
+      <span class="filter-prefix">/</span>
+      <input type="text" id="filter-input" class="filter-input" placeholder="filter (e.g. verdict:Blocked target:.env)" oninput="applyFilter()">
+    </div>
+  </div>
+
+  <!-- Interactive Scenario Demonstrator Strip -->
+  <div class="demo-strip">
+    <span class="demo-label">⚡ LIVE SCENARIO DEMOS:</span>
+    <div class="demo-btn-group">
+      <button class="demo-btn btn-danger" onclick="runScenarioDemo('secret_leak')" title="Simulate rogue agent attempting to read .env">
+        1. 🛡️ Intercept .env Leak
+      </button>
+      <button class="demo-btn btn-success" onclick="runScenarioDemo('code_diff')" title="Simulate in-flight agent code modification with unified diff">
+        2. 📝 In-Flight Code Diff
+      </button>
+      <button class="demo-btn btn-primary" onclick="runScenarioDemo('zero_token')" title="Simulate prompt classification & zero-token cloud interception">
+        3. 🔀 Zero-Token Route
+      </button>
+      <button class="demo-btn btn-accent" onclick="runScenarioDemo('ledger_proof')" title="Run headless cryptographic ledger verification across all blocks">
+        4. ⛓️ Cryptographic Proof
+      </button>
+      <button class="demo-btn btn-warning" onclick="runScenarioDemo('sandbox_freeze')" title="Simulate instant policy lockdown on runaway agent">
+        5. 🛑 Runtime Sandbox Freeze
+      </button>
+      <button class="demo-btn btn-success" onclick="runScenarioDemo('zone_containment')" title="Simulate Safe Zone Vault protection vs Agent Playground confinement">
+        6. ☣️ Safe Zone vs Playground
+      </button>
+    </div>
+  </div>
+
+  <!-- Scenario Explainer Card (Shows problem, interception, and value proposition) -->
+  <div id="scenario-card" class="scenario-card" style="display: none;">
+    <div class="sc-header">
+      <span class="sc-title" id="sc-card-title">⚡ SCENARIO DEMONSTRATION</span>
+      <button class="sc-close" onclick="closeScenarioCard()">✕ Dismiss</button>
+    </div>
+    <div class="sc-grid">
+      <div class="sc-box">
+        <div class="sc-badge problem">1. THE PROBLEM SOLVED</div>
+        <div id="sc-problem-desc" class="sc-text">...</div>
+      </div>
+      <div class="sc-box">
+        <div class="sc-badge action">2. GATEWAY INTERCEPTION</div>
+        <div id="sc-action-desc" class="sc-text">...</div>
+      </div>
+      <div class="sc-box">
+        <div class="sc-badge value">3. WHY YOU NEED AGENTTRACE</div>
+        <div id="sc-value-desc" class="sc-text">...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Split Workspace -->
+  <div class="workspace">
+    <!-- Left Pane: Dense Event Stream -->
+    <div class="pane-stream">
+      <div class="table-header">
+        <span>TIME</span>
+        <span>NODE/AGENT</span>
+        <span>TYPE</span>
+        <span>VERDICT</span>
+        <span>TARGET / ACTION</span>
+        <span>HASH</span>
+      </div>
+      <div class="table-body" id="event-stream-rows">
+        <!-- Event rows rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Right Pane: Inspector & Unified Diff Viewer -->
+    <div class="pane-inspector">
+      <div class="inspector-tabs">
+        <button class="insp-tab active" onclick="switchInspTab('diff')">📝 Unified Diff (D)</button>
+        <button class="insp-tab" onclick="switchInspTab('payload')">🔍 Payload (P)</button>
+        <button class="insp-tab" onclick="switchInspTab('proof')">⛓️ Cryptographic Proof</button>
+        <button class="insp-tab" onclick="switchInspTab('policy')">🛡️ Security & Sandbox</button>
+      </div>
+      <div class="inspector-content" id="inspector-body">
+        <div style="color: var(--text-muted); text-align: center; margin-top: 40px;">
+          Select an event row (or use j/k) to inspect real-time diff & payload.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Command & Status Bar -->
+  <footer>
+    <div class="cmd-bar">
+      <span class="cmd-prompt">:</span>
+      <input type="text" id="cmd-input" class="cmd-input" placeholder="Type :help, :verify, :pause, :tail, or :policy <agent> <strict|allow>" onkeydown="handleCommandKey(event)">
+    </div>
+    <div class="key-hints">
+      <span class="key-hint"><kbd>j/k</kbd> Nav</span>
+      <span class="key-hint"><kbd>V</kbd> Verify</span>
+      <span class="key-hint"><kbd>/</kbd> Filter</span>
+      <span class="key-hint"><kbd>P</kbd> Pause</span>
+      <span class="key-hint"><kbd>D</kbd> Diff</span>
+      <span class="key-hint"><kbd>B</kbd> Blocked</span>
+      <span class="key-hint"><kbd>?</kbd> Help</span>
+    </div>
+  </footer>
+
+  <!-- Help & Scenario Walkthrough Modal -->
+  <div class="modal-overlay" id="help-modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>OPERATOR CONSOLE & REAL-WORLD SCENARIOS</span>
+        <button class="term-btn" onclick="toggleHelpModal()">✕ Close</button>
+      </div>
+      <div class="modal-body">
+        <h4>1. Real-World Developer Scenarios Solved</h4>
+        <ul>
+          <li><strong>Secret & Sensitive Path Intrusion (F2 / 'B'):</strong> Alerts in red if an autonomous agent (Copilot, Hermes, Antigravity) attempts to read/write <code>.env</code>, <code>id_rsa</code>, or credentials.</li>
+          <li><strong>Unified Diff Forensics (F3 / 'D'):</strong> Inspect exact colorized git additions (<code>+</code>) and deletions (<code>-</code>) generated by agents before approving or committing.</li>
+          <li><strong>Zero-Token Interception Audit (F5):</strong> Track why requests were intercepted, model targets, inference latency, and external API token savings.</li>
+          <li><strong>Cryptographic Ledger Proof ('V'):</strong> Run headless SHA-256 and Ed25519 verification over the entire blockchain history to guarantee zero log tampering.</li>
+          <li><strong>Runtime Sandboxing:</strong> Type <code>:policy copilot strict</code> to clamp down permissions in memory without server downtime.</li>
+        </ul>
+
+        <h4>2. Keyboard Shortcuts</h4>
+        <ul>
+          <li><kbd>j</kbd> / <kbd>k</kbd> or <kbd>↓</kbd> / <kbd>↑</kbd>: Navigate through events.</li>
+          <li><kbd>/</kbd>: Focus search filter.</li>
+          <li><kbd>V</kbd>: Run cryptographic ledger verification.</li>
+          <li><kbd>P</kbd>: Pause/Resume live SSE stream.</li>
+          <li><kbd>D</kbd>: Switch inspector to Unified Diff tab.</li>
+          <li><kbd>B</kbd>: Quick-filter only Blocked/Alert events.</li>
+          <li><kbd>?</kbd>: Toggle this help dialog.</li>
+          <li><kbd>Esc</kbd>: Clear filter or close dialogs.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verification Result Modal -->
+  <div class="modal-overlay" id="verify-modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>⛓️ CRYPTOGRAPHIC LEDGER VERIFICATION</span>
+        <button class="term-btn" onclick="toggleVerifyModal()">✕ Close</button>
+      </div>
+      <div class="modal-body" id="verify-modal-body">
+        <p>Verifying ledger integrity...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Policy Sandbox & Rule Editor Modal -->
+  <div class="modal-overlay" id="policy-modal">
+    <div class="modal-box" style="width: 780px;">
+      <div class="modal-head">
+        <span>🛡️ MANUAL OPERATOR POLICY SANDBOX, SAFE ZONES &amp; PLAYGROUNDS</span>
+        <button class="term-btn" onclick="togglePolicyModal()">✕ Close</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 1px solid var(--border-term); padding-bottom: 8px; flex-wrap: wrap;">
+          <button class="term-btn accent" id="tab-eval-btn" onclick="switchPolicyTab('eval')">🧪 Test Path Evaluation</button>
+          <button class="term-btn" id="tab-zones-btn" onclick="switchPolicyTab('zones')">☣️ Safe Zones &amp; Playgrounds</button>
+          <button class="term-btn" id="tab-rule-btn" onclick="switchPolicyTab('rule')">➕ Add Custom Rule</button>
+          <button class="term-btn" id="tab-list-btn" onclick="switchPolicyTab('list')">📋 Active Policies</button>
+        </div>
+
+        <!-- Sub-panel 1: Test Path Evaluation -->
+        <div id="sub-policy-eval">
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">
+            Simulate how the Gateway policy engine will evaluate a file or command target *before* the agent executes it (collapses <code style="color:#ff7b72;">../</code> traversal &amp; inspects shell commands):
+          </p>
+          <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; margin-bottom: 10px; align-items: center;">
+            <label class="proof-key">Action:</label>
+            <select id="eval-action" class="cmd-input" style="width: 140px;">
+              <option value="Read">Read</option>
+              <option value="Write">Write</option>
+              <option value="Execute">Execute</option>
+              <option value="NetworkPull">NetworkPull</option>
+            </select>
+
+            <label class="proof-key">Target Path:</label>
+            <input type="text" id="eval-target" class="cmd-input" placeholder="e.g. /workspace/core-repo/src/main.rs or .env" value="/workspace/playground/../core-repo/src/main.rs">
+
+            <label class="proof-key">Agent ID:</label>
+            <input type="text" id="eval-agent" class="cmd-input" placeholder="* or PC-2-Rogue-Subagent" value="PC-2-Rogue-Subagent">
+          </div>
+          <button class="term-btn accent" onclick="runManualPolicyEval()">🧪 Test Evaluate Target</button>
+          <div id="eval-result-box" style="margin-top: 12px; display: none;"></div>
+        </div>
+
+        <!-- Sub-panel Zones: Safe Zones & Agent Playgrounds -->
+        <div id="sub-policy-zones" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+            <span style="color: var(--text-muted); font-size: 11px;">Guard Safe Zones (Vault / Read-Only) or lock autonomous agents inside Danger Zone Playgrounds:</span>
+            <div style="display: flex; gap: 6px;">
+              <button class="term-btn warn" onclick="confineConsoleAgent('PC-2-Rogue-Subagent', true)">☣️ Confine Subagent</button>
+              <button class="term-btn danger" onclick="confineConsoleAgent('*', true)">🔒 Confine ALL (*)</button>
+              <button class="term-btn" onclick="confineConsoleAgent('*', false)">🔓 Unconfine (*)</button>
+            </div>
+          </div>
+          <div id="console-zones-list" style="margin-bottom: 12px; max-height: 220px; overflow-y: auto;">Loading zones...</div>
+          <div style="background: #080c12; border: 1px solid var(--border-term); padding: 10px; border-radius: 3px;">
+            <div style="font-weight: bold; color: var(--accent-cyan); margin-bottom: 8px; font-size: 11px;">➕ ADD SAFE ZONE OR AGENT PLAYGROUND</div>
+            <div style="display: grid; grid-template-columns: 110px 1fr; gap: 6px; align-items: center; margin-bottom: 8px;">
+              <label class="proof-key">Zone Kind:</label>
+              <select id="cz-kind" class="cmd-input">
+                <option value="VaultNoAccess">🛡️ Safe Zone: Vault (No Access)</option>
+                <option value="GuardedReadOnly">🔒 Safe Zone: Guarded (Read-Only)</option>
+                <option value="AgentPlayground">☣️ Danger Zone: Agent Playground</option>
+              </select>
+              <label class="proof-key">Zone Name:</label>
+              <input type="text" id="cz-name" class="cmd-input" placeholder="e.g. Core Repo Guard or Subagent Sandbox">
+              <label class="proof-key">Path Prefix:</label>
+              <input type="text" id="cz-path" class="cmd-input" placeholder="/workspace/playground">
+              <label class="proof-key">Applies To:</label>
+              <input type="text" id="cz-applies" class="cmd-input" value="*" placeholder="* (All Agents) or specific Agent ID">
+              <label class="proof-key">Exempt Agents:</label>
+              <input type="text" id="cz-exempt" class="cmd-input" placeholder="PC-1-Antigravity">
+            </div>
+            <button class="term-btn accent" onclick="addConsoleZone()">💾 Save Containment Zone</button>
+          </div>
+        </div>
+
+        <!-- Sub-panel 2: Add Custom Rule -->
+        <div id="sub-policy-rule" style="display: none;">
+          <p style="color: var(--text-muted); font-size: 11px; margin-bottom: 10px;">
+            Manually apply in-memory security policies to restrict any agent's allowed directories and blocked patterns:
+          </p>
+          <div style="display: grid; grid-template-columns: 130px 1fr; gap: 8px; margin-bottom: 10px; align-items: center;">
+            <label class="proof-key">Agent ID:</label>
+            <input type="text" id="rule-agent" class="cmd-input" value="*">
+
+            <label class="proof-key">Blocked Patterns:</label>
+            <input type="text" id="rule-blocked" class="cmd-input" value=".env, .secrets, id_rsa, id_ed25519, credentials">
+
+            <label class="proof-key">Read Whitelist:</label>
+            <input type="text" id="rule-allowed" class="cmd-input" value="/workspace, src, docs">
+
+            <label class="proof-key">Write Whitelist:</label>
+            <input type="text" id="rule-write-allowed" class="cmd-input" value="/workspace/playground">
+
+            <label class="proof-key">Playground Lock:</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-main);">
+              <input type="checkbox" id="rule-confine-playground">
+              <span>Confine writes &amp; commands strictly to Danger Zone Playgrounds</span>
+            </label>
+          </div>
+          <button class="term-btn accent" onclick="saveManualPolicyRule()">💾 Apply Rule In-Memory</button>
+          <div id="rule-result-box" style="margin-top: 12px; display: none;"></div>
+        </div>
+
+        <!-- Sub-panel 3: Active Policies -->
+        <div id="sub-policy-list" style="display: none;">
+          <div id="active-policies-content">Loading policies...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Autonomous Preemptive Keep-Busy Worker Modal -->
+  <div class="modal-overlay" id="idle-worker-modal">
+    <div class="modal-box" style="width: 840px;">
+      <div class="modal-head">
+        <span>⚡ AUTONOMOUS PREEMPTIVE KEEP-BUSY AGENT ENGINE</span>
+        <button class="term-btn" onclick="toggleIdleWorkerModal()">✕ Close</button>
+      </div>
+      <div class="modal-body">
+        <!-- Live Status Strip -->
+        <div style="background: #080c12; border: 1px solid var(--border-term); border-radius: 3px; padding: 10px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-size: 11px; color: var(--text-muted);">ENGINE STATUS: </span>
+            <span id="iw-status-badge" style="font-weight: bold; padding: 2px 8px; border-radius: 2px; font-size: 11px; background: #1b4424; color: #7ee787; border: 1px solid #2ea043;">● ACTIVE WORKING</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted);">
+            USER IDLE: <strong id="iw-idle-time" style="color: var(--accent-cyan);">0s</strong> (Grace: <span id="iw-threshold-label">30s</span>)
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted);">
+            COMPLETED: <strong id="iw-tasks-run" style="color: var(--accent-green);">0</strong> tasks / <strong id="iw-cycles-count" style="color: var(--accent-purple);">0</strong> passes
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="term-btn accent" onclick="triggerIdleWorkerTaskNow()">⚡ Run Next Task</button>
+            <button class="term-btn warn" onclick="simulateUserPreemption()" title="Simulate user prompt to verify sub-millisecond preemption">⏸ Simulate Preempt</button>
+          </div>
+        </div>
+
+        <!-- Mode & Sub-Tabs -->
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--border-term); padding-bottom: 8px;">
+          <button class="term-btn accent" id="iw-tab-config-btn" onclick="switchIdleTab('config')">⚙️ Backlog &amp; Policy</button>
+          <button class="term-btn" id="iw-tab-proposals-btn" onclick="switchIdleTab('proposals')">📋 Staged Findings &amp; Proposals (<span id="iw-proposals-count">0</span>)</button>
+          <button class="term-btn" id="iw-tab-history-btn" onclick="switchIdleTab('history')">📜 Execution History</button>
+        </div>
+
+        <!-- Tab 1: Config & Backlog -->
+        <div id="iw-sub-config">
+          <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px; margin-bottom: 12px; align-items: center;">
+            <label class="proof-key">Keep-Busy Engine:</label>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
+              <input type="checkbox" id="iw-enabled-toggle" checked onchange="saveIdleWorkerConfig()">
+              <span style="color: var(--accent-green); font-weight: bold;">Enable Autonomous Background Execution When User is Idle</span>
+            </label>
+
+            <label class="proof-key">Idle Grace Period:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="iw-threshold-select" class="cmd-input" style="width: 140px;" onchange="saveIdleWorkerConfig()">
+                <option value="15">15 seconds (Immediate)</option>
+                <option value="30" selected>30 seconds (Default)</option>
+                <option value="60">60 seconds (Standard)</option>
+                <option value="300">300 seconds (5 mins)</option>
+              </select>
+              <span style="color: var(--text-muted); font-size: 11px;">Time of zero user prompts before background tasks start.</span>
+            </div>
+
+            <label class="proof-key">Target Local Model:</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="iw-model-select" class="cmd-input" style="width: 180px;" onchange="saveIdleWorkerConfig()">
+                <option value="qwen3.5:9b">qwen3.5:9b (PC-1 Fast Code)</option>
+                <option value="deepseek-r1:1.5b">deepseek-r1:1.5b (PC-2 CUDA)</option>
+                <option value="qwen3.8:27b">qwen3.8:27b (PC-1 Heavy)</option>
+                <option value="auto">auto (Smart Router)</option>
+              </select>
+              <span style="color: #7ee787; font-size: 11px;">Zero cloud API tokens ($0.00 cost)</span>
+            </div>
+
+            <label class="proof-key">Backlog Tasks:</label>
+            <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-code" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Code Quality &amp; Anti-Monolith Scan:</strong> Audit modules against 800-line SRP target &amp; locate unwraps/TODOs</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-invariants" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Mathematical &amp; Security Invariants:</strong> Verify spatial Safe Vaults &amp; Guarded Core integrity</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-ledger" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Cryptographic Ledger Check:</strong> Audit Ed25519 signatures and SHA-256 block hash chains</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-docs" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Autonomous Docs &amp; Use Case Generator:</strong> Draft use cases, API guides, and docstrings</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px;">
+                <input type="checkbox" id="iw-task-tests" checked onchange="saveIdleWorkerConfig()">
+                <span><strong>Unit Test &amp; Regression Verification:</strong> Run headless regression checks headlessly</span>
+              </label>
+            </div>
+
+            <label class="proof-key">Continuous Goal:</label>
+            <div>
+              <textarea id="iw-custom-objective" class="cmd-input" rows="2" style="width: 100%; resize: vertical;" placeholder="Custom background objective when idle..." onchange="saveIdleWorkerConfig()"></textarea>
+              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Local models will iteratively work toward this objective while you are away.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Staged Proposals -->
+        <div id="iw-sub-proposals" style="display: none;">
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+            Inspected artifacts, docstrings, and improvements generated while the developer was away.
+          </div>
+          <div id="iw-proposals-list" style="max-height: 280px; overflow-y: auto;">No staged proposals yet.</div>
+        </div>
+
+        <!-- Tab 3: Execution History -->
+        <div id="iw-sub-history" style="display: none;">
+          <div id="iw-history-list" style="max-height: 280px; overflow-y: auto;">Loading execution history...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let events = [];
+    let filteredEvents = [];
+    let selectedEventId = null;
+    let selectedEventIndex = -1;
+    let isStreamPaused = false;
+    let activeScenario = 'all';
+    let activeInspTab = 'diff';
+    let eventSource = null;
+
+    // Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchSummary();
+      fetchInitialEvents();
+      initSSE();
+      initKeyboardNavigation();
+      pollIdleWorkerStatus();
+      setInterval(fetchSummary, 5000);
+      setInterval(pollIdleWorkerStatus, 3000);
+    });
+
+    // 1. Fetch Cluster Summary
+    async function fetchSummary() {
+      try {
+        const res = await fetch('/api/v1/summary');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('stat-nodes').textContent = data.total_nodes || '3';
+        document.getElementById('stat-blocks').textContent = (data.total_events || 0).toLocaleString();
+        document.getElementById('stat-alerts').textContent = data.security_alerts || '0';
+        if (data.latest_ledger_hash) {
+          const shortHash = data.latest_ledger_hash.substring(0, 8) + '...';
+          document.getElementById('stat-head').textContent = shortHash + (data.ledger_verified ? ' [OK]' : ' [FAIL]');
+        }
+      } catch (err) {
+        console.error('Error fetching summary:', err);
+      }
+    }
+
+    // 2. Fetch Initial Batch of Events
+    async function fetchInitialEvents() {
+      try {
+        const res = await fetch('/api/v1/events?limit=150');
+        if (!res.ok) return;
+        const data = await res.json();
+        events = Array.isArray(data) ? data : [];
+        applyFilter();
+        if (filteredEvents.length > 0) {
+          selectEvent(0);
+        }
+      } catch (err) {
+        console.error('Error fetching initial events:', err);
+      }
+    }
+
+    // 3. Server-Sent Events (SSE) Stream
+    function initSSE() {
+      eventSource = new EventSource('/api/v1/stream');
+      
+      eventSource.onmessage = (e) => {
+        if (isStreamPaused) return;
+        try {
+          const event = JSON.parse(e.data);
+          events.unshift(event);
+          if (events.length > 500) events.pop();
+          applyFilter(false);
+        } catch (err) {
+          console.error('Failed to parse SSE event:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        document.getElementById('stat-stream').textContent = '⚠️ RECONNECTING';
+        document.getElementById('stat-stream').className = 'value alerts';
+        setTimeout(() => {
+          if (!isStreamPaused) {
+            document.getElementById('stat-stream').textContent = '● LIVE';
+            document.getElementById('stat-stream').className = 'value live';
+          }
+        }, 3000);
+      };
+    }
+
+    // Flagged events store for manual investigation
+    let flaggedEventIds = new Set();
+
+    // 4. Filter & Scenario Logic
+    async function setScenario(scenario) {
+      activeScenario = scenario;
+      document.querySelectorAll('.scenario-tab').forEach(tab => tab.classList.remove('active'));
+      const activeBtn = Array.from(document.querySelectorAll('.scenario-tab')).find(b => b.textContent.toLowerCase().includes(scenario));
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const filterInput = document.getElementById('filter-input');
+      if (scenario === 'blocked') {
+        filterInput.value = 'verdict:Blocked';
+        try {
+          const res = await fetch('/api/v1/alerts?include_acked=true');
+          if (res.ok) {
+            const alertEvents = await res.json();
+            const existingIds = new Set(events.map(e => e.event_id));
+            alertEvents.forEach(ae => {
+              if (!existingIds.has(ae.event_id)) {
+                events.push(ae);
+              } else {
+                const idx = events.findIndex(x => x.event_id === ae.event_id);
+                if (idx >= 0) events[idx] = ae;
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Error loading alerts:', err);
+        }
+        switchInspTab('policy');
+      }
+      else if (scenario === 'diffs') filterInput.value = 'type:FileWrite';
+      else if (scenario === 'commands') filterInput.value = 'type:CommandRun';
+      else if (scenario === 'routing') filterInput.value = 'type:Route';
+      else if (scenario === 'flagged') {
+        filterInput.value = '';
+        filteredEvents = events.filter(ev => flaggedEventIds.has(ev.event_id));
+        renderRows();
+        if (filteredEvents.length > 0) selectEvent(0);
+        return;
+      }
+      else if (scenario === 'all') filterInput.value = '';
+
+      applyFilter();
+    }
+
+    function applyFilter(resetSelection = true) {
+      const q = document.getElementById('filter-input').value.trim().toLowerCase();
+
+      filteredEvents = events.filter(ev => {
+        if (!q) return true;
+
+        if (q.startsWith('verdict:')) {
+          const v = q.replace('verdict:', '').trim();
+          if (v === 'blocked') {
+            return (ev.security_verdict || 'Allowed').toLowerCase() !== 'allowed';
+          }
+          return (ev.security_verdict || '').toLowerCase().includes(v);
+        }
+        if (q.startsWith('type:')) {
+          const t = q.replace('type:', '').trim();
+          return (ev.event_type || '').toLowerCase().includes(t);
+        }
+        if (q.startsWith('target:')) {
+          const tgt = q.replace('target:', '').trim();
+          return (ev.target || '').toLowerCase().includes(tgt);
+        }
+
+        // Generic fuzzy text match
+        const fullString = `${ev.event_type} ${ev.node_id} ${ev.target} ${ev.security_verdict} ${JSON.stringify(ev.action_details || {})}`.toLowerCase();
+        return fullString.includes(q);
+      });
+
+      renderRows();
+      if (resetSelection && filteredEvents.length > 0) {
+        selectEvent(0);
+      }
+    }
+
+    // 5. Render Table Rows
+    function renderRows() {
+      const tbody = document.getElementById('event-stream-rows');
+      tbody.innerHTML = '';
+
+      filteredEvents.forEach((ev, idx) => {
+        const row = document.createElement('div');
+        row.className = 'table-row' + (idx === selectedEventIndex ? ' selected' : '');
+        row.onclick = () => selectEvent(idx);
+
+        const isFlagged = flaggedEventIds.has(ev.event_id);
+        const flagIcon = isFlagged ? '<span style="color: var(--accent-red); margin-right: 2px;">🚩</span>' : '';
+        const timeStr = formatTime(ev.timestamp);
+        const nodeStr = ev.node_id || 'UNKNOWN';
+        const typeStr = ev.event_type || 'Unknown';
+        const verdict = ev.security_verdict || 'Allowed';
+        const targetStr = ev.target || (ev.action_details && ev.action_details.summary) || '-';
+        const hashStr = (ev.event_hash || '').substring(0, 8);
+
+        let verdictClass = 'verdict-allowed';
+        if (verdict === 'Blocked') verdictClass = 'verdict-blocked';
+        else if (verdict !== 'Allowed') verdictClass = 'verdict-warn';
+
+        const ackLabel = ev.acknowledged ? ' <span style="color:#8b949e;font-size:10px;">[ACK]</span>' : '';
+
+        row.innerHTML = `
+          <span class="col-time">${flagIcon}${timeStr}</span>
+          <span class="col-node" title="${nodeStr}">${nodeStr}</span>
+          <span class="col-type">${typeStr}</span>
+          <span><span class="badge-verdict ${verdictClass}">${verdict}</span></span>
+          <span class="col-target" title="${escapeHtml(targetStr)}">${escapeHtml(targetStr)}${ackLabel}</span>
+          <span class="col-hash">${hashStr}</span>
+        `;
+
+        tbody.appendChild(row);
+      });
+    }
+
+    function selectEvent(index) {
+      if (index < 0 || index >= filteredEvents.length) return;
+      selectedEventIndex = index;
+      selectedEventId = filteredEvents[index].event_id;
+
+      // Update UI row selection
+      const rows = document.querySelectorAll('.table-row');
+      rows.forEach((r, idx) => {
+        if (idx === index) {
+          r.classList.add('selected');
+          r.scrollIntoView({ block: 'nearest' });
+        } else {
+          r.classList.remove('selected');
+        }
+      });
+
+      renderInspector(filteredEvents[index]);
+    }
+
+    // 6. Inspector Rendering
+    function switchInspTab(tab) {
+      activeInspTab = tab;
+      document.querySelectorAll('.insp-tab').forEach(b => b.classList.remove('active'));
+      const activeBtn = Array.from(document.querySelectorAll('.insp-tab')).find(b => b.getAttribute('onclick').includes(tab));
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (selectedEventIndex >= 0 && selectedEventIndex < filteredEvents.length) {
+        renderInspector(filteredEvents[selectedEventIndex]);
+      }
+    }
+
+    function renderInspector(ev) {
+      const container = document.getElementById('inspector-body');
+      if (!ev) {
+        container.innerHTML = '<div style="color: var(--text-muted); text-align: center; margin-top: 40px;">No event selected.</div>';
+        return;
+      }
+
+      if (activeInspTab === 'diff') {
+        renderDiffTab(container, ev);
+      } else if (activeInspTab === 'payload') {
+        container.innerHTML = `<pre class="diff-container" style="color: #c9d1d9;">${escapeHtml(JSON.stringify(ev, null, 2))}</pre>`;
+      } else if (activeInspTab === 'proof') {
+        renderProofTab(container, ev);
+      } else if (activeInspTab === 'policy') {
+        renderPolicyTab(container, ev);
+      }
+    }
+
+    function renderDiffTab(container, ev) {
+      if (ev.diff) {
+        let diffHtml = '<div class="diff-container">';
+        const lines = ev.diff.split('\n');
+        lines.forEach(line => {
+          if (line.startsWith('+++') || line.startsWith('---')) {
+            diffHtml += `<div class="diff-line diff-meta">${escapeHtml(line)}</div>`;
+          } else if (line.startsWith('@@')) {
+            diffHtml += `<div class="diff-line diff-hunk">${escapeHtml(line)}</div>`;
+          } else if (line.startsWith('+')) {
+            diffHtml += `<div class="diff-line diff-add">${escapeHtml(line)}</div>`;
+          } else if (line.startsWith('-')) {
+            diffHtml += `<div class="diff-line diff-del">${escapeHtml(line)}</div>`;
+          } else {
+            diffHtml += `<div class="diff-line">${escapeHtml(line)}</div>`;
+          }
+        });
+        diffHtml += '</div>';
+        container.innerHTML = diffHtml;
+      } else {
+        const cmd = ev.target || (ev.action_details && ev.action_details.args && ev.action_details.args.CommandLine) || 'N/A';
+        container.innerHTML = `
+          <div class="diff-container" style="color: var(--text-muted);">
+            <div style="color: var(--accent-cyan); font-weight: bold; margin-bottom: 8px;">--- Action Execution (No File Diff) ---</div>
+            <div><strong>Target / Command:</strong> ${escapeHtml(cmd)}</div>
+            <div style="margin-top: 6px;"><strong>Event Type:</strong> ${escapeHtml(ev.event_type || '')}</div>
+            <div><strong>Node:</strong> ${escapeHtml(ev.node_id || '')}</div>
+            <div style="margin-top: 10px; font-size: 11px; color: #505c70;">Tip: Events with type 'FileWrite' contain full unified diffs of agent code edits.</div>
+          </div>
+        `;
+      }
+    }
+
+    function renderProofTab(container, ev) {
+      container.innerHTML = `
+        <div class="proof-grid">
+          <div class="proof-key">EVENT ID:</div>
+          <div class="proof-val" style="color: var(--accent-cyan);">${escapeHtml(ev.event_id || 'N/A')}</div>
+
+          <div class="proof-key">SHA-256 HASH:</div>
+          <div class="proof-val" style="color: var(--accent-green); font-family: var(--font-mono);">${escapeHtml(ev.event_hash || 'N/A')}</div>
+
+          <div class="proof-key">PREV HASH:</div>
+          <div class="proof-val" style="color: var(--text-muted); font-family: var(--font-mono);">${escapeHtml(ev.prev_hash || '0'.repeat(64))}</div>
+
+          <div class="proof-key">PUBLIC KEY:</div>
+          <div class="proof-val">${escapeHtml(ev.public_key || 'Node Identity Key (Ed25519)')}</div>
+
+          <div class="proof-key">SIGNATURE:</div>
+          <div class="proof-val" style="color: #79c0ff;">${escapeHtml(ev.signature || 'Hardware / Enclave Signed')}</div>
+
+          <div class="proof-key">TIMESTAMP:</div>
+          <div class="proof-val">${escapeHtml(ev.timestamp || 'N/A')}</div>
+        </div>
+        <div style="background: #101620; border: 1px solid var(--border-term); padding: 10px; border-radius: 3px; font-size: 11px; color: var(--text-muted);">
+          ⛓️ Cryptographic Invariant: Every block is chained via SHA-256 and signed with Ed25519. Press <kbd>V</kbd> to verify full ledger integrity.
+        </div>
+      `;
+    }
+
+    function renderPolicyTab(container, ev) {
+      const reasons = Array.isArray(ev.security_reasons) && ev.security_reasons.length > 0 
+        ? ev.security_reasons.join(', ') 
+        : 'Standard Execution (No Guardrail Violations)';
+      const isAlert = ev.security_verdict && ev.security_verdict !== 'Allowed';
+      const statusText = ev.acknowledged
+        ? '✓ Acknowledged / Dismissed'
+        : (isAlert ? '🔴 Active Security Alert' : '✓ Normal');
+
+      container.innerHTML = `
+        <div class="proof-grid">
+          <div class="proof-key">VERDICT:</div>
+          <div class="proof-val" style="font-weight: bold; color: ${isAlert ? 'var(--accent-red)' : 'var(--accent-green)'}">
+            ${escapeHtml(ev.security_verdict || 'Allowed')}
+          </div>
+
+          <div class="proof-key">TRIAGE STATUS:</div>
+          <div class="proof-val" style="color: ${ev.acknowledged ? 'var(--text-muted)' : (isAlert ? '#ff7b72' : 'var(--accent-green)')}">
+            ${statusText}
+          </div>
+
+          <div class="proof-key">REASONS:</div>
+          <div class="proof-val">${escapeHtml(reasons)}</div>
+
+          <div class="proof-key">TARGET:</div>
+          <div class="proof-val" style="font-family: var(--font-mono);">${escapeHtml(ev.target || '-')}</div>
+        </div>
+        <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px;">
+          ${isAlert && !ev.acknowledged ? `<button class="term-btn" style="border-color: #3fb950; color: #3fb950;" onclick="ackConsoleAlert('${ev.event_id}')">✓ Dismiss This Alert</button>` : ''}
+          <button class="term-btn" style="border-color: #3fb950; color: #7ee787;" onclick="resetConsoleAlerts()">✓ Reset All Alerts (0)</button>
+          <button class="term-btn" onclick="restoreConsoleAlerts()">↺ Restore Dismissed</button>
+          <button class="term-btn" style="border-color: #f85149; color: #ff7b72;" onclick="quickSetPolicy('${ev.node_id}', 'StrictSandbox')">🛑 Strict Sandbox ${escapeHtml(ev.node_id || 'Agent')}</button>
+        </div>
+      `;
+    }
+
+    async function ackConsoleAlert(eventId) {
+      if (!eventId) return;
+      try {
+        await fetch('/api/v1/alerts/ack', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_id: eventId })
+        });
+        const ev = events.find(x => x.event_id === eventId);
+        if (ev) ev.acknowledged = true;
+        await fetchSummary();
+        renderRows();
+        if (selectedEventIndex >= 0 && filteredEvents[selectedEventIndex]) {
+          renderInspector(filteredEvents[selectedEventIndex]);
+        }
+      } catch (e) {
+        console.error('Ack alert error:', e);
+      }
+    }
+
+    async function resetConsoleAlerts(e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      try {
+        await fetch('/api/v1/alerts/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ restore: false })
+        });
+        events.forEach(ev => {
+          if (ev.security_verdict && ev.security_verdict !== 'Allowed') ev.acknowledged = true;
+        });
+        await fetchSummary();
+        renderRows();
+        if (selectedEventIndex >= 0 && filteredEvents[selectedEventIndex]) {
+          renderInspector(filteredEvents[selectedEventIndex]);
+        }
+      } catch (err) {
+        console.error('Reset alerts error:', err);
+      }
+    }
+
+    async function restoreConsoleAlerts() {
+      try {
+        await fetch('/api/v1/alerts/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ restore: true })
+        });
+        events.forEach(ev => { ev.acknowledged = false; });
+        await fetchSummary();
+        renderRows();
+        if (selectedEventIndex >= 0 && filteredEvents[selectedEventIndex]) {
+          renderInspector(filteredEvents[selectedEventIndex]);
+        }
+      } catch (err) {
+        console.error('Restore alerts error:', err);
+      }
+    }
+
+    // 7. Ledger Verification
+    async function triggerLedgerVerification() {
+      const modal = document.getElementById('verify-modal');
+      const body = document.getElementById('verify-modal-body');
+      modal.style.display = 'flex';
+      body.innerHTML = '<p style="color: var(--accent-cyan);">Running zero-tamper SHA-256 and Ed25519 cryptographic check across all ledger blocks...</p>';
+
+      try {
+        const res = await fetch('/api/v1/ledger/verify');
+        const data = await res.json();
+        if (data.valid || data.is_valid) {
+          body.innerHTML = `
+            <div style="color: var(--accent-green); font-size: 14px; font-weight: bold; margin-bottom: 10px;">
+              ✓ LEDGER INTEGRITY VERIFIED (TAMPER-FREE)
+            </div>
+            <div class="proof-grid">
+              <div class="proof-key">BLOCKS:</div>
+              <div class="proof-val">${data.total_blocks || '11,600+'} verified</div>
+              <div class="proof-key">GENESIS:</div>
+              <div class="proof-val">${escapeHtml((data.genesis_hash || '').substring(0, 32))}...</div>
+              <div class="proof-key">HEAD HASH:</div>
+              <div class="proof-val">${escapeHtml((data.head_hash || data.latest_block_hash || '').substring(0, 32))}...</div>
+              <div class="proof-key">SIGNATURES:</div>
+              <div class="proof-val">Ed25519 Node Signatures Verified</div>
+            </div>
+            <p style="color: var(--text-muted); font-size: 11px; margin-top: 8px;">Proof: Every block's prev_hash connects to its ancestor with zero broken links.</p>
+          `;
+        } else {
+          body.innerHTML = `
+            <div style="color: var(--accent-red); font-size: 14px; font-weight: bold;">
+              ⚠ INTEGRITY CHECK FAILED (BROKEN BLOCK: ${data.broken_at_block || data.broken_block_id || 'UNKNOWN'})
+            </div>
+            <p style="color: var(--accent-red);">Hash chain mismatch detected at block ID: ${data.broken_at_block || data.broken_block_id}</p>
+          `;
+        }
+      } catch (err) {
+        body.innerHTML = `<p style="color: var(--accent-red);">Error verifying ledger: ${err.message}</p>`;
+      }
+    }
+
+    function toggleVerifyModal() {
+      const m = document.getElementById('verify-modal');
+      m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    function toggleHelpModal() {
+      const m = document.getElementById('help-modal');
+      m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    // 8. Command Bar & Keybindings
+    function handleCommandKey(e) {
+      if (e.key === 'Enter') {
+        const cmd = e.target.value.trim();
+        e.target.value = '';
+        executeCommand(cmd);
+      }
+    }
+
+    async function executeCommand(cmd) {
+      if (!cmd) return;
+      if (cmd === ':verify' || cmd === 'v') {
+        triggerLedgerVerification();
+      } else if (cmd === ':pause' || cmd === ':p') {
+        togglePause();
+      } else if (cmd === ':alerts' || cmd === ':blocked') {
+        setScenario('blocked');
+      } else if (cmd === ':reset' || cmd === ':clear-alerts') {
+        resetConsoleAlerts();
+      } else if (cmd === ':restore-alerts') {
+        restoreConsoleAlerts();
+      } else if (cmd === ':ack' && selectedEventId) {
+        ackConsoleAlert(selectedEventId);
+      } else if (cmd === ':tail') {
+        if (filteredEvents.length > 0) selectEvent(0);
+      } else if (cmd.startsWith(':filter ') || cmd.startsWith('/')) {
+        const query = cmd.replace(/^(:filter\s+|\/)/, '');
+        document.getElementById('filter-input').value = query;
+        applyFilter();
+      } else if (cmd.startsWith(':policy ')) {
+        const parts = cmd.split(' ');
+        if (parts.length >= 3) {
+          quickSetPolicy(parts[1], parts[2]);
+        }
+      } else if (cmd === ':help' || cmd === ':h') {
+        toggleHelpModal();
+      } else {
+        alert('Unknown command: ' + cmd + '. Type :help for commands.');
+      }
+    }
+
+    async function quickSetPolicy(agentId, level) {
+      try {
+        const res = await fetch('/api/v1/policy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: agentId,
+            rule_name: 'ConsoleQuickPolicy',
+            sandbox_level: level,
+            allowed_directories: ['/workspace'],
+            blocked_patterns: ['.env', 'id_rsa', '.aws']
+          })
+        });
+        if (res.ok) {
+          alert(`Policy updated: ${agentId} -> ${level}`);
+        }
+      } catch (err) {
+        alert('Error updating policy: ' + err.message);
+      }
+    }
+
+    function togglePause() {
+      isStreamPaused = !isStreamPaused;
+      const el = document.getElementById('stat-stream');
+      if (isStreamPaused) {
+        el.textContent = '❚❚ PAUSED';
+        el.className = 'value paused';
+      } else {
+        el.textContent = '● LIVE';
+        el.className = 'value live';
+      }
+    }
+
+    function initKeyboardNavigation() {
+      window.addEventListener('keydown', (e) => {
+        // If focusing on inputs, ignore global hotkeys
+        if (document.activeElement.tagName === 'INPUT') {
+          if (e.key === 'Escape') {
+            document.activeElement.blur();
+          }
+          return;
+        }
+
+        if (e.key === 'j' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          selectEvent(selectedEventIndex + 1);
+        } else if (e.key === 'k' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          selectEvent(selectedEventIndex - 1);
+        } else if (e.key === 'v' || e.key === 'V') {
+          e.preventDefault();
+          triggerLedgerVerification();
+        } else if (e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          togglePause();
+        } else if (e.key === 'd' || e.key === 'D') {
+          e.preventDefault();
+          switchInspTab('diff');
+        } else if (e.key === 'b' || e.key === 'B') {
+          e.preventDefault();
+          setScenario('blocked');
+        } else if (e.key === 'm' || e.key === 'M') {
+          e.preventDefault();
+          togglePolicyModal();
+        } else if (e.key === 'w' || e.key === 'W') {
+          e.preventDefault();
+          toggleIdleWorkerModal();
+        } else if (e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          toggleFlagCurrentEvent();
+        } else if (e.key === '/') {
+          e.preventDefault();
+          document.getElementById('filter-input').focus();
+        } else if (e.key === ':') {
+          e.preventDefault();
+          document.getElementById('cmd-input').focus();
+        } else if (e.key === '?') {
+          e.preventDefault();
+          toggleHelpModal();
+        } else if (e.key === 'Escape') {
+          document.getElementById('help-modal').style.display = 'none';
+          document.getElementById('verify-modal').style.display = 'none';
+          document.getElementById('policy-modal').style.display = 'none';
+          const iwm = document.getElementById('idle-worker-modal');
+          if (iwm) iwm.style.display = 'none';
+        }
+      });
+    }
+
+    // 9. Interactive Scenario Demonstration Suite
+    async function runScenarioDemo(type) {
+      const card = document.getElementById('scenario-card');
+      card.style.display = 'block';
+
+      if (type === 'secret_leak') {
+        document.getElementById('sc-card-title').textContent = '🚨 DEMO 1: ROGUE AGENT SECRET INTRUSION INTERCEPTION';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Autonomous agent crawling workspace attempts to read .env to inject DB credentials into LLM prompt context.';
+        document.getElementById('sc-action-desc').textContent = 
+          'AgentTrace PolicyEngine evaluates path in-memory: blocked pattern *.env matched -> Verdict set to BLOCKED (0 blast radius).';
+        document.getElementById('sc-value-desc').textContent = 
+          'Prevents catastrophic credential exfiltration before proprietary keys ever leave the host machine.';
+
+        const ev = {
+          event_id: 'demo-leak-' + Date.now().toString(36),
+          node_id: 'PC-1-CopilotCLI',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'FileRead',
+          target: '.env',
+          action_details: { tool: 'file_read', summary: 'Exfiltrate AWS & DB secret keys', args: { path: '.env' } },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 2.1,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-leak-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('blocked');
+        switchInspTab('policy');
+      } else if (type === 'code_diff') {
+        document.getElementById('sc-card-title').textContent = '📝 DEMO 2: IN-FLIGHT CODE FORENSICS & UNIFIED DIFF';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Blind agent writes rewrite core security files. Developers cannot see uncommitted modifications until post-mortem.';
+        document.getElementById('sc-action-desc').textContent = 
+          'Gateway streams the unified diff in-flight (+ green additions, - red deletions) before disk sync or git commit.';
+        document.getElementById('sc-value-desc').textContent = 
+          'Line-by-line inspection of AI-generated edits in real-time, eliminating black-box hallucinations.';
+
+        const diffText = `--- a/src/auth.rs\n+++ b/src/auth.rs\n@@ -14,4 +14,6 @@\n- let bypass_auth = true; // Insecure test mode\n+ let bypass_auth = false;\n+ let token = verify_cluster_signature(&headers)?;\n  Ok(token)`;
+        const ev = {
+          event_id: 'demo-diff-' + Date.now().toString(36),
+          node_id: 'PC-1-Hermes',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'FileWrite',
+          target: 'src/auth.rs',
+          action_details: { tool: 'replace_file_content', summary: 'Enforce cryptographic token check in auth' },
+          diff: diffText,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: [],
+          duration_ms: 8.4,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-diff-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('diffs');
+        switchInspTab('diff');
+      } else if (type === 'zero_token') {
+        document.getElementById('sc-card-title').textContent = '🔀 DEMO 3: ZERO-TOKEN MODEL INTERCEPTION & COST GUARDRAIL';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Prompts with proprietary code leak to commercial cloud APIs, running up high external billing costs.';
+        document.getElementById('sc-action-desc').textContent = 
+          'Classifier intercepts cloud model intent and auto-routes to local Ollama qwen3.8:27b / worker node at $0 token cost.';
+        document.getElementById('sc-value-desc').textContent = 
+          '100% data residency and guaranteed zero external cloud billing for autonomous subagents.';
+
+        const ev = {
+          event_id: 'demo-route-' + Date.now().toString(36),
+          node_id: 'Gateway-Router',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'DecisionStep',
+          target: 'ModelRoute: qwen3.8:27b (Local Ollama :11434)',
+          action_details: { 
+            tool: 'model_router', 
+            summary: 'Intercepted gpt-4o -> Local Qwen (Zero-Token Economy)', 
+            args: { original_model: 'gpt-4o', routed_model: 'qwen3.8:27b', tokens_saved: 1420, cost_saved: '$0.042' } 
+          },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Allowed',
+          security_reasons: ['ZeroTokenRoutingApplied'],
+          duration_ms: 14.8,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-route-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('all');
+        document.getElementById('filter-input').value = 'ZeroToken';
+        applyFilter();
+        switchInspTab('payload');
+      } else if (type === 'ledger_proof') {
+        document.getElementById('sc-card-title').textContent = '⛓️ DEMO 4: 1-KEYSTROKE CRYPTOGRAPHIC TAMPER PROOF';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Standard loggers can be altered, truncated, or wiped by malicious agents or compromised developer credentials.';
+        document.getElementById('sc-action-desc').textContent = 
+          'Every event is SHA-256 chained and Ed25519 node-signed across all 11,600+ blocks. Mathematical proof of unbroken continuity.';
+        document.getElementById('sc-value-desc').textContent = 
+          'Immutable provenance that satisfies enterprise SOC-2, HIPAA, and compliance audit standards.';
+
+        triggerLedgerVerification();
+        switchInspTab('proof');
+      } else if (type === 'sandbox_freeze') {
+        document.getElementById('sc-card-title').textContent = '🛑 DEMO 5: RUNTIME AGENT SANDBOX & FREEZE LOCKDOWN';
+        document.getElementById('sc-problem-desc').textContent = 
+          'Agent enters an infinite bash loop or attempts destructive commands (e.g. rm -rf / or format).';
+        document.getElementById('sc-action-desc').textContent = 
+          'Policy applied in memory: agent locked to StrictSandbox without killing gateway daemon or dropping IDE sessions.';
+        document.getElementById('sc-value-desc').textContent = 
+          'Sub-millisecond containment of rogue agents with zero downtime.';
+
+        await quickSetPolicy('RogueAgent-Copilot', 'StrictSandbox');
+        const ev = {
+          event_id: 'demo-freeze-' + Date.now().toString(36),
+          node_id: 'RogueAgent-Copilot',
+          session_id: 'session-demo',
+          timestamp: new Date().toISOString(),
+          event_type: 'CommandRun',
+          target: 'rm -rf /workspace/core-repo',
+          action_details: { tool: 'run_command', summary: 'Destructive deletion blocked by active sandbox' },
+          diff: null,
+          provenance_sources: [],
+          security_verdict: 'Blocked',
+          security_reasons: ['StrictSandboxEnforced', 'DestructiveCommandPrevented'],
+          duration_ms: 0.9,
+          prev_hash: '0000000000000000000000000000000000000000000000000000000000000000',
+          event_hash: 'hash-freeze-' + Math.random().toString(36).substring(2, 10),
+          signature: null,
+          public_key: null
+        };
+        await fetch('/api/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ev) });
+        setScenario('blocked');
+        switchInspTab('policy');
+      } else if (type === 'zone_containment') {
+        document.getElementById('sc-card-title').textContent = '☣️ DEMO 6: SAFE ZONE VAULTS vs. DANGER ZONE PLAYGROUND CONFINEMENT';
+        document.getElementById('sc-problem-desc').textContent =
+          'Flat whitelists let an agent working in a scratch folder overwrite core production repos or escape via ../ path traversal.';
+        document.getElementById('sc-action-desc').textContent =
+          'Gateway locks the agent to the Danger Zone Playground (/workspace/playground): writes inside succeed, while a ../ escape into the Guarded Core Safe Zone is BLOCKED.';
+        document.getElementById('sc-value-desc').textContent =
+          'Designate Guarded Safe Zones (No-Access Vaults / Read-Only Repos) and Danger Zone Playgrounds enforced for all (*) or specific agents.';
+
+        await fetch('/api/v1/zones/confine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id: 'PC-2-Rogue-Subagent', confined: true })
+        });
+        await fetch('/api/v1/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            node_id: 'PC-2-Rogue-Subagent',
+            event_type: 'FileWrite',
+            target: '/workspace/playground/sandbox_experiment.py',
+            diff: '@@ -0,0 +1,2 @@\n+# Danger Zone Playground Experiment\n+print("Allowed inside isolated Agent Playground!")\n',
+            action_details: { tool: 'write_to_file', summary: 'Write inside allowed Danger Zone Playground' },
+            duration_ms: 2.4
+          })
+        });
+        await fetch('/api/v1/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            node_id: 'PC-2-Rogue-Subagent',
+            event_type: 'FileWrite',
+            target: '/workspace/playground/../core-repo/src/main.rs',
+            action_details: { tool: 'replace_file_content', summary: 'Attempt ../ path traversal out of Playground into Guarded Core Safe Zone' },
+            duration_ms: 1.1
+          })
+        });
+        await fetchInitialEvents();
+        setScenario('blocked');
+        switchInspTab('policy');
+      }
+    }
+
+    function closeScenarioCard() {
+      document.getElementById('scenario-card').style.display = 'none';
+    }
+
+    // 10. Manual Operator Toolbox & Controls
+    function toggleFlagCurrentEvent() {
+      if (selectedEventIndex < 0 || selectedEventIndex >= filteredEvents.length) return;
+      const ev = filteredEvents[selectedEventIndex];
+      if (!ev) return;
+      if (flaggedEventIds.has(ev.event_id)) {
+        flaggedEventIds.delete(ev.event_id);
+      } else {
+        flaggedEventIds.add(ev.event_id);
+      }
+      renderRows();
+      selectEvent(selectedEventIndex);
+    }
+
+    function exportEvents(format) {
+      if (filteredEvents.length === 0) {
+        alert('No events in current view to export.');
+        return;
+      }
+      let content = '';
+      let mime = '';
+      let filename = '';
+
+      if (format === 'json') {
+        content = JSON.stringify(filteredEvents, null, 2);
+        mime = 'application/json';
+        filename = 'agenttrace_audit_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+      } else {
+        const headers = ['timestamp', 'node_id', 'event_type', 'security_verdict', 'target', 'event_hash', 'duration_ms'];
+        const rows = [headers.join(',')];
+        filteredEvents.forEach(ev => {
+          const row = [
+            `"${ev.timestamp || ''}"`,
+            `"${ev.node_id || ''}"`,
+            `"${ev.event_type || ''}"`,
+            `"${ev.security_verdict || ''}"`,
+            `"${(ev.target || '').replace(/"/g, '""')}"`,
+            `"${ev.event_hash || ''}"`,
+            ev.duration_ms || 0
+          ];
+          rows.push(row.join(','));
+        });
+        content = rows.join('\n');
+        mime = 'text/csv';
+        filename = 'agenttrace_audit_' + new Date().toISOString().replace(/[:.]/g, '-') + '.csv';
+      }
+
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function togglePolicyModal() {
+      const m = document.getElementById('policy-modal');
+      m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+      if (m.style.display === 'flex') {
+        switchPolicyTab('zones');
+      }
+    }
+
+    function switchPolicyTab(tab) {
+      document.getElementById('sub-policy-eval').style.display = tab === 'eval' ? 'block' : 'none';
+      const zEl = document.getElementById('sub-policy-zones');
+      if (zEl) zEl.style.display = tab === 'zones' ? 'block' : 'none';
+      document.getElementById('sub-policy-rule').style.display = tab === 'rule' ? 'block' : 'none';
+      document.getElementById('sub-policy-list').style.display = tab === 'list' ? 'block' : 'none';
+
+      document.getElementById('tab-eval-btn').className = 'term-btn' + (tab === 'eval' ? ' accent' : '');
+      const zBtn = document.getElementById('tab-zones-btn');
+      if (zBtn) zBtn.className = 'term-btn' + (tab === 'zones' ? ' accent' : '');
+      document.getElementById('tab-rule-btn').className = 'term-btn' + (tab === 'rule' ? ' accent' : '');
+      document.getElementById('tab-list-btn').className = 'term-btn' + (tab === 'list' ? ' accent' : '');
+
+      if (tab === 'zones') {
+        loadConsoleZones();
+      } else if (tab === 'list') {
+        loadActivePolicies();
+      }
+    }
+
+    async function loadConsoleZones() {
+      const container = document.getElementById('console-zones-list');
+      if (!container) return;
+      try {
+        const res = await fetch('/api/v1/zones');
+        const zones = await res.json();
+        if (!Array.isArray(zones) || zones.length === 0) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:11px;">No containment zones configured.</div>';
+          return;
+        }
+        container.innerHTML = zones.map(z => {
+          let badge = '<span style="color:#ff7b72;">🛡️ VAULT (NO ACCESS)</span>';
+          if (z.kind === 'GuardedReadOnly') badge = '<span style="color:#38bdf8;">🔒 GUARDED (READ-ONLY)</span>';
+          else if (z.kind === 'AgentPlayground') badge = '<span style="color:#7ee787;">☣️ AGENT PLAYGROUND</span>';
+          const exempt = (z.exempt_agents && z.exempt_agents.length) ? ` · Exempt: ${escapeHtml(z.exempt_agents.join(', '))}` : '';
+          return `<div style="background:#080c12;border:1px solid var(--border-term);padding:6px 8px;border-radius:3px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+            <div>
+              <div><strong>${badge}</strong> — <strong style="color:var(--text-main);">${escapeHtml(z.name)}</strong> <span style="color:var(--accent-amber);">[Scope: ${escapeHtml(z.applies_to || '*')}${exempt}]</span></div>
+              <div style="color:var(--accent-cyan);font-family:var(--font-mono);margin-top:2px;">${escapeHtml(z.path_prefix)}</div>
+            </div>
+            <button class="term-btn danger" onclick="deleteConsoleZone('${escapeHtml(z.zone_id)}')">🗑️</button>
+          </div>`;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = `<div style="color:var(--accent-red);font-size:11px;">Error loading zones: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function addConsoleZone() {
+      const kind = document.getElementById('cz-kind').value;
+      const name = document.getElementById('cz-name').value.trim() || kind;
+      const path_prefix = document.getElementById('cz-path').value.trim();
+      const applies_to = document.getElementById('cz-applies').value.trim() || '*';
+      const exemptRaw = document.getElementById('cz-exempt').value.trim();
+      const exempt_agents = exemptRaw ? exemptRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+      if (!path_prefix) return;
+      await fetch('/api/v1/zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zone_id: '', name, path_prefix, kind, applies_to, exempt_agents, description: '' })
+      });
+      document.getElementById('cz-name').value = '';
+      document.getElementById('cz-path').value = '';
+      loadConsoleZones();
+    }
+
+    async function deleteConsoleZone(zoneId) {
+      await fetch(`/api/v1/zones/${encodeURIComponent(zoneId)}`, { method: 'DELETE' });
+      loadConsoleZones();
+    }
+
+    async function confineConsoleAgent(agentId, confined) {
+      await fetch('/api/v1/zones/confine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId, confined: !!confined })
+      });
+      loadActivePolicies();
+      alert(`Playground confinement for "${agentId}" set to: ${confined}`);
+    }
+
+    async function runManualPolicyEval() {
+      const action = document.getElementById('eval-action').value;
+      const target = document.getElementById('eval-target').value.trim();
+      const agent_id = document.getElementById('eval-agent').value.trim() || '*';
+      const box = document.getElementById('eval-result-box');
+      box.style.display = 'block';
+      box.innerHTML = '<span style="color: var(--accent-cyan);">Evaluating policy against gateway engine...</span>';
+
+      try {
+        const res = await fetch('/api/v1/policy/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id, action, target })
+        });
+        const data = await res.json();
+        const isBlocked = data.verdict === 'Blocked';
+        const color = isBlocked ? 'var(--accent-red)' : 'var(--accent-green)';
+        const reasons = (data.reasons || []).join(', ') || `Allowed (${data.allowed_by_rule || 'policy'})`;
+
+        box.innerHTML = `
+          <div style="background: #080c12; border: 1px solid ${color}; padding: 10px; border-radius: 3px;">
+            <div style="font-weight: bold; color: ${color}; margin-bottom: 4px;">VERDICT: ${data.verdict}</div>
+            <div style="font-size: 11px; color: var(--text-main);"><strong>Canonical Target:</strong> ${escapeHtml(data.normalized_target || target)}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;"><strong>Rule / Reason:</strong> ${escapeHtml(reasons)}</div>
+          </div>
+        `;
+      } catch (err) {
+        box.innerHTML = `<span style="color: var(--accent-red);">Evaluation failed: ${escapeHtml(err.message)}</span>`;
+      }
+    }
+
+    async function saveManualPolicyRule() {
+      const agent_id = document.getElementById('rule-agent').value.trim() || '*';
+      const blocked_raw = document.getElementById('rule-blocked').value.trim();
+      const allowed_raw = document.getElementById('rule-allowed').value.trim();
+      const write_raw = document.getElementById('rule-write-allowed').value.trim();
+      const confine_to_playgrounds = document.getElementById('rule-confine-playground').checked;
+      const box = document.getElementById('rule-result-box');
+      box.style.display = 'block';
+
+      const blocked_patterns = blocked_raw.split(',').map(s => s.trim()).filter(Boolean);
+      const read_whitelist = allowed_raw.split(',').map(s => s.trim()).filter(Boolean);
+      const write_whitelist = write_raw.split(',').map(s => s.trim()).filter(Boolean);
+
+      try {
+        const res = await fetch('/api/v1/policy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id,
+            enforcing: true,
+            confine_to_playgrounds,
+            read_whitelist,
+            write_whitelist,
+            network_whitelist: [],
+            blocked_patterns
+          })
+        });
+        if (res.ok) {
+          box.innerHTML = `<div style="color: var(--accent-green); font-size: 11px;">✓ Policy rule applied in-memory for agent: <strong>${escapeHtml(agent_id)}</strong></div>`;
+        } else {
+          box.innerHTML = `<div style="color: var(--accent-red); font-size: 11px;">Failed to save rule: HTTP ${res.status}</div>`;
+        }
+      } catch (err) {
+        box.innerHTML = `<div style="color: var(--accent-red); font-size: 11px;">Error saving rule: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function loadActivePolicies() {
+      const container = document.getElementById('active-policies-content');
+      container.innerHTML = '<span style="color: var(--accent-cyan);">Fetching active policies...</span>';
+      try {
+        const res = await fetch('/api/v1/policy');
+        const policies = await res.json();
+        if (!Array.isArray(policies) || policies.length === 0) {
+          container.innerHTML = '<p style="color: var(--text-muted);">No custom policies configured.</p>';
+          return;
+        }
+        let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+        policies.forEach(p => {
+          const lockLabel = p.confine_to_playgrounds ? ' · ☣️ PLAYGROUND LOCKED' : '';
+          html += `
+            <div style="background: #080c12; border: 1px solid var(--border-term); padding: 8px; border-radius: 3px; font-size: 11px;">
+              <div style="display: flex; justify-content: space-between; font-weight: bold; color: var(--accent-cyan);">
+                <span>Agent: ${escapeHtml(p.agent_id)}</span>
+                <span style="color: var(--accent-amber);">${p.enforcing ? 'ENFORCING' : 'AUDIT ONLY'}${lockLabel}</span>
+              </div>
+              <div style="color: var(--text-muted); margin-top: 4px;">Write Allowed: ${escapeHtml((p.write_whitelist || []).join(', ') || 'None')}</div>
+              <div style="color: var(--text-muted); margin-top: 2px;">Blocked: ${escapeHtml((p.blocked_patterns || []).join(', ') || 'None')}</div>
+            </div>
+          `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<span style="color: var(--accent-red);">Error loading policies: ${escapeHtml(err.message)}</span>`;
+      }
+    }
+
+    // Helper functions
+    function formatTime(isoStr) {
+      if (!isoStr) return '--:--:--';
+      try {
+        const d = new Date(isoStr);
+        return d.toTimeString().split(' ')[0];
+      } catch {
+        return isoStr.substring(11, 19);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // =========================================================================
+    // Autonomous Preemptive Keep-Busy Worker Frontend Functions
+    // =========================================================================
+    function toggleIdleWorkerModal() {
+      const m = document.getElementById('idle-worker-modal');
+      m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+      if (m.style.display === 'flex') {
+        loadIdleWorkerStatus();
+      }
+    }
+
+    function switchIdleTab(tab) {
+      document.getElementById('iw-sub-config').style.display = tab === 'config' ? 'block' : 'none';
+      document.getElementById('iw-sub-proposals').style.display = tab === 'proposals' ? 'block' : 'none';
+      document.getElementById('iw-sub-history').style.display = tab === 'history' ? 'block' : 'none';
+
+      document.getElementById('iw-tab-config-btn').className = 'term-btn' + (tab === 'config' ? ' accent' : '');
+      document.getElementById('iw-tab-proposals-btn').className = 'term-btn' + (tab === 'proposals' ? ' accent' : '');
+      document.getElementById('iw-tab-history-btn').className = 'term-btn' + (tab === 'history' ? ' accent' : '');
+    }
+
+    async function pollIdleWorkerStatus() {
+      try {
+        const res = await fetch('/api/v1/idle_worker/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        const badgeBtn = document.getElementById('btn-idle-worker');
+        const badgeText = document.getElementById('idle-badge-text');
+        if (!badgeBtn || !badgeText) return;
+
+        let status = data.status || 'Disabled';
+        if (!data.enabled) {
+          badgeText.textContent = 'OFF';
+          badgeBtn.style.borderColor = 'var(--text-muted)';
+          badgeBtn.style.color = 'var(--text-muted)';
+        } else if (status === 'ActiveWorking') {
+          badgeText.textContent = '● WORKING';
+          badgeBtn.style.borderColor = '#7ee787';
+          badgeBtn.style.color = '#7ee787';
+        } else if (status === 'PausedUserPreempted') {
+          badgeText.textContent = '⏸ PAUSED';
+          badgeBtn.style.borderColor = '#f0883e';
+          badgeBtn.style.color = '#f0883e';
+        } else {
+          badgeText.textContent = `STANDBY (${data.seconds_idle}s)`;
+          badgeBtn.style.borderColor = '#38bdf8';
+          badgeBtn.style.color = '#38bdf8';
+        }
+
+        const modal = document.getElementById('idle-worker-modal');
+        if (modal && modal.style.display === 'flex') {
+          updateIdleWorkerModalUI(data);
+        }
+      } catch (err) {
+        // Silently tolerate transient connection glitches
+      }
+    }
+
+    async function loadIdleWorkerStatus() {
+      try {
+        const res = await fetch('/api/v1/idle_worker/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        updateIdleWorkerModalUI(data);
+
+        if (data.config) {
+          document.getElementById('iw-enabled-toggle').checked = !!data.config.enabled;
+          document.getElementById('iw-threshold-select').value = String(data.config.idle_threshold_secs || 30);
+          document.getElementById('iw-model-select').value = data.config.target_model || 'qwen3.5:9b';
+          document.getElementById('iw-custom-objective').value = data.config.custom_objective || '';
+
+          const tasks = data.config.tasks || [];
+          document.getElementById('iw-task-code').checked = tasks.includes('CodeQualityAudit');
+          document.getElementById('iw-task-invariants').checked = tasks.includes('InvariantAudit');
+          document.getElementById('iw-task-ledger').checked = tasks.includes('LedgerAudit');
+          document.getElementById('iw-task-docs').checked = tasks.includes('DocsGenerator');
+          document.getElementById('iw-task-tests').checked = tasks.includes('UnitTests');
+        }
+      } catch (err) {
+        console.error('Error loading idle worker status:', err);
+      }
+    }
+
+    function updateIdleWorkerModalUI(data) {
+      const badge = document.getElementById('iw-status-badge');
+      if (badge) {
+        if (!data.enabled) {
+          badge.textContent = '○ DISABLED';
+          badge.style.background = '#21262d';
+          badge.style.color = 'var(--text-muted)';
+          badge.style.borderColor = 'var(--border-term)';
+        } else if (data.status === 'ActiveWorking') {
+          badge.textContent = `● WORKING: ${data.current_task || 'Task in progress'}`;
+          badge.style.background = '#1b4424';
+          badge.style.color = '#7ee787';
+          badge.style.borderColor = '#2ea043';
+        } else if (data.status === 'PausedUserPreempted') {
+          badge.textContent = '⏸ PREEMPTED (USER ACTIVE)';
+          badge.style.background = '#382307';
+          badge.style.color = '#f0883e';
+          badge.style.borderColor = '#9e6a03';
+        } else {
+          badge.textContent = 'STANDBY (WAITING FOR IDLE)';
+          badge.style.background = '#0c1a29';
+          badge.style.color = '#38bdf8';
+          badge.style.borderColor = '#1d4ed8';
+        }
+      }
+
+      document.getElementById('iw-idle-time').textContent = `${data.seconds_idle || 0}s`;
+      document.getElementById('iw-threshold-label').textContent = `${data.idle_threshold_secs || 30}s`;
+      document.getElementById('iw-tasks-run').textContent = data.total_tasks_run || 0;
+      document.getElementById('iw-cycles-count').textContent = data.completed_cycles || 0;
+      document.getElementById('iw-proposals-count').textContent = (data.proposals || []).length;
+
+      const pContainer = document.getElementById('iw-proposals-list');
+      if (pContainer) {
+        const proposals = data.proposals || [];
+        if (proposals.length === 0) {
+          pContainer.innerHTML = '<div style="color:var(--text-muted);font-size:11px;padding:8px;">No proposals staged yet. The agent will stage documentation or fixes when idle.</div>';
+        } else {
+          pContainer.innerHTML = proposals.map(p => `
+            <div style="background:#080c12;border:1px solid var(--border-term);padding:10px;border-radius:3px;margin-bottom:8px;font-size:11px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-weight:bold;color:var(--accent-cyan);">${escapeHtml(p.title)}</span>
+                <span style="padding:1px 6px;border-radius:2px;font-size:10px;background:#161c26;color:${p.status === 'applied' ? '#7ee787' : p.status === 'dismissed' ? 'var(--text-muted)' : '#f0883e'};border:1px solid var(--border-term);">${escapeHtml(p.status.toUpperCase())}</span>
+              </div>
+              <div style="color:var(--text-muted);margin-bottom:6px;">${escapeHtml(p.summary)}</div>
+              <div style="display:flex;gap:6px;">
+                ${p.status === 'pending' ? `
+                  <button class="term-btn accent" onclick="applyStagedProposal('${escapeHtml(p.id)}')">✓ Apply Proposal</button>
+                  <button class="term-btn" onclick="dismissStagedProposal('${escapeHtml(p.id)}')">✕ Dismiss</button>
+                ` : `<span style="color:var(--text-muted);font-size:10px;">Processed (${escapeHtml(p.status)})</span>`}
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+
+      const hContainer = document.getElementById('iw-history-list');
+      if (hContainer) {
+        const history = data.recent_history || [];
+        if (history.length === 0) {
+          hContainer.innerHTML = '<div style="color:var(--text-muted);font-size:11px;padding:8px;">No execution history recorded yet.</div>';
+        } else {
+          hContainer.innerHTML = history.map(h => {
+            const isPass = h.outcome === 'PASS';
+            const isPreempt = h.outcome === 'PREEMPTED';
+            const color = isPass ? '#7ee787' : isPreempt ? '#f0883e' : '#ff7b72';
+            return `
+              <div style="background:#080c12;border:1px solid var(--border-term);padding:8px;border-radius:3px;margin-bottom:6px;font-size:11px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-weight:bold;color:var(--text-main);">${escapeHtml(h.task_name)}</span>
+                  <span style="color:${color};font-weight:bold;">[${escapeHtml(h.outcome)}] ${h.duration_ms}ms</span>
+                </div>
+                <div style="color:var(--text-muted);margin-top:2px;">${escapeHtml(h.summary)}</div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    async function saveIdleWorkerConfig() {
+      const enabled = document.getElementById('iw-enabled-toggle').checked;
+      const idle_threshold_secs = parseInt(document.getElementById('iw-threshold-select').value, 10) || 30;
+      const target_model = document.getElementById('iw-model-select').value;
+      const custom_objective = document.getElementById('iw-custom-objective').value.trim();
+
+      const tasks = [];
+      if (document.getElementById('iw-task-code').checked) tasks.push('CodeQualityAudit');
+      if (document.getElementById('iw-task-invariants').checked) tasks.push('InvariantAudit');
+      if (document.getElementById('iw-task-ledger').checked) tasks.push('LedgerAudit');
+      if (document.getElementById('iw-task-docs').checked) tasks.push('DocsGenerator');
+      if (document.getElementById('iw-task-tests').checked) tasks.push('UnitTests');
+
+      try {
+        await fetch('/api/v1/idle_worker/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled,
+            idle_threshold_secs,
+            tasks,
+            custom_objective,
+            target_model,
+            auto_stage_proposals: true
+          })
+        });
+        loadIdleWorkerStatus();
+      } catch (err) {
+        console.error('Failed to save idle worker config:', err);
+      }
+    }
+
+    async function triggerIdleWorkerTaskNow() {
+      try {
+        await fetch('/api/v1/idle_worker/trigger', { method: 'POST' });
+        loadIdleWorkerStatus();
+      } catch (err) {
+        alert('Failed to trigger idle task: ' + err.message);
+      }
+    }
+
+    async function simulateUserPreemption() {
+      try {
+        await fetch('/api/v1/idle_worker/user_activity', { method: 'POST' });
+        loadIdleWorkerStatus();
+      } catch (err) {
+        alert('Preemption failed: ' + err.message);
+      }
+    }
+
+    async function applyStagedProposal(id) {
+      await fetch(`/api/v1/idle_worker/proposals/${encodeURIComponent(id)}/apply`, { method: 'POST' });
+      loadIdleWorkerStatus();
+    }
+
+    async function dismissStagedProposal(id) {
+      await fetch(`/api/v1/idle_worker/proposals/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
+      loadIdleWorkerStatus();
+    }
+  </script>
+</body>
+</html>

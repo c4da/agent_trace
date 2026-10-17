@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrace // Problem Workgroups &amp; Execution Tree Builder</title>
+  <style>
+    :root {
+      --bg-base: #0b0e14;
+      --bg-panel: #11161f;
+      --bg-elevated: #161c28;
+      --bg-input: #090c10;
+      --border: #222936;
+      --border-focus: #3b82f6;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #3b82f6;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Unified Top Navigation Bar */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 20px;
+      height: 48px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      color: var(--text-main);
+    }
+    .brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      transition: all 0.12s ease;
+    }
+    .nav-link:hover {
+      color: var(--text-main);
+      background: var(--bg-elevated);
+    }
+    .nav-link.active {
+      color: var(--text-main);
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.4);
+      font-weight: 600;
+    }
+
+    /* Buttons & Inputs */
+    .btn {
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover {
+      border-color: var(--text-muted);
+      background: #1e2636;
+    }
+    .btn.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: var(--accent);
+      color: var(--text-main);
+      font-weight: 600;
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+    .btn-danger {
+      color: var(--red);
+      border-color: rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .btn-sm {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+
+    input[type="text"], select, textarea {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      outline: none;
+    }
+    input[type="text"]:focus, select:focus, textarea:focus {
+      border-color: var(--border-focus);
+    }
+
+    /* Workgroup Selector Bar */
+    .wg-selector-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .wg-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .wg-tab {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.12s;
+    }
+    .wg-tab:hover {
+      color: var(--text-main);
+      border-color: var(--text-dim);
+    }
+    .wg-tab.active {
+      color: var(--text-main);
+      background: rgba(59, 130, 246, 0.14);
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+    .wg-count-pill {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--bg-base);
+      color: var(--text-muted);
+    }
+
+    /* 3-Column Tree Builder Layout */
+    .workbench {
+      display: grid;
+      grid-template-columns: 280px 1fr 410px;
+      flex: 1;
+      min-height: calc(100vh - 105px);
+    }
+    @media (max-width: 1280px) {
+      .workbench { grid-template-columns: 260px 1fr; }
+      .inspector-col { grid-column: 1 / -1; border-top: 1px solid var(--border); }
+    }
+
+    /* Left Palette Column */
+    .palette-col {
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .palette-section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .draggable-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .palette-item {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 4px;
+      padding: 7px 10px;
+      cursor: grab;
+      user-select: none;
+      transition: border-color 0.12s;
+    }
+    .palette-item:hover {
+      border-color: var(--text-muted);
+      background: var(--bg-elevated);
+    }
+    .palette-item:active {
+      cursor: grabbing;
+    }
+    .palette-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .palette-item-sub {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      font-family: var(--mono);
+    }
+
+    /* Compact .MD Rule List */
+    .attached-rule-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    /* Center Interactive Top-Down Tree Canvas */
+    .canvas-col {
+      position: relative;
+      background-color: #080b10;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.022) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.022) 1px, transparent 1px);
+      background-size: 28px 28px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .canvas-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: rgba(17, 22, 31, 0.92);
+      border-bottom: 1px solid var(--border);
+      z-index: 10;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .tree-stage {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      min-height: 600px;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
+    .tree-stage.drag-over-bg {
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+    #tree-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #tree-nodes-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+
+    /* Tree Nodes on Canvas */
+    .tree-node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      width: 240px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.48);
+      user-select: none;
+      transition: box-shadow 0.12s, border-color 0.12s;
+    }
+    .tree-node:hover {
+      border-color: var(--text-muted);
+    }
+    .tree-node.drop-target-active {
+      border-color: var(--green) !important;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35), 0 8px 24px rgba(0,0,0,0.6) !important;
+    }
+
+    /* Top Root Hub Node */
+    .tree-node.hub-node {
+      border: 2px solid var(--accent);
+      background: #101929;
+      width: 320px;
+      text-align: center;
+      z-index: 5;
+      cursor: pointer;
+    }
+    .hub-rules-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 7px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .hub-rule-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .hub-add-rule-btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px dashed var(--border);
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .hub-add-rule-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* Agent Tree Node */
+    .tree-node.agent-node {
+      border-top: 3px solid var(--accent);
+      cursor: grab;
+    }
+    .tree-node.agent-node.parallel-node {
+      border-top-color: var(--accent);
+    }
+    .tree-node.agent-node.chained-node {
+      border-top-color: var(--green);
+    }
+    .node-stage-tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .tag-parallel {
+      background: rgba(59, 130, 246, 0.14);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    .tag-chained {
+      background: rgba(16, 185, 129, 0.14);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 3px;
+    }
+    .node-meta {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .node-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .node-select {
+      width: 100%;
+      padding: 3px 6px;
+      font-size: 10.5px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 3px;
+      font-family: var(--mono);
+    }
+    .node-remove-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 0 3px;
+    }
+    .node-remove-btn:hover {
+      color: var(--red);
+    }
+
+    /* Right Inspector & YAML Config Column */
+    .inspector-col {
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .insp-box {
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px;
+    }
+    .insp-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .yaml-editor {
+      width: 100%;
+      min-height: 245px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.45;
+      background: var(--bg-input);
+      color: #e2e8f0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 10px;
+      resize: vertical;
+    }
+    .prompt-preview {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      min-height: 245px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Unified Top Navigation Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span>AGENTTRACE // PROBLEM WORKGROUPS &amp; EXECUTION TREE BUILDER</span>
+    </div>
+    <nav class="nav-links">
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+      <a href="/policies" class="nav-link">Policies &amp; Whitelists</a>
+      <a href="/workgroups" class="nav-link active">Workgroups Tree</a>
+      <a href="/graph" class="nav-link">Contribution Graph</a>
+      <a href="/console" class="nav-link">Terminal TUI</a>
+    </nav>
+  </header>
+
+  <!-- Workgroup Tabs & Quick Group Creator -->
+  <div class="wg-selector-bar">
+    <div class="wg-tabs" id="wg-tabs-container">
+      <span style="color: var(--text-muted); font-family: var(--mono); font-size: 12px;">Loading workgroups...</span>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <input type="text" id="new-wg-name" placeholder="New Problem Group (e.g. Image Synthesis)" style="width: 220px;">
+      <input type="text" id="new-wg-keywords" placeholder="Keywords (e.g. svg, image, icon)" style="width: 185px;">
+      <button class="btn btn-primary" onclick="createEmptyWorkgroup()">+ Create Group</button>
+    </div>
+  </div>
+
+  <!-- 3-Column Tree & YAML Workbench -->
+  <div class="workbench">
+
+    <!-- Left Column: Agents + Compact 1-Line .MD Rule Path Selector -->
+    <aside class="palette-col">
+      <div>
+        <div class="palette-section-title">
+          <span>1. Cluster Agents</span>
+          <span style="color: var(--text-dim);">DRAG OR +</span>
+        </div>
+        <div class="draggable-list" id="palette-agents-list"></div>
+      </div>
+
+      <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+        <div class="palette-section-title">
+          <span>2. .MD Rule Path</span>
+          <label class="btn btn-sm" style="cursor: pointer; margin: 0; padding: 1px 6px;">
+            Browse
+            <input type="file" accept=".md,.txt,.markdown" style="display: none;" onchange="uploadLocalMdFile(event)">
+          </label>
+        </div>
+
+        <!-- Single Compact Path Input + [+] Button -->
+        <div style="display: flex; gap: 4px; margin-bottom: 8px;">
+          <input type="text" id="md-path-input" list="workspace-md-datalist" placeholder="Select or type .md path..." style="flex: 1; min-width: 0; font-size: 11px;" onkeydown="if(event.key==='Enter') attachSelectedMdPath()">
+          <datalist id="workspace-md-datalist"></datalist>
+          <button class="btn btn-primary btn-sm" style="padding: 4px 10px;" title="Attach .md rule path" onclick="attachSelectedMdPath()">+</button>
+        </div>
+
+        <!-- Attached .MD Rules for Current Workgroup -->
+        <div id="attached-rules-sidebar" style="display: flex; flex-direction: column; gap: 5px;"></div>
+      </div>
+    </aside>
+
+    <!-- Center Column: Interactive Top-Down Hierarchical Tree Canvas -->
+    <section class="canvas-col">
+      <div class="canvas-toolbar">
+        <div>
+          <span style="font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-main);" id="canvas-wg-title">PROBLEM WORKGROUP TREE</span>
+          <span style="font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-left: 10px;" id="canvas-wg-stats"></span>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <button class="btn btn-sm" onclick="applyTreePreset('chain')" title="Chain all agents sequentially (Hub -> Agent 1 -> Agent 2 -> Agent 3)">⬇ Sequential Chain</button>
+          <button class="btn btn-sm" onclick="applyTreePreset('parallel')" title="Connect all agents in parallel directly under Top Hub">⑃ All Parallel</button>
+          <button class="btn btn-sm" onclick="applyTreePreset('lead_fanout')" title="Lead agent under Hub, remaining agents in parallel below Lead">🌳 Lead &rarr; Parallel</button>
+          <button class="btn btn-sm btn-danger" id="btn-delete-wg" onclick="deleteActiveWorkgroup()" style="display: none;">Delete Group</button>
+        </div>
+      </div>
+
+      <div class="tree-stage" id="tree-stage"
+           ondragover="handleStageDragOver(event)"
+           ondragleave="handleStageDragLeave(event)"
+           ondrop="handleStageDropOnHub(event)">
+        <svg id="tree-svg"></svg>
+        <div id="tree-nodes-layer"></div>
+      </div>
+    </section>
+
+    <!-- Right Column: Declarative YAML Config Editor, Path Loader & Live Dispatcher -->
+    <aside class="inspector-col">
+      <!-- Declarative YAML Config & File Path Loader -->
+      <div class="insp-box" style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="insp-title" style="margin-bottom: 0;">
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-sm active" id="tab-btn-yaml" onclick="switchRightTab('yaml')">YAML Config</button>
+            <button class="btn btn-sm" id="tab-btn-prompt" onclick="switchRightTab('prompt')">Compiled Prompt</button>
+          </div>
+          <span style="color: var(--green);" id="compiled-rules-count">0 rules</span>
+        </div>
+
+        <!-- Tab 1: Editable YAML Config + File Path Loader -->
+        <div id="right-tab-yaml" style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; gap: 4px;">
+            <input type="text" id="yaml-file-path" placeholder="YAML config path (e.g. workgroup.yaml)" style="flex: 1; font-size: 11px;">
+            <button class="btn btn-sm" onclick="loadYamlFromPath()" title="Load workgroup from a .yaml file path on disk">Load Path</button>
+            <label class="btn btn-sm" style="cursor: pointer; margin: 0;">
+              File
+              <input type="file" accept=".yaml,.yml" style="display: none;" onchange="uploadLocalYamlFile(event)">
+            </label>
+          </div>
+
+          <textarea id="yaml-config-editor" class="yaml-editor" spellcheck="false" placeholder="id: wg-coding&#10;name: Coding & Architecture&#10;..."></textarea>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+            <span id="yaml-status-msg" style="font-family: var(--mono); font-size: 11px; color: var(--text-muted);">Synced with tree</span>
+            <button class="btn btn-primary btn-sm" onclick="applyEditedYaml()">Apply YAML to Tree</button>
+          </div>
+        </div>
+
+        <!-- Tab 2: Compiled System Prompt Preview -->
+        <div id="right-tab-prompt" style="display: none;">
+          <div class="prompt-preview" id="compiled-prompt-box"></div>
+        </div>
+      </div>
+
+      <!-- Dispatch Prompt to Active Tree -->
+      <div class="insp-box">
+        <div class="insp-title">
+          <span>Dispatch Prompt to Workgroup Tree</span>
+          <span style="color: var(--accent);" id="dispatch-wg-badge">wg-coding</span>
+        </div>
+        <textarea id="mesh-prompt-input" rows="3" placeholder="Enter a problem for this workgroup tree to solve..." style="width: 100%; margin-bottom: 8px;"></textarea>
+        <button class="btn btn-primary" style="width: 100%; justify-content: center;" id="btn-run-mesh" onclick="dispatchToActiveTree()">Execute Workgroup Tree</button>
+        <div id="mesh-dispatch-output" style="display: none; margin-top: 10px; font-family: var(--mono); font-size: 11px;"></div>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    let workgroups = [];
+    let availableAgents = [];
+    let discoveredMdFiles = [];
+    let activeWgId = 'wg-coding';
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function switchRightTab(tab) {
+      const isYaml = tab === 'yaml';
+      document.getElementById('right-tab-yaml').style.display = isYaml ? 'flex' : 'none';
+      document.getElementById('right-tab-prompt').style.display = isYaml ? 'none' : 'block';
+      document.getElementById('tab-btn-yaml').classList.toggle('active', isYaml);
+      document.getElementById('tab-btn-prompt').classList.toggle('active', !isYaml);
+    }
+
+    async function loadWorkgroupsState() {
+      try {
+        const res = await fetch('/api/v1/workgroups');
+        const data = await res.json();
+        workgroups = data.workgroups || [];
+        availableAgents = data.available_agents || [];
+        discoveredMdFiles = data.discovered_markdown_files || [];
+
+        if (!workgroups.find(w => w.id === activeWgId) && workgroups.length > 0) {
+          activeWgId = workgroups[0].id;
+        }
+
+        renderTabs();
+        renderLeftPalettes();
+        renderActiveTree();
+        await loadCompiledPreview();
+      } catch (e) {
+        console.error('Failed to load workgroups:', e);
+      }
+    }
+
+    function getActiveWg() {
+      return workgroups.find(w => w.id === activeWgId) || workgroups[0];
+    }
+
+    function renderTabs() {
+      const container = document.getElementById('wg-tabs-container');
+      container.innerHTML = workgroups.map(wg => {
+        const isActive = wg.id === activeWgId;
+        const memberCount = (wg.members || []).length;
+        const ruleCount = (wg.markdown_rules || []).length;
+        return `
+          <button class="wg-tab ${isActive ? 'active' : ''}" onclick="selectWorkgroup('${escapeHtml(wg.id)}')">
+            <span>${escapeHtml(wg.name)}</span>
+            <span class="wg-count-pill">${memberCount}A · ${ruleCount}MD</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectWorkgroup(id) {
+      activeWgId = id;
+      renderTabs();
+      renderLeftPalettes();
+      renderActiveTree();
+      loadCompiledPreview();
+    }
+
+    function renderLeftPalettes() {
+      // 1. Draggable Agent Cards
+      const agentsEl = document.getElementById('palette-agents-list');
+      agentsEl.innerHTML = availableAgents.map(a => `
+        <div class="palette-item" draggable="true"
+             ondragstart="onPaletteDragStart(event, 'agent', '${escapeHtml(a.agent_id)}')">
+          <div class="palette-item-top">
+            <span>${escapeHtml(a.display_name)}</span>
+            <button class="btn btn-sm" style="padding: 1px 6px;" title="Add to Tree" onclick="addOrReparentAgent('${escapeHtml(a.agent_id)}', null)">+</button>
+          </div>
+          <div class="palette-item-sub">
+            ${escapeHtml(a.agent_id)} · ${escapeHtml(a.node_id)}
+          </div>
+        </div>
+      `).join('');
+
+      // 2. Populate Datalist for 1-line .MD Path Picker
+      const datalist = document.getElementById('workspace-md-datalist');
+      datalist.innerHTML = discoveredMdFiles.map(md => {
+        const filePath = typeof md === 'string' ? md : md.path;
+        const title = typeof md === 'string' ? md : (md.title || md.path);
+        return `<option value="${escapeHtml(filePath)}">${escapeHtml(title)}</option>`;
+      }).join('');
+
+      // 3. Render currently attached .md rules for the active workgroup
+      const wg = getActiveWg();
+      const rules = wg?.markdown_rules || [];
+      const sidebarRules = document.getElementById('attached-rules-sidebar');
+      if (!rules.length) {
+        sidebarRules.innerHTML = '';
+      } else {
+        sidebarRules.innerHTML = rules.map(r => `
+          <div class="attached-rule-row">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(r.file_path || r.title)}">
+              📄 ${escapeHtml(r.file_path || r.title)}
+            </span>
+            <button class="node-remove-btn" onclick="removeMdRuleFromActiveWg('${escapeHtml(r.id)}')">&times;</button>
+          </div>
+        `).join('');
+      }
+    }
+
+    async function attachSelectedMdPath() {
+      const input = document.getElementById('md-path-input');
+      const val = (input.value || '').trim();
+      if (!val) {
+        input.focus();
+        return;
+      }
+      input.value = '';
+      await attachWorkspaceMdToActiveWg(val);
+    }
+
+    function onPaletteDragStart(ev, kind, id) {
+      ev.stopPropagation();
+      ev.dataTransfer.setData('application/json', JSON.stringify({ kind, id }));
+      ev.dataTransfer.effectAllowed = 'copyMove';
+    }
+
+    function onTreeNodeDragStart(ev, agentId) {
+      ev.stopPropagation();
+      ev.dataTransfer.setData('application/json', JSON.stringify({ kind: 'agent', id: agentId }));
+      ev.dataTransfer.effectAllowed = 'copyMove';
+    }
+
+    function handleStageDragOver(ev) {
+      ev.preventDefault();
+      document.getElementById('tree-stage').classList.add('drag-over-bg');
+    }
+
+    function handleStageDragLeave(ev) {
+      document.getElementById('tree-stage').classList.remove('drag-over-bg');
+    }
+
+    async function handleStageDropOnHub(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      document.getElementById('tree-stage').classList.remove('drag-over-bg');
+      clearNodeDropHighlights();
+
+      if (ev.dataTransfer.files && ev.dataTransfer.files.length > 0) {
+        const file = ev.dataTransfer.files[0];
+        const text = await file.text();
+        if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
+          document.getElementById('yaml-config-editor').value = text;
+          await applyEditedYaml();
+        } else {
+          await attachRulePayload({
+            title: file.name,
+            file_path: null,
+            inline_markdown: text,
+            enforce_strict: true
+          });
+        }
+        return;
+      }
+
+      const raw = ev.dataTransfer.getData('application/json');
+      if (!raw) return;
+      try {
+        const payload = JSON.parse(raw);
+        if (payload.kind === 'agent') {
+          await addOrReparentAgent(payload.id, null);
+        } else if (payload.kind === 'md') {
+          await attachWorkspaceMdToActiveWg(payload.id);
+        }
+      } catch (e) {
+        console.error('Drop on Hub error:', e);
+      }
+    }
+
+    function handleNodeDragOver(ev, targetEl) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      document.getElementById('tree-stage').classList.remove('drag-over-bg');
+      clearNodeDropHighlights();
+      targetEl.classList.add('drop-target-active');
+    }
+
+    function handleNodeDragLeave(ev, targetEl) {
+      ev.stopPropagation();
+      targetEl.classList.remove('drop-target-active');
+    }
+
+    async function handleDropOnAgentNode(ev, parentAgentId) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      clearNodeDropHighlights();
+
+      const raw = ev.dataTransfer.getData('application/json');
+      if (!raw) return;
+      try {
+        const payload = JSON.parse(raw);
+        if (payload.kind === 'agent') {
+          if (payload.id === parentAgentId) return;
+          await addOrReparentAgent(payload.id, parentAgentId);
+        } else if (payload.kind === 'md') {
+          await attachWorkspaceMdToActiveWg(payload.id);
+        }
+      } catch (e) {
+        console.error('Drop on agent node error:', e);
+      }
+    }
+
+    function clearNodeDropHighlights() {
+      document.querySelectorAll('.tree-node.drop-target-active').forEach(el => {
+        el.classList.remove('drop-target-active');
+      });
+    }
+
+    function wouldCreateCycle(members, childId, candidateParentId) {
+      if (!candidateParentId) return false;
+      if (childId === candidateParentId) return true;
+      const parentMap = {};
+      members.forEach(m => {
+        parentMap[m.agent_id] = m.parent_agent_id || null;
+      });
+      let curr = candidateParentId;
+      const visited = new Set();
+      while (curr) {
+        if (curr === childId) return true;
+        if (visited.has(curr)) break;
+        visited.add(curr);
+        curr = parentMap[curr] || null;
+      }
+      return false;
+    }
+
+    function computeTopDownTreeLayout(wg) {
+      const members = wg.members || [];
+      const memberById = {};
+      members.forEach(m => { memberById[m.agent_id] = m; });
+
+      const depthMap = {};
+      function getDepth(agentId, visited = new Set()) {
+        if (depthMap[agentId]) return depthMap[agentId];
+        if (visited.has(agentId)) return 1;
+        visited.add(agentId);
+        const m = memberById[agentId];
+        const pid = m?.parent_agent_id;
+        if (!pid || pid === 'hub' || !memberById[pid] || pid === agentId) {
+          depthMap[agentId] = 1;
+          return 1;
+        }
+        const d = 1 + getDepth(pid, visited);
+        depthMap[agentId] = d;
+        return d;
+      }
+
+      members.forEach(m => getDepth(m.agent_id));
+
+      const levels = {};
+      let maxDepth = 1;
+      members.forEach(m => {
+        const d = depthMap[m.agent_id] || 1;
+        if (d > maxDepth) maxDepth = d;
+        if (!levels[d]) levels[d] = [];
+        levels[d].push(m);
+      });
+
+      const coords = {};
+      coords['__hub__'] = { x: 50, y: 12, depth: 0 };
+
+      for (let d = 1; d <= maxDepth; d++) {
+        const row = levels[d] || [];
+        if (d > 1) {
+          row.sort((a, b) => {
+            const pa = coords[a.parent_agent_id]?.x ?? 50;
+            const pb = coords[b.parent_agent_id]?.x ?? 50;
+            return pa - pb;
+          });
+        }
+        const count = row.length;
+        const yStep = Math.min(25, 72 / Math.max(maxDepth, 1));
+        const yPct = Math.round(13 + d * yStep);
+
+        row.forEach((m, idx) => {
+          let xPct = 50;
+          if (count === 1) {
+            const parentId = (m.parent_agent_id && memberById[m.parent_agent_id]) ? m.parent_agent_id : '__hub__';
+            xPct = coords[parentId]?.x ?? 50;
+          } else {
+            const span = Math.min(76, count * 26);
+            const startX = 50 - span / 2;
+            xPct = Math.round(startX + (idx * (span / (count - 1))));
+          }
+          coords[m.agent_id] = {
+            x: xPct,
+            y: yPct,
+            depth: d,
+            parallelCountAtDepth: count
+          };
+        });
+      }
+
+      return { coords, maxDepth, memberById };
+    }
+
+    function renderActiveTree() {
+      const wg = getActiveWg();
+      if (!wg) return;
+
+      const members = wg.members || [];
+      const rules = wg.markdown_rules || [];
+      const { coords, maxDepth, memberById } = computeTopDownTreeLayout(wg);
+
+      const rootParallelCount = members.filter(m => !m.parent_agent_id || !memberById[m.parent_agent_id]).length;
+      const chainedCount = members.length - rootParallelCount;
+
+      document.getElementById('canvas-wg-title').textContent = `${wg.name} (${wg.id})`;
+      document.getElementById('canvas-wg-stats').textContent =
+        `${members.length} Agents · ${maxDepth} Level(s) · ${rootParallelCount} Parallel · ${chainedCount} Chained`;
+      document.getElementById('dispatch-wg-badge').textContent = wg.id;
+
+      const isPreset = ['wg-coding', 'wg-image-gen', 'wg-reasoning-debug', 'wg-security-audit', 'wg-ui-workfirst'].includes(wg.id);
+      document.getElementById('btn-delete-wg').style.display = isPreset ? 'none' : 'inline-flex';
+
+      const nodesLayer = document.getElementById('tree-nodes-layer');
+      const hubCoord = coords['__hub__'];
+
+      const rulesChipsHtml = rules.map(r => `
+        <span class="hub-rule-chip" title="${escapeHtml(r.file_path || r.title)}">
+          <span>📄 ${escapeHtml(r.file_path || r.title)}</span>
+          <button class="node-remove-btn" style="font-size: 11px; color: #6ee7b7;" onclick="removeMdRuleFromActiveWg('${escapeHtml(r.id)}')">&times;</button>
+        </span>
+      `).join('');
+
+      // 1. Render Top Hub Node (Root of the Tree) with compact [+ .MD] chip
+      let html = `
+        <div class="tree-node hub-node" style="left: ${hubCoord.x}%; top: ${hubCoord.y}%;"
+             ondragover="handleNodeDragOver(event, this)"
+             ondragleave="handleNodeDragLeave(event, this)"
+             ondrop="handleStageDropOnHub(event)">
+          <div style="font-family: var(--mono); font-size: 10px; color: var(--accent); font-weight: 700; letter-spacing: 0.5px;">
+            ROOT HUB
+          </div>
+          <div class="node-header" style="justify-content: center; font-size: 13px; margin-top: 2px;">
+            <span>${escapeHtml(wg.name.toUpperCase())}</span>
+          </div>
+          <div class="hub-rules-list">
+            ${rulesChipsHtml}
+            <button class="hub-add-rule-btn" onclick="document.getElementById('md-path-input').focus()" title="Select or type a .md rule path">+ .MD Rule</button>
+          </div>
+        </div>
+      `;
+
+      // 2. Render Agent Tree Nodes
+      members.forEach((m, idx) => {
+        const c = coords[m.agent_id] || { x: 50, y: 45, depth: 1 };
+        const hasAgentParent = m.parent_agent_id && memberById[m.parent_agent_id];
+
+        const siblingsWithSameParent = members.filter(other => {
+          const p1 = (other.parent_agent_id && memberById[other.parent_agent_id]) ? other.parent_agent_id : '__hub__';
+          const p2 = hasAgentParent ? m.parent_agent_id : '__hub__';
+          return p1 === p2;
+        }).length;
+
+        const isParallel = siblingsWithSameParent > 1;
+        const stageLabel = hasAgentParent
+          ? (isParallel ? `STAGE ${c.depth} · PARALLEL BRANCH` : `STAGE ${c.depth} · CHAINED CHILD`)
+          : (isParallel ? `STAGE 1 · PARALLEL (${siblingsWithSameParent})` : `STAGE 1 · ENTRY NODE`);
+
+        const roles = ['LeadArchitect', 'PrimaryBuilder', 'SanityVerifier', 'ToolExecutor'];
+        const roleOptions = roles.map(r =>
+          `<option value="${r}" ${m.role === r ? 'selected' : ''}>Role: ${r}</option>`
+        ).join('');
+
+        const parentOptions = [
+          `<option value="" ${!hasAgentParent ? 'selected' : ''}>⬆ Parent: Top Hub (Parallel)</option>`,
+          ...members
+            .filter(other => other.agent_id !== m.agent_id && !wouldCreateCycle(members, m.agent_id, other.agent_id))
+            .map(other => `<option value="${escapeHtml(other.agent_id)}" ${m.parent_agent_id === other.agent_id ? 'selected' : ''}>⬇ Chain after: ${escapeHtml(other.display_name)}</option>`)
+        ].join('');
+
+        html += `
+          <div class="tree-node agent-node ${hasAgentParent ? 'chained-node' : 'parallel-node'}"
+               style="left: ${c.x}%; top: ${c.y}%;"
+               draggable="true"
+               ondragstart="onTreeNodeDragStart(event, '${escapeHtml(m.agent_id)}')"
+               ondragover="handleNodeDragOver(event, this)"
+               ondragleave="handleNodeDragLeave(event, this)"
+               ondrop="handleDropOnAgentNode(event, '${escapeHtml(m.agent_id)}')">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span class="node-stage-tag ${hasAgentParent ? 'tag-chained' : 'tag-parallel'}">${stageLabel}</span>
+              <button class="node-remove-btn" title="Remove agent from tree" onclick="removeAgentFromActiveWg('${escapeHtml(m.agent_id)}')">&times;</button>
+            </div>
+            <div class="node-header">
+              <span>${escapeHtml(m.display_name)}</span>
+            </div>
+            <div class="node-meta">
+              <code>${escapeHtml(m.agent_id)}</code> · ${escapeHtml(m.node_id)}
+            </div>
+            <div class="node-controls">
+              <select class="node-select" onchange="changeAgentRole(${idx}, this.value)">
+                ${roleOptions}
+              </select>
+              <select class="node-select" onchange="changeAgentParent('${escapeHtml(m.agent_id)}', this.value)">
+                ${parentOptions}
+              </select>
+            </div>
+          </div>
+        `;
+      });
+
+      nodesLayer.innerHTML = html;
+      drawTopDownTreeSvg(wg, coords, maxDepth, memberById);
+    }
+
+    function drawTopDownTreeSvg(wg, coords, maxDepth, memberById) {
+      const svg = document.getElementById('tree-svg');
+      const stage = document.getElementById('tree-stage');
+      const w = stage.clientWidth || 900;
+      const h = stage.clientHeight || 600;
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+
+      const members = wg.members || [];
+      let svgHtml = `
+        <defs>
+          <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#3b82f6" />
+          </marker>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#10b981" />
+          </marker>
+        </defs>
+      `;
+
+      const drawnY = new Set();
+      members.forEach(m => {
+        const c = coords[m.agent_id];
+        if (c && !drawnY.has(c.depth)) {
+          drawnY.add(c.depth);
+          const yPx = (c.y / 100) * h;
+          svgHtml += `
+            <line x1="24" y1="${yPx}" x2="${w - 24}" y2="${yPx}"
+                  stroke="#222936" stroke-width="1" stroke-dasharray="4 6" />
+            <text x="30" y="${yPx - 8}" fill="#64748b" font-family="monospace" font-size="10" font-weight="bold">
+              STAGE TIER ${c.depth} ${c.parallelCountAtDepth > 1 ? '(PARALLEL)' : '(SEQUENTIAL)'}
+            </text>
+          `;
+        }
+      });
+
+      members.forEach(m => {
+        const childCoord = coords[m.agent_id];
+        if (!childCoord) return;
+
+        const hasAgentParent = m.parent_agent_id && memberById[m.parent_agent_id];
+        const parentCoord = hasAgentParent ? coords[m.parent_agent_id] : coords['__hub__'];
+        if (!parentCoord) return;
+
+        const x1 = (parentCoord.x / 100) * w;
+        const y1 = ((parentCoord.y / 100) * h) + (hasAgentParent ? 54 : 42);
+        const x2 = (childCoord.x / 100) * w;
+        const y2 = ((childCoord.y / 100) * h) - 58;
+
+        const midY = (y1 + y2) / 2;
+        const strokeColor = hasAgentParent ? '#10b981' : '#3b82f6';
+        const markerId = hasAgentParent ? 'url(#arrow-green)' : 'url(#arrow-blue)';
+        const edgeLabel = hasAgentParent ? `CHAIN → S${childCoord.depth}` : (childCoord.parallelCountAtDepth > 1 ? 'PARALLEL' : 'STAGE 1');
+
+        const labelX = (x1 + x2) / 2;
+        const labelY = midY;
+
+        svgHtml += `
+          <path d="M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}"
+                fill="none" stroke="${strokeColor}" stroke-width="2" marker-end="${markerId}" />
+          <rect x="${labelX - 34}" y="${labelY - 8}" width="68" height="16" rx="3" fill="#0b0e14" stroke="${strokeColor}" stroke-opacity="0.5" />
+          <text x="${labelX}" y="${labelY + 3}" text-anchor="middle" fill="#e2e8f0" font-family="monospace" font-size="9.5" font-weight="bold">
+            ${edgeLabel}
+          </text>
+        `;
+      });
+
+      svg.innerHTML = svgHtml;
+    }
+
+    window.addEventListener('resize', () => {
+      renderActiveTree();
+    });
+
+    async function saveWorkgroup(wg) {
+      await fetch('/api/v1/workgroups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(wg)
+      });
+      await loadWorkgroupsState();
+    }
+
+    async function addOrReparentAgent(agentId, parentAgentId) {
+      const wg = getActiveWg();
+      if (!wg) return;
+      if (!Array.isArray(wg.members)) wg.members = [];
+
+      const existing = wg.members.find(m => m.agent_id === agentId);
+      if (existing) {
+        if (wouldCreateCycle(wg.members, agentId, parentAgentId)) return;
+        existing.parent_agent_id = parentAgentId || null;
+        await saveWorkgroup(wg);
+        return;
+      }
+
+      const catalogEntry = availableAgents.find(a => a.agent_id === agentId) || {
+        agent_id: agentId,
+        display_name: agentId,
+        node_id: 'PC-1',
+        default_role: 'PrimaryBuilder'
+      };
+      wg.members.push({
+        agent_id: catalogEntry.agent_id,
+        display_name: catalogEntry.display_name,
+        node_id: catalogEntry.node_id,
+        role: catalogEntry.default_role || 'PrimaryBuilder',
+        parent_agent_id: parentAgentId || null
+      });
+      await saveWorkgroup(wg);
+    }
+
+    async function changeAgentParent(agentId, newParentId) {
+      await addOrReparentAgent(agentId, newParentId || null);
+    }
+
+    async function applyTreePreset(mode) {
+      const wg = getActiveWg();
+      if (!wg || !Array.isArray(wg.members) || !wg.members.length) return;
+
+      if (mode === 'chain') {
+        wg.members.forEach((m, idx) => {
+          m.parent_agent_id = idx === 0 ? null : wg.members[idx - 1].agent_id;
+        });
+        wg.execution_strategy = 'pipeline';
+      } else if (mode === 'parallel') {
+        wg.members.forEach(m => {
+          m.parent_agent_id = null;
+        });
+        wg.execution_strategy = 'swarm';
+      } else if (mode === 'lead_fanout') {
+        const leadId = wg.members[0].agent_id;
+        wg.members.forEach((m, idx) => {
+          m.parent_agent_id = idx === 0 ? null : leadId;
+        });
+        wg.execution_strategy = 'pipeline';
+      }
+      await saveWorkgroup(wg);
+    }
+
+    async function removeAgentFromActiveWg(agentId) {
+      const wg = getActiveWg();
+      if (!wg || !Array.isArray(wg.members)) return;
+      const removedMember = wg.members.find(m => m.agent_id === agentId);
+      const fallbackParent = removedMember?.parent_agent_id || null;
+      wg.members = wg.members.filter(m => m.agent_id !== agentId);
+      wg.members.forEach(m => {
+        if (m.parent_agent_id === agentId) {
+          m.parent_agent_id = fallbackParent;
+        }
+      });
+      await saveWorkgroup(wg);
+    }
+
+    async function changeAgentRole(memberIdx, newRole) {
+      const wg = getActiveWg();
+      if (!wg || !wg.members[memberIdx]) return;
+      wg.members[memberIdx].role = newRole;
+      await saveWorkgroup(wg);
+    }
+
+    async function attachWorkspaceMdToActiveWg(filePath) {
+      await attachRulePayload({
+        title: filePath.split('/').pop(),
+        file_path: filePath,
+        inline_markdown: '',
+        enforce_strict: true
+      });
+    }
+
+    async function uploadLocalMdFile(ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      await attachRulePayload({
+        title: file.name,
+        file_path: null,
+        inline_markdown: text,
+        enforce_strict: true
+      });
+      ev.target.value = '';
+    }
+
+    async function attachRulePayload(payload) {
+      const wg = getActiveWg();
+      if (!wg) return;
+      await fetch(`/api/v1/workgroups/${encodeURIComponent(wg.id)}/rules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      await loadWorkgroupsState();
+    }
+
+    async function removeMdRuleFromActiveWg(ruleId) {
+      const wg = getActiveWg();
+      if (!wg) return;
+      await fetch(`/api/v1/workgroups/${encodeURIComponent(wg.id)}/rules/${encodeURIComponent(ruleId)}`, {
+        method: 'DELETE'
+      });
+      await loadWorkgroupsState();
+    }
+
+    async function createEmptyWorkgroup() {
+      const nameInput = document.getElementById('new-wg-name');
+      const kwInput = document.getElementById('new-wg-keywords');
+      const name = (nameInput.value || '').trim();
+      if (!name) {
+        nameInput.focus();
+        return;
+      }
+      const id = 'wg-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const keywords = (kwInput.value || '').split(',').map(s => s.trim()).filter(Boolean);
+
+      const newWg = {
+        id,
+        name,
+        problem_domain: name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+        icon: '🌳',
+        color: '#3b82f6',
+        description: `Custom execution tree workgroup for ${name}`,
+        execution_strategy: 'pipeline',
+        members: [],
+        markdown_rules: [],
+        trigger_keywords: keywords.length ? keywords : [name.toLowerCase()]
+      };
+
+      nameInput.value = '';
+      kwInput.value = '';
+      activeWgId = id;
+      await saveWorkgroup(newWg);
+    }
+
+    async function deleteActiveWorkgroup() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      await fetch('/api/v1/workgroups/' + encodeURIComponent(wg.id), { method: 'DELETE' });
+      activeWgId = 'wg-coding';
+      await loadWorkgroupsState();
+    }
+
+    async function loadCompiledPreview() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      try {
+        const res = await fetch(`/api/v1/workgroups/${encodeURIComponent(wg.id)}/preview`);
+        const d = await res.json();
+        document.getElementById('compiled-rules-count').textContent = `${d.rules_count ?? (wg.markdown_rules || []).length} rules`;
+        document.getElementById('compiled-prompt-box').textContent =
+          d.compiled_system_prompt || 'No rules or members configured yet.';
+        if (d.yaml) {
+          document.getElementById('yaml-config-editor').value = d.yaml;
+        }
+      } catch (e) {
+        console.error('Preview error:', e);
+      }
+    }
+
+    async function applyEditedYaml() {
+      const yaml = document.getElementById('yaml-config-editor').value;
+      const statusEl = document.getElementById('yaml-status-msg');
+      statusEl.textContent = 'Applying YAML...';
+      statusEl.style.color = 'var(--text-muted)';
+      try {
+        const res = await fetch('/api/v1/workgroups/yaml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ yaml })
+        });
+        const d = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = d.error || 'Invalid YAML';
+          statusEl.style.color = 'var(--red)';
+          return;
+        }
+        if (d.workgroup && d.workgroup.id) {
+          activeWgId = d.workgroup.id;
+        }
+        statusEl.textContent = '✓ YAML applied to tree';
+        statusEl.style.color = 'var(--green)';
+        await loadWorkgroupsState();
+      } catch (e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.style.color = 'var(--red)';
+      }
+    }
+
+    async function loadYamlFromPath() {
+      const file_path = (document.getElementById('yaml-file-path').value || '').trim();
+      const statusEl = document.getElementById('yaml-status-msg');
+      if (!file_path) {
+        document.getElementById('yaml-file-path').focus();
+        return;
+      }
+      statusEl.textContent = `Loading ${file_path}...`;
+      try {
+        const res = await fetch('/api/v1/workgroups/yaml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_path })
+        });
+        const d = await res.json();
+        if (!res.ok) {
+          statusEl.textContent = d.error || 'Failed to load path';
+          statusEl.style.color = 'var(--red)';
+          return;
+        }
+        if (d.workgroup && d.workgroup.id) {
+          activeWgId = d.workgroup.id;
+        }
+        statusEl.textContent = `✓ Loaded ${file_path}`;
+        statusEl.style.color = 'var(--green)';
+        await loadWorkgroupsState();
+      } catch (e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.style.color = 'var(--red)';
+      }
+    }
+
+    async function uploadLocalYamlFile(ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      document.getElementById('yaml-config-editor').value = text;
+      ev.target.value = '';
+      await applyEditedYaml();
+    }
+
+    async function dispatchToActiveTree() {
+      const wg = getActiveWg();
+      if (!wg) return;
+      const prompt = (document.getElementById('mesh-prompt-input').value || '').trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('btn-run-mesh');
+      const out = document.getElementById('mesh-dispatch-output');
+      btn.disabled = true;
+      btn.textContent = 'Executing across Tree...';
+      out.style.display = 'block';
+      out.innerHTML = '<div style="color: var(--text-muted);">Routing prompt through workgroup execution tree...</div>';
+
+      try {
+        const res = await fetch('/api/v1/hub/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            mode: 'workgroup',
+            workgroup_id: wg.id
+          })
+        });
+        const d = await res.json();
+        const stagesHtml = (d.stages || []).map(s => `
+          <div style="border-left: 2px solid var(--accent); padding-left: 8px; margin-bottom: 8px;">
+            <div style="color: var(--text-main); font-weight: 700;">${escapeHtml(s.stage_name)} (${Math.round(s.duration_ms || 0)}ms)</div>
+            <div style="color: var(--text-muted); max-height: 110px; overflow-y: auto; white-space: pre-wrap; margin-top: 3px;">${escapeHtml(s.response)}</div>
+          </div>
+        `).join('');
+        out.innerHTML = stagesHtml || '<div style="color: var(--green);">Dispatched successfully.</div>';
+      } catch (e) {
+        out.innerHTML = `<div style="color: var(--red);">Dispatch failed: ${escapeHtml(e.message)}</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Execute Workgroup Tree';
+      }
+    }
+
+    loadWorkgroupsState();
+  </script>
+</body>
+</html>
