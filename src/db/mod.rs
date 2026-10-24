@@ -126,6 +126,17 @@ impl Database {
         Ok(())
     }
 
+    /// Test-only helper to simulate swapping the public key of a signed event block.
+    #[cfg(test)]
+    pub fn tamper_event_public_key_for_test(&self, event_id: &str, new_public_key: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE events SET public_key = ?1 WHERE event_id = ?2",
+            rusqlite::params![new_public_key, event_id],
+        )?;
+        Ok(())
+    }
+
     /// Verifies the most recent `limit` blocks of the ledger for periodic audits.
     pub fn verify_ledger_recent(&self, limit: usize) -> SqliteResult<LedgerVerificationReport> {
         let conn = self.conn.lock().unwrap();
