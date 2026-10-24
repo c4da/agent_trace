@@ -6,19 +6,19 @@
   <title>AgentTrace // Multi-Agent Contribution &amp; Problem Graph</title>
   <style>
     :root {
-      --bg: #070a0f;
-      --panel: #0d1117;
-      --panel-alt: #161b22;
-      --border: #30363d;
-      --text: #e6edf3;
-      --dim: #8b949e;
-      --purple: #bc8cff;
-      --blue: #58a6ff;
-      --cyan: #39c5cf;
-      --green: #3fb950;
-      --amber: #d29922;
-      --red: #f85149;
-      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      --bg: #1e1e1e;
+      --panel: #252526;
+      --panel-alt: #2d2d2d;
+      --border: #3c3c3c;
+      --text: #cccccc;
+      --dim: #858585;
+      --purple: #c586c0;
+      --blue: #0e639c;
+      --cyan: #9cdcfe;
+      --green: #4ec9b0;
+      --amber: #cca700;
+      --red: #f48771;
+      --mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
       --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -201,17 +201,21 @@
   <!-- Top Navigation & Status -->
   <div class="topbar">
     <div class="brand">
-      <span style="color: var(--purple);">🕸️ AGENTTRACE // PROBLEM CONTRIBUTION GRAPH</span>
+      <span style="color: var(--purple);">[GRAPH] AGENTTRACE // PROBLEM CONTRIBUTION GRAPH</span>
+      <span style="font-family: var(--font-mono, monospace); font-size: 10px; font-weight: 700; color: #f59e0b; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); padding: 1px 6px; border-radius: 3px; letter-spacing: 0.5px; text-transform: uppercase;" title="UI is in Developer Beta Preview. Automation should focus directly on the Gateway REST API.">BETA · API FIRST</span>
       <span class="badge" style="background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid var(--green);" id="events-count-badge">0 Events Analyzed</span>
       <span class="badge" style="background: rgba(88,166,255,0.15); color: var(--blue); border: 1px solid var(--blue);" id="active-filter-badge">Filter: ALL AGENTS &amp; TOPICS</span>
     </div>
     <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+      <a href="/client" class="btn" style="color: var(--purple); border-color: rgba(188, 140, 255, 0.4);">Studio</a>
+      <a href="/console" class="btn">Console</a>
+      <a href="/dashboard" class="btn">Dashboard</a>
+      <a href="/workgroups" class="btn">Workgroups</a>
+      <a href="/policies" class="btn">Policies</a>
+      <a href="/graph" class="btn active">Contribution Graph</a>
+      <a href="/mobile" class="btn" style="color: #f0883e;">Mobile</a>
       <button class="btn" onclick="simulateMultiAgentSprint()">Simulate Sprint</button>
       <button class="btn" onclick="clearGraphSelection()">Reset Filter</button>
-      <a href="/dashboard" class="btn">Dashboard</a>
-      <a href="/policies" class="btn">Policies</a>
-      <a href="/workgroups" class="btn">Workgroups</a>
-      <a href="/console" class="btn">Console</a>
     </div>
   </div>
 
@@ -219,15 +223,15 @@
   <div class="controls-bar">
     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
       <span style="font-family: var(--mono); font-size: 11px; color: var(--dim); font-weight: bold;">1. TOPIC GROUPING:</span>
-      <button class="btn active" id="mode-feature" onclick="setTopicMode('feature')">📦 Feature / Subsystem Topics</button>
-      <button class="btn" id="mode-prompt_role" onclick="setTopicMode('prompt_role')">🧠 Prompt &amp; Cognitive Role Topics</button>
+      <button class="btn active" id="mode-feature" onclick="setTopicMode('feature')">[PACKAGE] Feature / Subsystem Topics</button>
+      <button class="btn" id="mode-prompt_role" onclick="setTopicMode('prompt_role')">[BRAIN] Prompt &amp; Cognitive Role Topics</button>
     </div>
     <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
       <span style="font-family: var(--mono); font-size: 11px; color: var(--dim); font-weight: bold;">2. CONTRIBUTION METRIC:</span>
-      <button class="btn metric-active" id="metric-weighted_impact" onclick="setMetric('weighted_impact')" title="FileWrite+Diff=5x, LlmInference=3.5x, CommandRun=2x, FileRead=1x">⚖️ Weighted Impact</button>
-      <button class="btn" id="metric-touchpoint_count" onclick="setMetric('touchpoint_count')" title="Total actions (reads + writes + commands + prompts)">🔨 Touchpoints</button>
-      <button class="btn" id="metric-compute_ms" onclick="setMetric('compute_ms')" title="Cumulative LLM & execution duration (ms)">⏱️ Compute Time (ms)</button>
-      <button class="btn" id="metric-write_diff_score" onclick="setMetric('write_diff_score')" title="Code modifications & unified diff lines">📝 Code Diff Volume</button>
+      <button class="btn metric-active" id="metric-weighted_impact" onclick="setMetric('weighted_impact')" title="FileWrite+Diff=5x, LlmInference=3.5x, CommandRun=2x, FileRead=1x">[ARBITRATE] Weighted Impact</button>
+      <button class="btn" id="metric-touchpoint_count" onclick="setMetric('touchpoint_count')" title="Total actions (reads + writes + commands + prompts)">[TOOL] Touchpoints</button>
+      <button class="btn" id="metric-compute_ms" onclick="setMetric('compute_ms')" title="Cumulative LLM & execution duration (ms)">[TIME] Compute Time (ms)</button>
+      <button class="btn" id="metric-write_diff_score" onclick="setMetric('write_diff_score')" title="Code modifications & unified diff lines">[DIFF] Code Diff Volume</button>
     </div>
   </div>
 
@@ -238,7 +242,7 @@
   <div class="main-grid">
     <div class="card">
       <div class="card-title">
-        <span>🕸️ Bipartite Attribution Network (Agents ◀──▶ Problem Topics)</span>
+        <span>[GRAPH] Bipartite Attribution Network (Agents ◀──▶ Problem Topics)</span>
         <span style="font-size: 10px; color: var(--dim); font-weight: normal;">Click any Agent or Topic node to isolate</span>
       </div>
       <div id="network-svg-container" style="background: #06090e; border: 1px solid #21262d; border-radius: 6px; min-height: 410px; display: flex; align-items: center; justify-content: center; overflow-x: auto;">
@@ -247,7 +251,7 @@
 
     <div class="card">
       <div class="card-title">
-        <span id="stacked-title">📊 Who Solved How Much? (100% Stacked Share per Problem)</span>
+        <span id="stacked-title">[TELEMETRY] Who Solved How Much? (100% Stacked Share per Problem)</span>
         <span style="font-size: 10px; color: var(--dim); font-weight: normal;" id="metric-subtitle">Metric: Weighted Impact Score</span>
       </div>
       <div id="stacked-bars-container" style="max-height: 410px; overflow-y: auto; padding-right: 4px;"></div>
@@ -257,7 +261,7 @@
   <!-- High-Density Forensic Attribution Matrix -->
   <div class="card">
     <div class="card-title">
-      <span>🔬 Granular Agent × Problem Topic Attribution Matrix</span>
+      <span>[INSPECT] Granular Agent × Problem Topic Attribution Matrix</span>
       <span style="font-size: 10px; color: var(--dim); font-weight: normal;">Sorted by selected contribution metric</span>
     </div>
     <div style="overflow-x: auto;">
@@ -267,13 +271,13 @@
             <th>Problem / Feature Topic</th>
             <th>Agent Identity</th>
             <th>Share in Topic</th>
-            <th>⚖️ Weighted Impact</th>
-            <th>🔨 Touchpoints</th>
-            <th>📝 Writes (Diff Score)</th>
-            <th>🧠 LLM Prompts</th>
-            <th>⚙️ Cmds</th>
-            <th>📖 Reads</th>
-            <th>⏱️ Compute Time</th>
+            <th>[ARBITRATE] Weighted Impact</th>
+            <th>[TOOL] Touchpoints</th>
+            <th>[DIFF] Writes (Diff Score)</th>
+            <th>[BRAIN] LLM Prompts</th>
+            <th>[CONFIG] Cmds</th>
+            <th>[DOCS] Reads</th>
+            <th>[TIME] Compute Time</th>
           </tr>
         </thead>
         <tbody id="matrix-tbody"></tbody>
@@ -366,7 +370,7 @@
       if (!selectedAgent && !selectedTopic) {
         b.textContent = 'Filter: ALL AGENTS & TOPICS';
       } else {
-        b.textContent = `Filter: ${selectedAgent || '*'} ➔ ${selectedTopic || '*'}`;
+        b.textContent = `Filter: ${selectedAgent || '*'} -> ${selectedTopic || '*'}`;
       }
     }
 
@@ -435,7 +439,7 @@
       const agents = reportData.agents || [];
 
       if (agents.length === 0 || topics.length === 0) {
-        box.innerHTML = '<div style="color:var(--dim); padding:30px;">No telemetry events recorded yet. Click [⚡ Simulate Multi-Agent Sprint] above!</div>';
+        box.innerHTML = '<div style="color:var(--dim); padding:30px;">No telemetry events recorded yet. Click [[ACTIVE] Simulate Multi-Agent Sprint] above!</div>';
         return;
       }
 
@@ -481,7 +485,7 @@
 
         edgesSvg += `
           <path d="${pathD}" fill="none" stroke="${color}" stroke-width="${strokeW.toFixed(1)}" stroke-opacity="${opacity}" class="${dimmed ? '' : 'edge-anim'}">
-            <title>${escapeHtml(c.agent_id)} ➔ ${escapeHtml(c.topic)}: ${formatMetricVal(val, currentMetric)}</title>
+            <title>${escapeHtml(c.agent_id)} -> ${escapeHtml(c.topic)}: ${formatMetricVal(val, currentMetric)}</title>
           </path>
         `;
       });

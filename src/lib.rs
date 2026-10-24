@@ -1,7 +1,10 @@
+#![recursion_limit = "512"]
+
 pub mod agent_interface;
 pub mod analytics;
 pub mod antigravity_watcher;
 pub mod contributions;
+pub mod copilot;
 pub mod copilot_watcher;
 pub mod db;
 pub mod delegation_engine;
@@ -17,5 +20,20 @@ pub mod schema;
 pub mod secrets;
 pub mod services;
 pub mod idle_worker;
+pub mod artifacts;
+pub mod client;
+pub mod mobile;
+pub mod projects;
+pub mod tasks;
 pub mod workgroups;
 pub mod zones;
+pub mod ota_dist;
+pub mod cas_guard;
+pub mod cluster_health;
+pub mod agent_identity;
+pub mod security_hardening;
+pub mod ai_guard;
+pub mod siem_exporter;
+pub mod claude_bridge;
+pub mod benchmarks;
+pub mod adversarial_tests;

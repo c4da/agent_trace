@@ -1,0 +1,11 @@
+{
+  "name": "agent-trace",
+  "displayName": "AgentTrace Telemetry & Cluster Governance",
+  "version": "1.0.0",
+  "description": "Local-first cryptographic telemetry, multi-node cluster orchestration, and governance for AI coding agents.",
+  "suggestedPrompts": [
+    "Verify the cryptographic ledger and audit cluster health",
+    "Inspect active Problem Workgroups and governance rules",
+    "Record this architectural milestone to the Studio Project Book"
+  ]
+}

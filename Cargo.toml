@@ -1,10 +1,10 @@
 [package]
 name = "agent_trace_gw"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["AgentTrace Contributors"]
 license = "MIT OR Apache-2.0"
-description = "High-performance Rust telemetry gateway & reverse proxy for distributed AI agent clusters"
+description = "Enterprise AI Runtime Guard, Cryptographic Telemetry Ledger & Native Rust MCP Server for AI Coding Agent Clusters"
 
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }
@@ -23,6 +23,7 @@ async-stream = "0.3"
 hex = "0.4"
 ring = "0.17"
 url = "2.5"
+tempfile = "3"
 
 [dev-dependencies]
 tempfile = "3"

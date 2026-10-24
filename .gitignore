@@ -19,11 +19,26 @@ __pycache__/
 *.pyo
 *.log
 *.txt
+!llms.txt
 cluster_config.json
 
 # IDE
 .idea/
 .vscode/
 
-# Runtime Cache & Local State
+# Runtime Cache, Scratch & Unstaged Drafts
 .agent_trace/
+.benchmarks_latest.json
+cluster_conversations.json
+scratch/
+logs/
+qwen_ui_audit.md
+deepseek_diagram.md
+deepseek_topology.md
+docs/COMMUNITY_LAUNCH_KIT.md
+docs/COPILOT_OPINION.md
+docs/QWEN_OPINION.md
+docs/QWEN_NODE_LOGS_FIX_SPEC.md
+docs/MARKETING_FLYER.md
+docs/MARKETING_FLYER_PART2.md
+docs/UI_COUNCIL_REDESIGN_PROPOSALS.md

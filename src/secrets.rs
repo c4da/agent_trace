@@ -18,6 +18,7 @@ impl ClusterSecurityConfig {
         let secrets_path = std::env::var("AGENTTRACE_SECRETS")
             .unwrap_or_else(|_| ".secrets/agenttrace.env".to_string());
         
+        let vault = crate::security_hardening::EncryptedSecretVault::load_default();
         let mut file_vars = std::collections::HashMap::new();
         if let Ok(content) = fs::read_to_string(&secrets_path) {
             for line in content.lines() {
@@ -28,7 +29,13 @@ impl ClusterSecurityConfig {
                 let mut parts = trimmed.splitn(2, '=');
                 if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
                     let key = k.trim().to_string();
-                    let val = v.trim().trim_matches('"').trim_matches('\'').to_string();
+                    let raw_val = v.trim().trim_matches('"').trim_matches('\'').to_string();
+                    // Secrets are stored in plaintext by default; only decrypt if user explicitly encrypted with ENCv1:
+                    let val = if crate::security_hardening::EncryptedSecretVault::is_encrypted(&raw_val) {
+                        vault.decrypt_or_passthrough(&raw_val).unwrap_or(raw_val)
+                    } else {
+                        raw_val
+                    };
                     file_vars.insert(key, val);
                 }
             }
@@ -41,7 +48,16 @@ impl ClusterSecurityConfig {
                 .or_else(|| file_vars.get(name).cloned().filter(|s| !s.trim().is_empty()))
         };
 
-        let auth_token = get_var("AGENTTRACE_TOKEN");
+        // Authentication is OFF (permissive) by default unless AGENTTRACE_REQUIRE_AUTH=true is explicitly set
+        let require_auth = get_var("AGENTTRACE_REQUIRE_AUTH")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        let auth_token = if require_auth {
+            get_var("AGENTTRACE_TOKEN")
+        } else {
+            None
+        };
         let worker_hermes_key = get_var("WORKER_HERMES_KEY");
 
         // Parse comma-separated upstream allowlist
@@ -69,7 +85,7 @@ impl ClusterSecurityConfig {
         }
     }
 
-    /// Verifies incoming request authentication against the configured AGENTTRACE_TOKEN.
+    /// Verifies incoming request authentication against the configured AGENTTRACE_TOKEN using constant-time comparison.
     /// If no AGENTTRACE_TOKEN is set, authentication is optional (permissive home-lab mode).
     pub fn is_authorized(&self, headers: &HeaderMap) -> bool {
         let expected = match &self.auth_token {
@@ -77,15 +93,17 @@ impl ClusterSecurityConfig {
             _ => return true, // Permissive mode when no token is configured
         };
 
-        if let Some(h) = headers.get("x-agenttrace-token").and_then(|v| v.to_str().ok()) {
-            if h.trim() == expected {
-                return true;
+        for hdr_name in ["x-agenttrace-token", "x-api-key"] {
+            if let Some(h) = headers.get(hdr_name).and_then(|v| v.to_str().ok()) {
+                if crate::security_hardening::constant_time_eq(h.trim(), expected) {
+                    return true;
+                }
             }
         }
 
         if let Some(auth) = headers.get("authorization").and_then(|v| v.to_str().ok()) {
             if let Some(bearer) = auth.strip_prefix("Bearer ") {
-                if bearer.trim() == expected {
+                if crate::security_hardening::constant_time_eq(bearer.trim(), expected) {
                     return true;
                 }
             }

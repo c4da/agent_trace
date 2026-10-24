@@ -1,0 +1,11 @@
+#!/bin/sh
+# AgentTrace Gateway Pre-Commit Hook:
+# Runs unit & adversarial tests, measures empirical sub-5ms & memory RSS benchmarks,
+# and automatically stages updated badges and evidence in docs/BENCHMARKS.md and README.md.
+set -e
+
+echo "[AgentTrace Pre-Commit] Running empirical benchmark & test badge synchronizer..."
+python scripts/update_benchmarks_and_badges.py
+
+git add docs/BENCHMARKS.md README.md
+echo "[AgentTrace Pre-Commit] Benchmarks and test badges verified and staged."

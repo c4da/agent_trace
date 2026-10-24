@@ -386,6 +386,111 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ***
 
-## 🌟 Part 4: Where to Go From Here: Becoming a Confident Rustacean
+## 🛡️ Part 4: Advanced Verification: Headless Invariants & Subprocess Testing
 
-You now have the architectural foundation.
+In high-stakes systems engineering (especially autonomous agent platforms and CAD/FEM engines), you must never rely on visual GUI inspection or naive happy-path tests. Professional systems require **mathematical invariant verification** tested headlessly.
+
+### 4.1 Testing Mathematical Invariants: Tamper Simulation
+
+A core invariant of AgentTrace is: **Any retroactive modification of committed telemetry must immediately break the cryptographic hash chain.**
+
+Here is how we verify that invariant in a headless test:
+1. Initialize an in-memory or temporary database.
+2. Commit 5 sequential blocks: $H_0 \to H_1 \to H_2 \to H_3 \to H_4$.
+3. Run `verify_ledger()`: assert it returns `Ok(true)` with valid Ed25519 signatures.
+4. **Simulate an Attack**: Execute raw SQL to modify 1 character inside the payload of Block 2.
+5. Re-run `verify_ledger()`: assert that it returns `Err(LedgerTampered)` at block index 2.
+
+```rust
+#[test]
+fn test_invariant_detects_sqlite_payload_tamper() {
+    let temp_db = tempfile::NamedTempFile::new().unwrap();
+    let mut db = Database::new(temp_db.path().to_str().unwrap()).unwrap();
+    let signer = NodeSigner::generate_ephemeral();
+
+    // 1. Commit 3 clean blocks
+    let hash1 = db.append_event(&signer, "agent-1", "read", "fileA.rs").unwrap();
+    let hash2 = db.append_event(&signer, "agent-1", "write", "fileB.rs").unwrap();
+    let hash3 = db.append_event(&signer, "agent-1", "exec", "cargo test").unwrap();
+
+    // 2. Invariant holds when untampered
+    assert!(db.verify_chain().is_ok());
+
+    // 3. Simulate malicious out-of-band edit to block 2
+    let conn = rusqlite::Connection::open(temp_db.path()).unwrap();
+    conn.execute(
+        "UPDATE transactions SET target = 'hacked.rs' WHERE id = 2",
+        [],
+    ).unwrap();
+
+    // 4. Invariant assertion: verification MUST fail!
+    let verification_result = db.verify_chain();
+    assert!(verification_result.is_err(), "Chain accepted a tampered block!");
+}
+```
+
+### 4.2 Testing Stdio JSON-RPC 2.0 Subprocesses
+
+How do you test a standalone Model Context Protocol binary (`agent_trace_mcp.exe`) without manually clicking inside Cursor or Claude Desktop?
+
+You spawn the binary as a child subprocess using `std::process::Command`, pipe `stdin` and `stdout`, and assert JSON-RPC responses:
+
+```rust
+use std::process::{Command, Stdio};
+use std::io::{Write, BufRead, BufReader};
+
+#[test]
+fn test_mcp_stdio_handshake_and_tool_list() {
+    let mut child = Command::new("target/debug/agent_trace_mcp.exe")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn MCP binary");
+
+    let mut stdin = child.stdin.take().unwrap();
+    let mut reader = BufReader::new(child.stdout.take().unwrap());
+
+    // 1. Send initialize request
+    let init_req = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-harness","version":"1.0"}}}"#;
+    writeln!(stdin, "{}", init_req).unwrap();
+
+    let mut line = String::new();
+    reader.read_line(&mut line).unwrap();
+    assert!(line.contains(r#""name":"agent-trace-mcp""#));
+
+    // 2. Send tools/list request
+    let list_req = r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#;
+    writeln!(stdin, "{}", list_req).unwrap();
+
+    line.clear();
+    reader.read_line(&mut line).unwrap();
+    assert!(line.contains("log_event"));
+    assert!(line.contains("verify_ledger"));
+    assert!(line.contains("deploy_cluster_worker"));
+
+    let _ = child.kill();
+}
+```
+
+### 4.3 Python & Rust End-to-End Integration Harnesses
+
+For end-to-end multi-agent verification (such as testing Zero-Walk OTA distribution, firewall scripts, and CAS rollback simultaneously), AgentTrace uses pure-standard-library Python integration tests (`tests/test_zero_walk_and_hardening.py`):
+* Spawns `agent_trace_gw.exe` on a test port (e.g. `:8080`).
+* Invokes `GET /api/v1/dist/manifest` and verifies the SHA-256 matches `Get-FileHash`.
+* Tests `POST /api/v1/cluster/deploy-worker` with test fixtures.
+* Simulates unauthorized writes and verifies that `PreImageCasGuard` reverts within 5 milliseconds.
+* Shuts down the daemon gracefully and asserts zero dangling locks.
+
+---
+
+## 🌟 Part 5: Where to Go From Here: Becoming a Confident Systems Engineer
+
+You now possess the foundational patterns of high-performance systems engineering in Rust:
+
+1. **Ownership & Memory Safety**: Building leak-free architectures without garbage collection pauses.
+2. **Tokio Async & The Actor Pattern**: Orchestrating thousands of concurrent I/O events while isolating sequential disk mutations via bounded MPSC channels.
+3. **Ergonomic Axum Web APIs**: Combining type-safe routing, binary streaming, and cryptographic headers.
+4. **Embedded Cryptography & Persistence**: Ring SHA-256 hash chains, Ed25519 digital signatures, and SQLite WAL durability.
+5. **Headless Invariant Verification**: Relentlessly proving that security, continuity, and containment invariants hold under adversarial conditions.
+
+Welcome to the world of professional Rust systems engineering!

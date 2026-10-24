@@ -9,7 +9,10 @@ use axum::{
 };
 use serde_json::{json, Value};
 
-use super::types::{AgentActionRequest, AgentActionResponse, AgentInterfaceState};
+use super::{
+    cluster_ops::*,
+    types::{AgentActionRequest, AgentActionResponse, AgentInterfaceState},
+};
 use crate::{
     delegation_engine::{AgentDelegationRequest, OverrideCriteria, RouteOverrideRule},
     policy::{AccessAction, AgentAccessPolicy},
@@ -47,6 +50,15 @@ async fn dispatch_tool(
     req: &AgentActionRequest,
 ) -> (bool, Value, Option<String>) {
     match req.tool.as_str() {
+        "record_project_decision" => exec_record_project_decision(state, &req.agent_id, &req.parameters).await,
+        "get_workgroup_rules" => exec_get_workgroup_rules(&req.parameters).await,
+        "upsert_workgroup" => exec_upsert_workgroup(&req.parameters).await,
+        "attach_workgroup_rule" => exec_attach_workgroup_rule(&req.parameters).await,
+        "deploy_cluster_worker" => exec_deploy_cluster_worker(state, &req.agent_id, &req.parameters).await,
+        "check_worker_connection" => exec_check_worker_connection(state, &req.parameters).await,
+        "check_cluster_health" => exec_check_cluster_health(state, &req.parameters).await,
+        "get_cluster_bootstrap_command" => exec_get_cluster_bootstrap_command(state, &req.parameters).await,
+        "dispatch_cluster_prompt" => exec_dispatch_cluster_prompt(state, &req.agent_id, &req.parameters).await,
         "verify_ledger" => exec_verify_ledger(state),
         "query_telemetry" => exec_query_telemetry(state, &req.parameters),
         "inspect_cluster" => exec_inspect_cluster(state).await,

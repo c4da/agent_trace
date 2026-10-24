@@ -377,4 +377,118 @@ This file sets up the server and the router.
 mod handlers;
 
 use axum::{
+    routing::{get, post},
+    Router,
+};
+use std::net::SocketAddr;
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() {
+    let state = Arc::new(handlers::AppState { ingestion_count: 0 });
+
+    let app = Router::new()
+        .route("/ingest", post(handlers::ingest_event))
+        .route("/status", get(handlers::get_status))
+        .with_state(state);
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    println!("Server running at http://{}", addr);
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+***
+
+## 📦 7.5 Advanced Axum: Binary Streaming, Cryptographic Headers & Dynamic Templating (`ota_dist.rs`)
+
+Modern systems often need to do more than return JSON. In AgentTrace, the gateway acts as its own package repository and bootstrap engine for worker nodes. This requires three advanced Axum capabilities:
+
+1. **Binary Streaming (`GET /api/v1/dist/agent_trace_gw.exe`)**
+2. **Custom Cryptographic Headers (`X-Content-SHA256`)**
+3. **Dynamic Script Templating (`GET /bootstrap.ps1`)**
+
+### 1. Streaming Raw Binaries with Custom Headers
+
+To stream an executable over HTTP without loading gigabytes of data into RAM or corrupting binary bytes, Axum allows returning `axum::response::Response` with an octet-stream body:
+
+```rust
+use axum::{
+    body::Body,
+    http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode},
+    response::Response,
+};
+
+pub async fn stream_binary_handler(binary_bytes: Vec<u8>, sha256_hex: String) -> Result<Response, StatusCode> {
+    let mut headers = HeaderMap::new();
     
+    // Set content type and attachment filename
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/octet-stream"));
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=\"agent_trace_gw.exe\""),
+    );
+    
+    // Attach custom cryptographic verification header
+    let sha_header_name = HeaderName::from_static("x-content-sha256");
+    if let Ok(val) = HeaderValue::from_str(&sha256_hex) {
+        headers.insert(sha_header_name, val);
+    }
+
+    let mut response = Response::new(Body::from(binary_bytes));
+    *response.headers_mut() = headers;
+    Ok(response)
+}
+```
+
+### 2. Dynamic Script Templating from Request Headers
+
+When a worker runs `irm http://192.168.1.101:8080/bootstrap.ps1 | iex`, the gateway needs to generate a PowerShell script that knows the Lead node's address. Instead of hardcoding IPs, the handler extracts the `Host` header:
+
+```rust
+pub async fn bootstrap_script_handler(headers: HeaderMap) -> Result<Response, StatusCode> {
+    // Extract incoming Host header (e.g., "192.168.1.101:8080" or "localhost:8080")
+    let host = headers
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("127.0.0.1:8080");
+
+    let script = format!(
+        r#"# AgentTrace Auto-Bootstrap
+$LeadHost = "{host}"
+Write-Host "[*] Bootstrapping AgentTrace Worker against $LeadHost..." -ForegroundColor Cyan
+
+$Manifest = Invoke-RestMethod -Uri "http://$LeadHost/api/v1/dist/manifest"
+Invoke-WebRequest -Uri "http://$LeadHost/api/v1/dist/agent_trace_gw.exe" -OutFile "agent_trace_gw.exe"
+
+# Compute and verify SHA-256
+$Hash = (Get-FileHash -Algorithm SHA256 "agent_trace_gw.exe").Hash.ToLower()
+if ($Hash -ne $Manifest.sha256.ToLower()) {{
+    Write-Error "Hash mismatch! Aborting."
+    exit 1
+}}
+Write-Host "[+] Binary verified! Starting daemon..." -ForegroundColor Green
+Start-Process "agent_trace_gw.exe" -ArgumentList "--worker-mode"
+"#,
+        host = host
+    );
+
+    let mut response = Response::new(Body::from(script));
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    Ok(response)
+}
+```
+
+---
+
+## 📝 Chapter 7 Summary & Key Takeaways
+
+1. **Type-Safe Routing**: Axum guarantees at compile time that handlers receive exactly the parameters declared in their signatures (`Path`, `Query`, `Json`, `State`).
+2. **Shared State**: Use `with_state(Arc::new(state))` on the router to pass shared databases, actors, and configs cleanly.
+3. **Binary Streaming & Custom Headers**: Combine `axum::body::Body::from(bytes)` with `HeaderMap` to serve cryptographically verified binaries.
+4. **Zero Bloat**: Axum handles real-time Server-Sent Events, REST endpoints, and binary package serving inside a single lightweight binary with zero Node.js or Nginx dependencies.

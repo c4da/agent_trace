@@ -53,12 +53,13 @@ By the end of this book, you won't just know syntax—you will understand how to
   - Futures and `async` / `await` syntax
   - Shared mutable state in async: `Arc<T>`, `Mutex<T>`, and `RwLock<T>`
   - Event distribution across tasks: `tokio::sync::broadcast` and channels
+  - The Actor Pattern & Bounded MPSC Channels (`ledger_writer.rs`): Eliminating SQLite lock contention
 - [Chapter 7: Building High-Performance Web Services with Axum](chapter_07_building_web_apis_axum.md)
   - What is Axum? Modern, ergonomic async web framework
   - Routers, Handlers, and HTTP methods (`GET`, `POST`, `DELETE`)
   - Axum Extractors: `State`, `Json`, `Query`, `Path`, and `HeaderMap`
   - Streaming responses: Server-Sent Events (SSE) with `async-stream`
-  - Middleware: CORS (`tower_http`), tracing, and logging
+  - Advanced Axum (`ota_dist.rs`): Binary streaming, custom cryptographic headers (`X-Content-SHA256`), and dynamic PowerShell bootstrap templating
 
 ### Module 4: Real-World Systems & Architecture
 - [Chapter 8: Systems Programming, Cryptography & SQLite](chapter_08_systems_crypto_sqlite.md)
@@ -66,8 +67,16 @@ By the end of this book, you won't just know syntax—you will understand how to
   - Cryptography with `ring`: Generating Ed25519 keypairs, signing digests, and public key verification
   - Length-prefixed SHA-256 hashing and `hex` encoding
   - Embedded databases with `rusqlite`: Connection pooling, prepared statements, and transactions
+  - In-Memory Content-Addressable Storage (CAS) with Thread Safety (`cas_guard.rs`): Sub-5ms atomic rollbacks
 - [Chapter 9: Testing, Idiomatic Modularity & Building Your First App](chapter_09_testing_and_architecture.md)
   - Library vs Binary targets (`lib.rs` vs `main.rs`)
   - Writing unit tests with `#[test]` and `#[cfg(test)]`
   - Integration testing with `tempfile`
   - Hands-on tutorial: Writing a standalone mini-telemetry signer from scratch
+  - Advanced Verification: Headless Invariant Verification (tamper simulation), Stdio JSON-RPC subprocess testing, and E2E test harnesses
+- [Chapter 10: Practical Rust Security Engineering — Optional AEAD Vaults (`ChaCha20-Poly1305`), Constant-Time Auth, mTLS HMACs & SIEM Streaming](chapter_10_enterprise_security_aead_mtls_siem.md)
+  - Designing Optional, Zero-Cost Security in Rust (Plaintext by Default, Encrypted on Demand)
+  - Authenticated Encryption with Associated Data (`ring::aead::CHACHA20_POLY1305` `ENCv1:` envelopes)
+  - Writing a Constant-Time Comparator (`constant_time_eq`) to Prevent Timing Side-Channels
+  - Inter-Gateway mTLS Thumbprint Pinning & `ring::hmac::HMAC_SHA256` Anti-Replay Windows
+  - Zero-Dependency Elastic Common Schema (ECS 8.11) `/_bulk` NDJSON Formatting for ELK (`siem_exporter.rs`)

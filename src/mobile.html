@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <title>AgentTrace Mobile // Cluster Operator</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --card-bg: #252526;
+      --card-border: #3c3c3c;
+      --accent: #0e639c;
+      --accent-glow: transparent;
+      --green: #4ec9b0;
+      --red: #f48771;
+      --orange: #cca700;
+      --purple: #c586c0;
+      --text: #cccccc;
+      --text-muted: #858585;
+      --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+    }
+    /* Header */
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.3px;
+    }
+    .node-badges {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .badge-node { background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.3); }
+    .badge-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 4px; animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+
+    /* Main Viewport */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 14px;
+      padding-bottom: 80px;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Bottom Navigation Bar */
+    nav.bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      background: rgba(18, 24, 34, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all 0.15s ease;
+    }
+    .nav-btn .icon { font-size: 18px; line-height: 1; }
+    .nav-btn.active { color: var(--accent); background: var(--accent-glow); }
+
+    /* Cards & Lists */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    /* Inputs & Buttons */
+    textarea, input[type="text"], select {
+      width: 100%;
+      background: #090d13;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      outline: none;
+    }
+    textarea:focus, input[type="text"]:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      background: var(--accent);
+      color: #05080e;
+      border: none;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-secondary {
+      background: #1e2638;
+      color: var(--text);
+    }
+    .btn-danger {
+      background: rgba(248, 81, 73, 0.2);
+      color: var(--red);
+      border: 1px solid var(--red);
+    }
+    .btn-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      width: auto;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      text-decoration: none;
+      cursor: pointer;
+      line-height: 1.2;
+    }
+    .btn-primary-sm {
+      background: var(--accent);
+      color: #05080e;
+      border: 1px solid var(--accent);
+    }
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .filter-pill {
+      background: #090d13;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+    .filter-pill.active {
+      background: rgba(88, 166, 255, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .item-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .detected-assets-bar {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    /* Artifact & Task Item Styling */
+    .item-row {
+      background: #090d13;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .item-row:active { border-color: var(--accent); }
+    .item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .item-title { font-weight: 600; font-size: 13px; color: var(--text); }
+    .item-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+    .item-preview {
+      font-size: 12px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 4px;
+    }
+    .tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .tag-running { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+    .tag-completed { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .tag-failed { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+    .tag-cancelled { background: rgba(139, 148, 158, 0.2); color: var(--text-muted); }
+
+    /* Modal Viewer */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 200;
+      padding: 16px;
+      flex-direction: column;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .modal-body img { max-width: 100%; height: auto; border-radius: 6px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span>[AT]</span>
+      <span>AgentTrace</span>
+      <span style="font-size: 10px; color: var(--accent); font-family: var(--font-mono);">MOBILE</span>
+      <span style="font-family: var(--font-mono, monospace); font-size: 9px; font-weight: 700; color: #f59e0b; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; text-transform: uppercase;" title="UI is in Developer Beta Preview. Automation should focus directly on the Gateway REST API.">BETA</span>
+    </div>
+    <div class="node-badges">
+      <a href="/client" class="badge" style="background: rgba(188, 140, 255, 0.15); color: var(--purple); text-decoration: none; border: 1px solid rgba(188, 140, 255, 0.3); font-weight: 700;" title="Switch to Desktop Studio">Studio ↗</a>
+      <a href="/console" class="badge" style="background: rgba(88, 166, 255, 0.15); color: var(--accent); text-decoration: none; border: 1px solid rgba(88, 166, 255, 0.3); font-weight: 700;" title="Switch to TUI Console">Console ↗</a>
+      <span class="badge badge-node"><span class="badge-pulse"></span>PC-1</span>
+      <span class="badge badge-node">PC-2</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- TAB 1: PROMPT HUB -->
+    <div id="tab-hub" class="tab-content active">
+      <div class="card">
+        <div class="card-title">
+          <span> Cluster Prompt Hub</span>
+          <span id="hub-status-pill" style="font-size: 10px; color: var(--green);">Ready</span>
+        </div>
+        <select id="hub-workgroup">
+          <option value="auto"> Auto-Arbitrate Workgroup</option>
+          <option value="wg-coding"> Coding & Architecture (Qwen + Gemini)</option>
+          <option value="wg-code-refactor"> Code Refactoring (DeepSeek-R1 + Qwen 27B)</option>
+          <option value="wg-ui-development"> UI Development (Work-First Standard)</option>
+          <option value="wg-documentation"> Documentation (DeepSeek-R1)</option>
+          <option value="wg-image-gen"> Image & SVG Generation</option>
+          <option value="wg-security-audit">[AT] Security & Zone Audit</option>
+        </select>
+        <textarea id="hub-prompt-input" rows="4" placeholder="Enter prompt to execute on local cluster nodes..."></textarea>
+        <button class="btn" id="btn-dispatch" onclick="dispatchMobilePrompt()">
+          <span> Dispatch to Cluster</span>
+        </button>
+      </div>
+
+      <div class="card" id="hub-result-card" style="display: none;">
+        <div class="card-title">
+          <span>Cluster Output</span>
+          <span id="hub-meta-badge" class="badge badge-node">PC-1</span>
+        </div>
+        <div id="hub-result-text" style="font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; background: #090d13; padding: 12px; border-radius: 6px; border: 1px solid var(--card-border); max-height: 340px; overflow-y: auto;"></div>
+        <div id="hub-detected-assets" class="detected-assets-bar" style="display: none;"></div>
+      </div>
+    </div>
+
+    <!-- TAB 2: ARTIFACTS LIST -->
+    <div id="tab-artifacts" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span> Workspace & Brain Artifacts</span>
+          <span id="artifacts-count" class="badge badge-node">0 items</span>
+        </div>
+        <div class="filter-pills">
+          <button class="filter-pill active" id="pill-all" onclick="setArtifactCategory('all')">All</button>
+          <button class="filter-pill" id="pill-image" onclick="setArtifactCategory('image')">[IMG] Images</button>
+          <button class="filter-pill" id="pill-markdown" onclick="setArtifactCategory('markdown')"> Markdown</button>
+          <button class="filter-pill" id="pill-code" onclick="setArtifactCategory('code')"> Code</button>
+          <button class="filter-pill" id="pill-specification" onclick="setArtifactCategory('specification')"> Specs</button>
+        </div>
+        <input type="text" id="artifacts-search" placeholder="[SEARCH] Filter artifacts..." oninput="filterArtifacts()">
+        <div id="artifacts-list-container">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading artifacts...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: BACKGROUND TASKS -->
+    <div id="tab-tasks" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span> Background Tasks Monitor</span>
+          <span id="tasks-count" class="badge badge-node">0 active</span>
+        </div>
+        <div id="tasks-list-container">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading tasks...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: PROJECT MANAGEMENT & LEDGER -->
+    <div id="tab-project" class="tab-content">
+      <div class="card">
+        <div class="card-title"><span>[TELEMETRY] Cluster Overview</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+          <div style="background: #090d13; padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);">
+            <div style="font-size: 11px; color: var(--text-muted);">Lead Node (PC-1)</div>
+            <div style="font-weight: 700; color: var(--green);">127.0.0.1:11434</div>
+            <div style="font-size: 10px; color: var(--accent);">Qwen 3.8 27B / 9B</div>
+          </div>
+          <div style="background: #090d13; padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);">
+            <div style="font-size: 11px; color: var(--text-muted);">Worker Node (PC-2)</div>
+            <div style="font-weight: 700; color: var(--green);">192.168.1.102:8642</div>
+            <div style="font-size: 10px; color: var(--accent);">DeepSeek-R1 (CUDA)</div>
+          </div>
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Cryptographic Ledger: <span style="color: var(--green); font-weight: 600;">SHA-256 + Ed25519 Verified</span>
+        </div>
+        <button class="btn btn-secondary" onclick="verifyLedger()">Verify Ledger Hash Chain</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span> Desktop Workspaces &amp; Consoles</span></div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+          Directly launch full desktop operators and views in a new tab:
+        </p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <a href="/client" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 10px 8px; text-decoration: none;">Studio ↗</a>
+          <a href="/console" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 10px 8px; text-decoration: none;"> Terminal TUI ↗</a>
+          <a href="/dashboard" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 10px 8px; text-decoration: none;">[TELEMETRY] Dashboard ↗</a>
+          <a href="/workgroups" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 10px 8px; text-decoration: none;">[NET] Workgroups ↗</a>
+          <a href="/policies" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 10px 8px; text-decoration: none;">[AT] Policies ↗</a>
+          <a href="/graph" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 10px 8px; text-decoration: none;">[INVARIANT] Graph ↗</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>[MOBILE] Remote Access Tip</span></div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+          Open this interface on any phone connected to your local Wi-Fi:
+        </p>
+        <code style="display: block; background: #090d13; padding: 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; color: var(--accent);">
+          http://192.168.1.101:8080/mobile
+        </code>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- BOTTOM TAB BAR -->
+  <nav class="bottom-bar">
+    <button class="nav-btn active" onclick="switchTab('hub')">
+      <span class="icon"></span>
+      <span>Hub</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('artifacts')">
+      <span class="icon"></span>
+      <span>Artifacts</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('tasks')">
+      <span class="icon"></span>
+      <span>Tasks</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('project')">
+      <span class="icon">[TELEMETRY]</span>
+      <span>Project</span>
+    </button>
+  </nav>
+
+  <!-- ARTIFACT VIEWER MODAL -->
+  <div id="artifact-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="modal-title" style="font-weight: 700; font-size: 13px;">Artifact</span>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <a id="modal-newtab-btn" href="#" target="_blank" rel="noopener noreferrer" class="badge" style="background: var(--accent); color: #05080e; text-decoration: none; padding: 4px 8px; font-weight: 700;">↗ Open in New Tab</a>
+          <button class="badge" style="background: #1e2638; border: none; color: var(--text); padding: 4px 10px; cursor: pointer;" onclick="closeModal()">✕</button>
+        </div>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    let allArtifacts = [];
+    let currentTab = 'hub';
+
+    function switchTab(tabId) {
+      currentTab = tabId;
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      event.currentTarget.classList.add('active');
+
+      if (tabId === 'artifacts') loadArtifacts();
+      if (tabId === 'tasks') loadTasks();
+    }
+
+    async function dispatchMobilePrompt() {
+      const prompt = document.getElementById('hub-prompt-input').value.trim();
+      if (!prompt) return;
+
+      const wg = document.getElementById('hub-workgroup').value;
+      const btn = document.getElementById('btn-dispatch');
+      const statusPill = document.getElementById('hub-status-pill');
+      const resultCard = document.getElementById('hub-result-card');
+      const resultText = document.getElementById('hub-result-text');
+      const metaBadge = document.getElementById('hub-meta-badge');
+
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      statusPill.textContent = 'Executing on cluster...';
+      statusPill.style.color = 'var(--orange)';
+      resultCard.style.display = 'block';
+      resultText.textContent = 'Sending prompt across cluster nodes...';
+
+      try {
+        const res = await fetch('/api/v1/hub/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: prompt,
+            workgroup_id: wg === 'auto' ? null : wg,
+            mode: 'auto',
+            agent_id: 'Mobile-Operator'
+          })
+        });
+        const data = await res.json();
+        statusPill.textContent = 'Completed';
+        statusPill.style.color = 'var(--green)';
+        metaBadge.textContent = (data.node_id || 'PC-1') + ' · ' + (data.selected_model || 'cluster');
+        resultText.textContent = data.response || JSON.stringify(data, null, 2);
+        renderDetectedAssets(data.response || '');
+      } catch (err) {
+        statusPill.textContent = 'Failed';
+        statusPill.style.color = 'var(--red)';
+        resultText.textContent = 'Error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        loadTasks(); // refresh background tasks
+      }
+    }
+
+    function renderDetectedAssets(text) {
+      const assetBar = document.getElementById('hub-detected-assets');
+      if (!assetBar) return;
+      if (!text || !allArtifacts.length) {
+        assetBar.style.display = 'none';
+        return;
+      }
+      const lower = text.toLowerCase();
+      const matched = allArtifacts.filter(a =>
+        lower.includes(a.title.toLowerCase()) ||
+        lower.includes(a.relative_path.toLowerCase()) ||
+        lower.includes(a.id)
+      ).slice(0, 5);
+
+      if (matched.length > 0) {
+        assetBar.style.display = 'flex';
+        assetBar.innerHTML = `<span style="font-size: 11px; color: var(--text-muted); width: 100%; font-family: var(--font-mono);">Referenced Artifacts (Tap to Open in New Tab):</span>` +
+          matched.map(m => {
+            const isImg = m.kind.toLowerCase() === 'image';
+            const url = isImg ? `/api/v1/artifacts/${m.id}?raw=true` : `/api/v1/artifacts/${m.id}/view`;
+            return `
+              <a href="${url}" target="_blank" rel="noopener noreferrer" class="btn-sm ${isImg ? 'btn-primary-sm' : 'btn-secondary'}">
+                ${isImg ? '[IMG]' : ''} ${escapeHtml(m.title)} ↗
+              </a>
+            `;
+          }).join('');
+      } else {
+        assetBar.style.display = 'none';
+      }
+    }
+
+    let currentArtifactCategory = 'all';
+
+    function setArtifactCategory(cat) {
+      currentArtifactCategory = cat;
+      document.querySelectorAll('.filter-pill').forEach(el => el.classList.remove('active'));
+      const pill = document.getElementById('pill-' + cat);
+      if (pill) pill.classList.add('active');
+      filterArtifacts();
+    }
+
+    async function loadArtifacts() {
+      const container = document.getElementById('artifacts-list-container');
+      try {
+        const res = await fetch('/api/v1/artifacts');
+        const data = await res.json();
+        allArtifacts = data.artifacts || [];
+        document.getElementById('artifacts-count').textContent = allArtifacts.length + ' items';
+        filterArtifacts();
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--red); padding: 10px;">Failed to load artifacts: ${err.message}</div>`;
+      }
+    }
+
+    function renderArtifacts(items) {
+      const container = document.getElementById('artifacts-list-container');
+      if (!items.length) {
+        container.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 20px;">No artifacts found for current filter.</div>`;
+        return;
+      }
+      container.innerHTML = items.map(a => {
+        const isImage = a.kind.toLowerCase() === 'image';
+        const rawUrl = `/api/v1/artifacts/${a.id}?raw=true`;
+        const viewUrl = `/api/v1/artifacts/${a.id}/view`;
+        const primaryUrl = isImage ? rawUrl : viewUrl;
+        const primaryLabel = isImage ? '[IMG] Open Image (New Tab) ↗' : ' Open in New Tab ↗';
+
+        return `
+          <div class="item-row" onclick="handleRowClick(event, '${a.id}')">
+            <div class="item-header">
+              <a href="${primaryUrl}" target="_blank" rel="noopener noreferrer" class="item-title" style="text-decoration: none; color: var(--text);">
+                ${escapeHtml(a.title)} <span style="font-size: 11px; color: var(--accent);">↗</span>
+              </a>
+              <span class="tag tag-completed">${a.kind}</span>
+            </div>
+            <div class="item-meta">${Math.round(a.size_bytes / 1024)} KB · ${escapeHtml(a.relative_path)}</div>
+            <div class="item-preview">${escapeHtml(a.preview)}</div>
+            <div class="item-actions">
+              <a href="${primaryUrl}" target="_blank" rel="noopener noreferrer" class="btn-sm btn-primary-sm">
+                ${primaryLabel}
+              </a>
+              ${isImage ? `
+                <a href="${viewUrl}" target="_blank" rel="noopener noreferrer" class="btn-sm btn-secondary">
+                  [VIEW] Standalone Viewer ↗
+                </a>
+              ` : `
+                <a href="${rawUrl}" target="_blank" rel="noopener noreferrer" class="btn-sm btn-secondary">
+                  ⬇️ Raw File ↗
+                </a>
+              `}
+              <button class="btn-sm btn-secondary" onclick="viewArtifact('${a.id}')">
+                [SEARCH] Quick Peek
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function handleRowClick(evt, id) {
+      if (evt.target.closest('a') || evt.target.closest('button')) {
+        return;
+      }
+      openArtifactNewTab(id);
+    }
+
+    function openArtifactNewTab(id, rawOnly = false) {
+      const item = allArtifacts.find(a => a.id === id);
+      if (!item) return;
+      const isImg = item.kind.toLowerCase() === 'image';
+      const url = (isImg || rawOnly)
+        ? `/api/v1/artifacts/${item.id}?raw=true`
+        : `/api/v1/artifacts/${item.id}/view`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    function filterArtifacts() {
+      const q = (document.getElementById('artifacts-search').value || '').toLowerCase().trim();
+      const filtered = allArtifacts.filter(a => {
+        const matchesQuery = !q ||
+          a.title.toLowerCase().includes(q) ||
+          a.relative_path.toLowerCase().includes(q) ||
+          a.preview.toLowerCase().includes(q);
+        const matchesCat = currentArtifactCategory === 'all' ||
+          a.kind.toLowerCase() === currentArtifactCategory.toLowerCase();
+        return matchesQuery && matchesCat;
+      });
+      renderArtifacts(filtered);
+    }
+
+    async function viewArtifact(id) {
+      const item = allArtifacts.find(a => a.id === id);
+      if (!item) return;
+
+      document.getElementById('modal-title').textContent = item.title;
+      const newTabBtn = document.getElementById('modal-newtab-btn');
+      const isImage = item.kind.toLowerCase() === 'image';
+      const targetUrl = isImage
+        ? `/api/v1/artifacts/${item.id}?raw=true`
+        : `/api/v1/artifacts/${item.id}/view`;
+      newTabBtn.href = targetUrl;
+      newTabBtn.textContent = isImage ? '[IMG] Open in New Tab ↗' : ' Open in New Tab ↗';
+
+      const body = document.getElementById('modal-body');
+      document.getElementById('artifact-modal').classList.add('active');
+
+      if (isImage) {
+        body.innerHTML = `
+          <div style="text-align: center;">
+            <a href="/api/v1/artifacts/${item.id}?raw=true" target="_blank" rel="noopener noreferrer" title="Tap image for full resolution new tab">
+              <img src="/api/v1/artifacts/${item.id}?raw=true" alt="${escapeHtml(item.title)}" style="max-width: 100%; border-radius: 6px; cursor: pointer;">
+            </a>
+            <div style="margin-top: 10px;">
+              <a href="/api/v1/artifacts/${item.id}?raw=true" target="_blank" rel="noopener noreferrer" class="btn-sm btn-primary-sm">
+                [IMG] Tap for Full Resolution (New Tab) ↗
+              </a>
+            </div>
+          </div>
+        `;
+      } else {
+        body.textContent = 'Loading content...';
+        try {
+          const res = await fetch(`/api/v1/artifacts/${item.id}`);
+          const data = await res.json();
+          body.textContent = data.content || '';
+        } catch (err) {
+          body.textContent = 'Failed to load content: ' + err.message;
+        }
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('artifact-modal').classList.remove('active');
+    }
+
+    async function loadTasks() {
+      const container = document.getElementById('tasks-list-container');
+      try {
+        const res = await fetch('/api/v1/tasks');
+        const data = await res.json();
+        const tasks = data.tasks || [];
+        document.getElementById('tasks-count').textContent = tasks.length + ' tasks';
+        if (!tasks.length) {
+          container.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 20px;">No active background tasks.</div>`;
+          return;
+        }
+        container.innerHTML = tasks.map(t => `
+          <div class="item-row">
+            <div class="item-header">
+              <span class="item-title">${escapeHtml(t.name)}</span>
+              <span class="tag tag-${t.status}">${t.status}</span>
+            </div>
+            <div class="item-meta">ID: ${t.id} · Progress: ${t.progress}%</div>
+            <div class="item-preview">${escapeHtml(t.log_tail)}</div>
+            ${t.status === 'running' ? `
+              <button class="btn btn-danger" style="margin-top: 8px; padding: 6px; font-size: 11px;" onclick="cancelTask('${t.id}')">Cancel Task</button>
+            ` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--red); padding: 10px;">Failed to load tasks: ${err.message}</div>`;
+      }
+    }
+
+    async function cancelTask(id) {
+      if (!confirm('Cancel this task?')) return;
+      await fetch(`/api/v1/tasks/${id}/cancel`, { method: 'POST' });
+      loadTasks();
+    }
+
+    async function verifyLedger() {
+      alert('Verifying cryptographic ledger integrity...');
+      const res = await fetch('/api/v1/ledger/verify');
+      const data = await res.json();
+      alert(`Ledger Status: ${data.valid ? 'VALID [OK]' : 'INVALID [FAIL]'}\nVerified Events: ${data.verified_events || data.total_events || 0}\nHash: ${data.head_hash || 'OK'}`);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Auto-refresh tasks every 6s if on tasks tab
+    setInterval(() => {
+      if (currentTab === 'tasks') loadTasks();
+    }, 6000);
+  </script>
+</body>
+</html>

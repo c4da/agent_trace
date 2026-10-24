@@ -24,133 +24,97 @@ The core architectural principle is **functional unification**. Instead of relyi
 
 ```mermaid
 graph TD
-    A[External Agent/Client] -->|HTTP/UDP| B(AgentTrace Gateway - Rust Binary);
-    B --> C{Axum Router / Handlers};
-    C --> D[Policy Engine (src/policy.rs)];
-    C --> E[Agent Interface (src/agent_interface.rs)];
-    C --> F[Ledger Verification (src/ledger.rs)];
-    D --> G[Database Persistence (src/db.rs)];
-    F --> H[Cryptographic Ledger (Ed25519)];
-    E --> I[Model Registry / MCP Server];
-    B --> J[Analytics Engine (src/analytics.rs)];
-    B --> K[Background Services (src/services.rs)];
-    K --> L(Worker Forwarder / Discovery Beacon);
-    J --> M[Real-time Dashboard (SSE)];
+    A[External Agent/Client / IDE] -->|stdio JSON-RPC| B(agent_trace_mcp.exe);
+    A -->|HTTP/UDP| C(agent_trace_gw.exe - Axum / Tokio);
+    B -->|Local HTTP REST| C;
+    C --> D{Axum Router / Handlers};
+    D --> E[Policy Engine & Safe Zones (src/policy.rs, src/zones.rs)];
+    D --> F[CAS Pre-Image Guard (src/cas_guard.rs)];
+    D --> G[Workgroup & Rule Engine (src/workgroups/)];
+    D --> H[OTA Distribution (src/ota_dist.rs)];
+    D --> I[Actor Ledger Writer (src/ledger_writer.rs)];
+    I --> J[Cryptographic Ledger & DB (src/ledger.rs, src/db.rs)];
+    D --> K[Central Prompt Hub & Mesh (src/services.rs)];
+    K --> L(Local Engines: Ollama :11434 / Hermes :8642);
+    D --> M[Living Project Book & Studio UI (/client, /console)];
 ```
 
 ### 9.2.2 Component Synthesis
 
 | Component | Core Function | Implementation Detail | Engineering Insight |
 | :--- | :--- | :--- | :--- |
-| **Reverse Proxy** | Traffic routing, TLS termination, rate limiting. | Handled by the Axum framework, leveraging Tokio's asynchronous capabilities. | Provides the high-throughput entry point, minimizing initial latency. |
-| **Cryptographic Ledger** | Immutable state tracking, non-repudiation. | Uses Ed25519 signing for every state transition and V2 canonical hashing for data integrity. | Ensures that the history of agent actions is cryptographically verifiable, forming the basis of a zero-trust environment. |
-| **Model Registry** | Version control and introspection of deployed AI models. | Stores metadata, access policies, and model signatures. | Decouples the execution environment from the model definition, allowing dynamic model swapping without service interruption. |
-| **Policy Engine** | Access control, path normalization, sandbox enforcement. | Implements a fine-grained, attribute-based access control (ABAC) model. | Acts as the gatekeeper, ensuring agents only interact with resources they are explicitly authorized for. |
-| **MCP Server** | Agent control and communication protocol. | Implements a JSON-RPC interface over the gateway, managing agent lifecycle and state synchronization. | Provides a standardized, structured method for agents to interact with the gateway's control plane. |
+| **Reverse Proxy & Gateway** | Traffic routing, SSRF firewall, token arbitration. | Axum 0.7 framework on Tokio async runtime. | High-throughput entry point with canonical origin tuple verification. |
+| **Actor Ledger Writer** | Lock-free sequential event commit. | Tokio bounded MPSC actor channel (`src/ledger_writer.rs`). | Completely eliminates SQLite WAL write-lock contention across concurrent async threads. |
+| **Cryptographic Ledger** | Immutable audit trail, tamper detection. | Ring Ed25519 signing and length-prefixed SHA-256 hash chains (`src/ledger.rs`). | Provides mathematically verifiable non-repudiation for every agent tool invocation. |
+| **Pre-Image CAS Guard** | Instantaneous rollback of rogue mutations. | In-memory `RwLock<HashMap<PathBuf, Vec<u8>>>` (`src/cas_guard.rs`). | Sub-5ms auto-revert of out-of-band disk writes, neutralizing destructive agent drift. |
+| **Zero-Walk OTA Dist** | Zero-friction multi-node cluster deployment. | Self-inspecting binary server and dynamic PowerShell bootstrapper (`src/ota_dist.rs`). | Eliminates physical setup friction via one-liner network installs and remote deployment. |
+| **Workgroups & Rule Mesh**| Multi-agent hierarchy and attached rules. | SQLite workgroup mapping and dynamic Markdown rule mesh (`src/workgroups/`). | Enforces system invariants (e.g., Work-First UI, Anti-Monolith rules) per team. |
+| **Native MCP Server** | Direct AI IDE integration. | Zero-dependency stdio JSON-RPC 2.0 binary (`src/bin/agent_trace_mcp.rs`). | Plugs natively into Cursor, Antigravity, and Claude Desktop without runtime bloat. |
+| **Living Project Book** | Operator console and memory bank. | High-density Web TUI (`src/client.html`, `/client`, `/console`). | Replaces passive log dumps with an interactive architectural flight recorder. |
 
 ---
 
 ## 9.3 Deep Dive into the Modular Codebase
 
-The codebase is meticulously structured to adhere to the Single Responsibility Principle (SRP), even within the unified binary. Each module handles a distinct domain concern, communicating via well-defined internal interfaces (traits and structs).
+The codebase strictly adheres to the Single Responsibility Principle (SRP). Each module resides in its own file, completely decoupled from foreign domain logic.
 
 ### 9.3.1 `src/main.rs`: The Lightweight Bootstrap Orchestrator
+The bootstrap orchestrator initializes the Tokio runtime, mounts database connections, creates actor channels, spawns background services (`services.rs`), and binds the Axum listener on `:8080`.
 
-This module is the entry point. Its primary responsibility is *not* business logic, but the orchestration of the system's lifecycle.
+### 9.3.2 `src/handlers.rs`: The Modular Axum API Surface
+Exposes REST endpoints for event ingestion (`POST /api/v1/event`), ledger verification (`GET /api/v1/ledger/verify`), threat analytics (`GET /api/v1/threat`), Prompt Hub routing (`POST /api/v1/hub/dispatch`), and UI serving (`GET /client`, `GET /console`).
 
-1.  **Initialization:** Sets up the Tokio runtime and initializes the global state (e.g., the shared `Arc<AppState>`).
-2.  **Resource Loading:** Loads configuration, initializes the SQLite connection pool, and loads the initial policy set.
-3.  **Service Spawning:** Spawns all necessary background tasks (`src/services.rs`)—the model introspector, the UDP beacon, and the analytics collector—before starting the HTTP server.
-4.  **Server Binding:** Binds the Axum router (`src/handlers.rs`) to the specified network interfaces.
+### 9.3.3 `src/ledger_writer.rs`: Actor-Based Channel Writer
+Decouples asynchronous HTTP handlers from blocking disk I/O. Handlers send events across a `tokio::sync::mpsc::channel(1000)`. A dedicated background worker consumes messages sequentially, computes SHA-256 hash chain linkages, signs with Ed25519, and writes to SQLite WAL without write-lock contention.
 
-**Engineering Insight:** By keeping `main.rs` minimal, we ensure that the boot time is dominated by fast resource allocation rather than complex setup logic, crucial for rapid deployment and failover.
+### 9.3.4 `src/cas_guard.rs`: Pre-Image Content-Addressable Storage Guard
+Maintains in-memory snapshots of files prior to agent mutations (`record_pre_image`). When an unauthorized mutation or BPI breach occurs, `revert_file` restores the byte snapshot within <5ms, preventing catastrophic data corruption.
 
-### 9.3.2 `src/handlers.rs`: The Modular Axum Router
+### 9.3.5 `src/ota_dist.rs`: Zero-Walk OTA Distribution Engine
+Locates its own running executable via `std::env::current_exe()`, calculates its SHA-256 hash, and serves `/api/v1/dist/manifest`, `/api/v1/dist/agent_trace_gw.exe`, dynamic `/bootstrap.ps1`, and remote deployment via `POST /api/v1/cluster/deploy-worker`.
 
-This module defines the public API surface of the gateway. It acts as the dispatcher, translating external HTTP requests into internal service calls.
+### 9.3.6 `src/zones.rs` & `src/policy.rs`: Safe Zones & Blacklist Precedence
+Enforces RFC 3986 SSRF canonicalization, strict path canonicalization via `std::fs::canonicalize` to defeat symlink directory junction escapes, and Blacklist Precedence Invariant (BPI) protection on `.env` and `.secrets`.
 
-*   **Endpoints:** Defines routes for `/api/v1/agent/{id}`, `/api/v1/models/{name}`, and the critical `/dashboard` endpoint.
-*   **Middleware:** Implements custom middleware for request logging, initial rate limiting, and basic TLS validation.
-*   **Dispatch Logic:** Upon receiving a request, the handler first passes the request context (headers, path, body) to the `PolicyEngine` for pre-authorization before routing it to the appropriate service handler (e.g., `AgentInterface` or `Ledger`).
+### 9.3.7 `src/workgroups/`: Problem Workgroups & Rule Mesh
+Manages collaborative teams of agents. Allows dynamic attachment of Markdown rule files (`attach_workgroup_rule`) to guide agent execution toward architectural standards (e.g. Anti-Monolith invariants).
 
-### 9.3.3 `src/services.rs`: The Background Service Fabric
+### 9.3.8 `src/bin/agent_trace_mcp.rs`: Standalone Native MCP Engine
+A zero-dependency stdio JSON-RPC 2.0 binary connecting directly to IDE tools. Routes requests over localhost to `agent_trace_gw.exe`, translating MCP tool calls into signed ledger events and hub dispatches.
 
-This module manages all asynchronous, non-request-driven processes that maintain the system's health and observability.
+### 9.3.9 `src/client.html`: The Living Project Book & Studio Console
+A zero-dependency, high-density Web TUI and architectural flight recorder. Provides real-time event tables, interactive scenario testing, timeline scrubbing, and raw cryptographic JSON ledger exports.
 
-*   **Model Introspector:** Periodically polls the Model Registry to check for new model versions or policy updates, pushing changes to the active Policy Engine state.
-*   **Worker Forwarder:** Maintains a dynamic map of active agent workers. When a request arrives, this service determines the optimal worker based on load, capability, and policy constraints.
-*   **UDP Discovery Beacon:** A low-overhead service that broadcasts the gateway's presence and capability signature across the local network, enabling agents to discover the gateway without explicit configuration.
-
-### 9.3.4 `src/db.rs`: Persistence and Ledger Verification Engine
-
-This module manages the persistence layer, utilizing **SQLite with Write-Ahead Logging (WAL)**.
-
-*   **WAL Advantage:** WAL is critical here because it allows concurrent reads and writes, preventing the database from becoming a bottleneck during high-volume agent interactions.
-*   **Ledger Storage:** It stores the canonical history of agent interactions, not the raw data, but the *cryptographically signed hashes* of the interactions.
-*   **Verification:** Provides the `verify_ledger_integrity(hash)` function, which allows external auditors to confirm that the gateway's internal state has not been tampered with since the last successful commit.
-
-### 9.3.5 `src/ledger.rs`: Cryptographic Integrity and Hashing
-
-This is the cryptographic heart of the gateway.
-
-*   **Ed25519 Signing:** Every critical state change (e.g., agent state transition, policy update, resource access) is signed using the gateway's private key. This signature is appended to the transaction record, providing non-repudiation.
-*   **V2 Canonical Hashing:** We employ a custom V2 canonical hashing scheme. This ensures that the input data (the agent action, the policy context, the timestamp) is serialized into a deterministic byte stream *before* hashing. This prevents subtle serialization differences from leading to hash mismatches, which is a common pitfall in distributed systems.
-
-### 9.3.6 `src/policy.rs`: Path Normalization and Sandbox Access Control
-
-The Policy Engine is the enforcement point. It operates on the principle of **"Deny by Default."**
-
-*   **Path Normalization:** Before any policy check, the gateway normalizes the incoming request path and parameters (e.g., resolving `../` or canonicalizing URI forms). This prevents path traversal attacks and ensures policies are evaluated against a consistent state.
-*   **Sandbox Enforcement:** Policies are defined as constraints on agent attributes (e.g., `Agent.Role == 'Researcher'` AND `Resource.Sensitivity <= 3`). The engine checks these constraints against the current agent state and the requested resource metadata. If the policy fails, the request is terminated immediately, before reaching the worker.
-
-### 9.3.7 `src/analytics.rs`: Telemetry and Threat Evaluation
-
-This module is the observability layer, responsible for transforming raw interaction data into actionable intelligence.
-
-*   **Multi-dimensional Aggregation:** It aggregates telemetry across multiple dimensions: Agent ID, Resource Accessed, Policy Outcome (Allow/Deny), and Latency.
-*   **Threat Evaluation:** It runs real-time anomaly detection algorithms (e.g., sudden spikes in denied requests from a single agent, or rapid, non-sequential resource access patterns). These evaluations trigger alerts that can automatically update the Policy Engine (e.g., temporarily banning a suspicious agent).
-
-### 9.3.8 `src/agent_interface.rs`: AI Agent Control and MCP Protocol
-
-This module is the direct interface to the agents.
-
-*   **Dynamic Route Overrides:** Allows the Policy Engine to dynamically inject or override routing rules. For example, if an agent is flagged as suspicious, the gateway can temporarily override its normal route and redirect all traffic to a "Quarantine Sandbox" endpoint.
-*   **MCP JSON-RPC:** Implements the Message Control Protocol (MCP). This protocol allows agents to perform complex, stateful operations (e.g., `agent.request_resource(id, params)`) rather than simple stateless HTTP calls. The gateway manages the state machine for these complex requests.
+### 9.3.10 `plugins/agent-trace`: The Official Antigravity Plugin Bundle
+A native Antigravity IDE plugin (`plugins/agent-trace/`) that bundles:
+* **Bundled MCP Server (`mcp_config.json`)**: Auto-launches `agent_trace_mcp.exe` and injects 29 governance & cluster tools into Antigravity.
+* **Autonomous Invariant Rules (`rules/AGENTS.md`)**: Contextually enforces Work-First UI design, Single Responsibility Principle (SRP), and Zero-Token local cluster delegation.
+* **Domain Skills (`skills/`)**: Ships 3 core runbook skills (`agent-trace-audit`, `agent-trace-cluster`, and `agent-trace-project-book`).
 
 ---
 
 ## 9.4 Deployment & Operational Topologies
 
-The AgentTrace Gateway is designed to be highly flexible, supporting various operational scales from local testing to large-scale distributed clusters.
+### 9.4.1 Zero-Walk Automated Provisioning
+Deploying a multi-node cluster no longer requires manual configuration:
+1. **Lead Node**: Run `agent_trace_gw.exe` on the primary workstation (e.g., `192.168.1.101:8080`).
+2. **Worker Bootstrap**: On any LAN machine, run:
+   ```powershell
+   irm http://192.168.1.101:8080/bootstrap.ps1 | iex
+   ```
+   Or deploy remotely from the Lead node via the MCP tool:
+   ```json
+   {
+     "name": "deploy_cluster_worker",
+     "arguments": { "target_host": "192.168.1.102", "method": "ssh", "user": "milos" }
+   }
+   ```
+3. **Automatic Discovery**: The worker downloads the verified binary, opens firewall ports, launches in worker mode, and announces its local models (`deepseek-r1:1.5b`) over UDP `:8089`.
 
-### 9.4.1 Single Lead Node Deployment (Development/Small Scale)
-
-In this simplest topology, the entire gateway runs on a single machine.
-
-*   **Configuration:** All services (`src/services.rs`) run locally. The database (`src/db.rs`) is local SQLite.
-*   **Pros:** Minimal operational overhead, easiest debugging.
-*   **Cons:** Single point of failure (SPOF), limited throughput ceiling.
-*   **Use Case:** Development, testing, and small-scale simulation environments.
-
-### 9.4.2 Dual-PC Heterogeneous Cluster (Production Scale)
-
-For mission-critical, high-throughput environments, the gateway is deployed in a clustered fashion, leveraging specialized hardware.
-
-*   **PC-1 (Lead Node):** Runs the core AgentTrace Gateway binary. This node handles all control plane logic, policy enforcement, ledger signing, and routing. It is optimized for CPU-intensive tasks (cryptography, policy evaluation).
-*   **PC-2 (CUDA Worker):** A dedicated node running specialized AI inference workers. The Lead Node uses the `Worker Forwarder` service to intelligently route computationally heavy requests (e.g., complex reasoning tasks) to PC-2.
-*   **Communication:** The Lead Node communicates with PC-2 via a high-speed, authenticated RPC channel (e.g., gRPC), ensuring that the policy and ledger integrity are maintained even when the computation is offloaded.
-*   **Fault Tolerance:** A secondary Lead Node can be deployed in a hot-standby configuration, maintaining synchronized ledger state via periodic WAL replication.
-
-### 9.4.3 Live Dashboard Monitoring
-
-The gateway exposes a dedicated monitoring endpoint (`/dashboard`).
-
-*   **SSE Streaming:** This endpoint utilizes Server-Sent Events (SSE) to stream real-time telemetry data from `src/analytics.rs` directly to a front-end dashboard.
-*   **Data Presented:** The dashboard provides immediate visibility into:
-    *   Policy Hit Rate (Allow/Deny counts).
-    *   Agent Activity Heatmaps (Who is interacting with what).
-    *   Ledger Health (Last signed block, integrity check status).
-    *   Anomaly Alerts (Real-time threat evaluations).
+### 9.4.2 Heterogeneous Lead/Worker Topology
+* **PC-1 (Lead Node · 192.168.1.101)**: CPU-heavy orchestration, Axum API, actor ledger writer, SQLite WAL, and local heavy model (`qwen3.8:27b`).
+* **PC-2 (Worker Node · 192.168.1.102)**: Dedicated CUDA GPU worker hosting `deepseek-r1:1.5b` via Hermes Agent (`:8642`), handling rapid unit test generation and chain-of-thought verification.
+* **IDE Clients (Antigravity, Cursor, Claude Code)**: Connect via `agent_trace_mcp.exe` over stdio, receiving real-time governance and dispatching zero-token prompts transparently.
 
 ---
 

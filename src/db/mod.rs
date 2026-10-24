@@ -68,6 +68,18 @@ impl Database {
         nodes::delete_node(&conn, node_id)
     }
 
+    /// Retrieves all recorded cluster nodes.
+    pub fn get_all_nodes(&self) -> SqliteResult<Vec<NodeHeartbeat>> {
+        let conn = self.conn.lock().unwrap();
+        nodes::get_all_nodes(&conn)
+    }
+
+    /// Updates a node's operational status and last_seen timestamp.
+    pub fn update_node_status(&self, node_id: &str, status: &str, last_seen: &str) -> SqliteResult<bool> {
+        let conn = self.conn.lock().unwrap();
+        nodes::update_node_status(&conn, node_id, status, last_seen)
+    }
+
     /// Returns recently recorded events.
     pub fn get_recent_events(&self, limit: usize) -> SqliteResult<Vec<Value>> {
         let conn = self.conn.lock().unwrap();
@@ -96,6 +108,28 @@ impl Database {
     pub fn verify_ledger(&self) -> SqliteResult<LedgerVerificationReport> {
         let conn = self.conn.lock().unwrap();
         verify::verify_ledger(&conn)
+    }
+
+    /// Alias for `verify_ledger()` used by benchmarks and adversarial verification suites.
+    pub fn verify_chain(&self) -> SqliteResult<LedgerVerificationReport> {
+        self.verify_ledger()
+    }
+
+    /// Test-only helper to simulate an out-of-band SQLite tampering attack against a stored block.
+    #[cfg(test)]
+    pub fn tamper_event_target_for_test(&self, event_id: &str, new_target: &str) -> SqliteResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE events SET target = ?1 WHERE event_id = ?2",
+            rusqlite::params![new_target, event_id],
+        )?;
+        Ok(())
+    }
+
+    /// Verifies the most recent `limit` blocks of the ledger for periodic audits.
+    pub fn verify_ledger_recent(&self, limit: usize) -> SqliteResult<LedgerVerificationReport> {
+        let conn = self.conn.lock().unwrap();
+        verify::verify_ledger_tail(&conn, limit)
     }
 
     /// Computes cluster health and event volume summary.

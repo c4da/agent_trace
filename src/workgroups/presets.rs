@@ -35,7 +35,7 @@ pub fn available_agents_catalog() -> Vec<AvailableAgentInfo> {
         AvailableAgentInfo {
             agent_id: "copilot-cli".to_string(),
             display_name: "GitHub Copilot CLI".to_string(),
-            node_id: "PC-1-Copilot".to_string(),
+            node_id: "PC-1".to_string(),
             badge_color: "#bc8cff".to_string(),
             specialty: "Terminal command synthesis, SVG/asset scripts & shell automation".to_string(),
             default_role: WorkgroupRole::ToolExecutor,
@@ -134,31 +134,38 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
         problem_domain: "image_generation".to_string(),
         icon: "🎨".to_string(),
         color: "#bc8cff".to_string(),
-        description: "Visual asset, SVG diagram, and UI mockup synthesis pairing DeepSeek-R1 prompt composition with GitHub Copilot CLI automation.".to_string(),
+        description: "Collaborative diagram and visual synthesis: Stage 1 (Qwen on PC-1) performs deep code & architectural assessment; Stage 2 (DeepSeek-R1 on PC-2 CUDA) renders the Mermaid.js diagram and visual specification.".to_string(),
         execution_strategy: "pipeline".to_string(),
         members: vec![
             WorkgroupMember {
-                agent_id: "deepseek-r1:1.5b".to_string(),
-                display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
-                node_id: "PC-2".to_string(),
+                agent_id: "qwen3.5:9b".to_string(),
+                display_name: "Qwen 3.5 (9B Technical Assessor)".to_string(),
+                node_id: "PC-1".to_string(),
                 role: WorkgroupRole::LeadArchitect,
                 parent_agent_id: None,
             },
             WorkgroupMember {
+                agent_id: "deepseek-r1:1.5b".to_string(),
+                display_name: "DeepSeek-R1 (1.5B CUDA Synthesizer)".to_string(),
+                node_id: "PC-2".to_string(),
+                role: WorkgroupRole::PrimaryBuilder,
+                parent_agent_id: Some("qwen3.5:9b".to_string()),
+            },
+            WorkgroupMember {
                 agent_id: "copilot-cli".to_string(),
                 display_name: "GitHub Copilot CLI".to_string(),
-                node_id: "PC-1-Copilot".to_string(),
-                role: WorkgroupRole::PrimaryBuilder,
+                node_id: "PC-1".to_string(),
+                role: WorkgroupRole::ToolExecutor,
                 parent_agent_id: Some("deepseek-r1:1.5b".to_string()),
             },
         ],
         markdown_rules: vec![
             MarkdownRuleAttachment {
                 id: "rule-visual-assets".to_string(),
-                title: "Work-First Visual & Image Generation Rules".to_string(),
+                title: "Work-First Visual & Diagram Generation Rules".to_string(),
                 file_path: Some("docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md".to_string()),
                 inline_markdown: Some(
-                    "- Generate only the interface or crisp vector asset itself without surrounding laptop/phone device frames.\n- Use high-contrast dark operator palette (#0d1117 background, #58a6ff cyan, #3fb950 green, #bc8cff purple).\n- Prefer clean SVG geometry and deterministic prompts.".to_string(),
+                    "- Stage 1 (Qwen PC-1): Analyze the code, data structures, and architectural flows to produce a precise technical breakdown.\n- Stage 2 (DeepSeek-R1 PC-2 CUDA): Take Stage 1's technical specification and render a complete, valid Mermaid.js diagram (or SVG) representing the architecture.\n- Generate clean, valid Mermaid.js flowchart or architecture diagrams with high-contrast dark theme.\n- No device frames, no unnecessary fluff.".to_string(),
                 ),
                 enforce_strict: true,
             },
@@ -172,6 +179,8 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
             "mockup".to_string(),
             "draw".to_string(),
             "illustration".to_string(),
+            "mermaid".to_string(),
+            "flowchart".to_string(),
         ],
         tasks_completed: 6,
     };
@@ -203,7 +212,7 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
             WorkgroupMember {
                 agent_id: "copilot-cli".to_string(),
                 display_name: "GitHub Copilot CLI".to_string(),
-                node_id: "PC-1-Copilot".to_string(),
+                node_id: "PC-1".to_string(),
                 role: WorkgroupRole::ToolExecutor,
                 parent_agent_id: None,
             },
@@ -440,6 +449,69 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
         tasks_completed: 5,
     };
 
+    // 8. Cluster Operations & Node Control Workgroup
+    let wg_ops = ProblemWorkgroup {
+        id: "wg-cluster-ops".to_string(),
+        name: "Cluster Control & Operations".to_string(),
+        problem_domain: "operations".to_string(),
+        icon: "🕹️".to_string(),
+        color: "#ec4899".to_string(),
+        description: "Controls, coordinates, and executes operational commands across worker nodes with cryptographic ledger provenance, CAS Guard containment, and zero external token cost.".to_string(),
+        execution_strategy: "swarm".to_string(),
+        members: vec![
+            WorkgroupMember {
+                agent_id: "qwen3.8:27b".to_string(),
+                display_name: "Qwen 3.8 (27B Heavy Reasoning)".to_string(),
+                node_id: "PC-1".to_string(),
+                role: WorkgroupRole::LeadArchitect,
+                parent_agent_id: None,
+            },
+            WorkgroupMember {
+                agent_id: "hermes-agent".to_string(),
+                display_name: "Hermes Cluster Daemon".to_string(),
+                node_id: "PC-2".to_string(),
+                role: WorkgroupRole::ToolExecutor,
+                parent_agent_id: Some("qwen3.8:27b".to_string()),
+            },
+            WorkgroupMember {
+                agent_id: "deepseek-r1:1.5b".to_string(),
+                display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
+                node_id: "PC-2".to_string(),
+                role: WorkgroupRole::SanityVerifier,
+                parent_agent_id: Some("qwen3.8:27b".to_string()),
+            },
+        ],
+        markdown_rules: vec![
+            MarkdownRuleAttachment {
+                id: "rule-cluster-ops-governance".to_string(),
+                title: "Cluster Operations & Safe Node Control Rules".to_string(),
+                file_path: Some("docs/rules/rule-cluster-ops.md".to_string()),
+                inline_markdown: Some(
+                    "- Strict Isolation: Vault directories (.env, .secrets) are strictly VaultNoAccess.\n\
+                     - Zero Token Cost: Delegate shell commands and diagnostics to local worker nodes (PC-2).\n\
+                     - Cryptographic Proof: Every remote action must be signed with the executing node's Ed25519 key.\n\
+                     - CAS Guard: Any unauthorized production file mutation will be reverted in <5ms.\n\
+                     - Human-In-The-Loop: Destructive operations require cryptographic approval tokens.".to_string(),
+                ),
+                enforce_strict: true,
+            },
+        ],
+        trigger_keywords: vec![
+            "cluster".to_string(),
+            "worker".to_string(),
+            "ops".to_string(),
+            "control".to_string(),
+            "remote".to_string(),
+            "deploy".to_string(),
+            "health".to_string(),
+            "restart".to_string(),
+            "provision".to_string(),
+            "winrm".to_string(),
+            "node".to_string(),
+        ],
+        tasks_completed: 8,
+    };
+
     groups.insert(wg_coding.id.clone(), wg_coding);
     groups.insert(wg_image.id.clone(), wg_image);
     groups.insert(wg_security.id.clone(), wg_security);
@@ -447,6 +519,7 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
     groups.insert(wg_reasoning.id.clone(), wg_reasoning);
     groups.insert(wg_refactor.id.clone(), wg_refactor);
     groups.insert(wg_docs.id.clone(), wg_docs);
+    groups.insert(wg_ops.id.clone(), wg_ops);
 
     groups
 }

@@ -33,7 +33,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| if is_worker_arg { "worker".to_string() } else { "lead".to_string() });
     let is_worker = role.to_lowercase() == "worker";
 
-    let lead_url = cli_lead_url.or_else(|| std::env::var("LEAD_URL").ok());
+    let mut lead_url = cli_lead_url.or_else(|| std::env::var("LEAD_URL").ok());
+    if is_worker && lead_url.is_none() {
+        println!("==> Scanning for Lead Node discovery beacon on UDP :8089 (4s timeout)...");
+        if let Some(discovered_lead) = services::listen_for_lead_beacon(Duration::from_secs(4)).await {
+            println!("==> Auto-discovered Lead Node at {}", discovered_lead);
+            lead_url = Some(discovered_lead);
+        }
+    }
 
     let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| {
         if is_worker { "worker_telemetry.db".to_string() } else { "cluster_telemetry.db".to_string() }
@@ -76,11 +83,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = Database::new(&db_path)?;
 
     if !is_worker {
+        let local_lan_ip = services::discover_local_lan_ip().await;
         // Register verified initial cluster topology in lead DB
         let _ = db.upsert_node(&NodeHeartbeat {
             node_id: "PC-1".to_string(),
             hostname: hostname.clone(),
-            ip_address: "192.168.1.101".to_string(),
+            ip_address: local_lan_ip,
             role: "Lead Node (Antigravity + Hermes + Gemma 4)".to_string(),
             status: "ACTIVE".to_string(),
             last_seen: chrono::Utc::now().to_rfc3339(),
@@ -119,15 +127,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         copilot_watcher::spawn_watcher(db.clone(), tx_events.clone());
         // Spawn autonomous preemptive Keep-Busy Idle Worker Engine on Lead
         agent_trace_gw::idle_worker::spawn_engine(db.clone());
+        // Spawn Pre-Image CAS Invariant Watcher on Lead
+        let root_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        services::spawn_cas_guard_service(&root_dir, db.clone(), identity.clone());
+        // Spawn UDP Discovery Beacon on Lead
+        services::spawn_discovery_beacon(port, "0.0.0.0");
     }
 
     let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(4))
         .timeout(Duration::from_secs(300))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
     let registry = Arc::new(RwLock::new(ClusterModelRegistry::new()));
+    {
+        let mut reg = registry.write().await;
+        reg.register_single_model("PC-1", &upstream_url, "qwen3.5:9b", Some(vec![agent_trace_gw::registry::ModelCapability::FastCodeGeneration, agent_trace_gw::registry::ModelCapability::GeneralExecution]));
+        reg.register_single_model("PC-1", &upstream_url, "qwen3.8:27b", Some(vec![agent_trace_gw::registry::ModelCapability::ComplexReasoning]));
+        reg.register_single_model("PC-2", "http://192.168.1.102:8642", "hermes-agent", Some(vec![agent_trace_gw::registry::ModelCapability::SanityVerification]));
+    }
     let override_store = Arc::new(RwLock::new(RouteOverrideStore::new()));
     let delegation_engine = Arc::new(AgentDelegationEngine::new(
         override_store.clone(),
@@ -155,6 +174,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let policy = Arc::new(RwLock::new(PolicyEngine::new_with_defaults()));
 
+    let health_watchdog = if !is_worker {
+        Some(agent_trace_gw::cluster_health::ClusterHealthWatchdog::spawn(
+            db.clone(),
+            registry.clone(),
+            tx_events.clone(),
+            Duration::from_secs(10),
+        ))
+    } else {
+        None
+    };
+
     let state = AppState {
         db: db.clone(),
         proxy_cfg: proxy_cfg.clone(),
@@ -166,6 +196,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         registry: registry.clone(),
         policy: policy.clone(),
         ledger_writer: Some(ledger_writer),
+        health_watchdog,
     };
 
     let agent_state = AgentInterfaceState {

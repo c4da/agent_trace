@@ -195,6 +195,7 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
         .and_then(|s| s.as_str())
         .map(|s| s.to_string())
         .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let distinct_ag_node = crate::agent_identity::AgentIdentity::for_antigravity_session(conv_id, None, "PC-1");
 
     // 1. User Prompt
     if source == "USER_EXPLICIT" && stype == "USER_INPUT" {
@@ -222,7 +223,7 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
 
         let mut ev = TraceEvent {
             event_id: uuid::Uuid::new_v4().simple().to_string(),
-            node_id: "PC-1-Antigravity".to_string(),
+            node_id: distinct_ag_node.clone(),
             session_id: conv_id.to_string(),
             timestamp: created,
             event_type: EventType::LlmInference,
@@ -298,7 +299,7 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
 
             let mut ev = TraceEvent {
                 event_id: uuid::Uuid::new_v4().simple().to_string(),
-                node_id: "PC-1-Antigravity".to_string(),
+                node_id: distinct_ag_node.clone(),
                 session_id: conv_id.to_string(),
                 timestamp: created.clone(),
                 event_type: EventType::LlmInference,
@@ -340,23 +341,27 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                     .to_string();
 
                 let (ev_type, target, diff, prov, node_id) = match name {
-                    "view_file" => {
+                    "view_file" | "read_file" => {
                         let path = args.get("AbsolutePath")
+                            .or_else(|| args.get("Path"))
                             .and_then(|p| p.as_str())
                             .unwrap_or("file")
                             .to_string();
-                        (EventType::FileRead, path.clone(), None, vec![path], "PC-1-Antigravity".to_string())
+                        (EventType::FileRead, path.clone(), None, vec![path], distinct_ag_node.clone())
                     }
-                    "write_to_file" | "replace_file_content" => {
+                    "write_to_file" | "replace_file_content" | "write_file" | "edit_file" => {
                         let path = args.get("TargetFile")
+                            .or_else(|| args.get("Path"))
                             .and_then(|p| p.as_str())
                             .unwrap_or("file")
                             .to_string();
                         let diff_str = args.get("ReplacementContent")
+                            .or_else(|| args.get("Replacement"))
                             .or_else(|| args.get("CodeContent"))
+                            .or_else(|| args.get("Content"))
                             .and_then(|d| d.as_str())
                             .map(|s| s.chars().take(2000).collect::<String>());
-                        (EventType::FileWrite, path.clone(), diff_str, vec![path], "PC-1-Antigravity".to_string())
+                        (EventType::FileWrite, path.clone(), diff_str, vec![path], distinct_ag_node.clone())
                     }
                     "run_command" => {
                         let cmd = args.get("CommandLine")
@@ -383,7 +388,7 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                                 "PC-2".to_string(),
                             )
                         } else {
-                            (EventType::CommandRun, cmd, None, vec![], "PC-1-Antigravity".to_string())
+                            (EventType::CommandRun, cmd, None, vec![], distinct_ag_node.clone())
                         }
                     }
                     "send_message" => {
@@ -396,7 +401,11 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                             || recipient.to_lowercase().contains("worker")
                             || recipient.to_lowercase().contains("remote");
 
-                        let nid = if is_pc2 { "PC-2".to_string() } else { "PC-1-Antigravity".to_string() };
+                        let nid = if is_pc2 {
+                            "PC-2".to_string()
+                        } else {
+                            crate::agent_identity::AgentIdentity::for_antigravity_session(recipient, Some("subagent"), "PC-1")
+                        };
                         (
                             EventType::DecisionStep,
                             format!("Agent Direct Message -> {} [{}]", recipient, summary),
@@ -407,11 +416,16 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                     }
                     "invoke_subagent" => {
                         let subagents = args.get("Subagents").and_then(|s| s.as_array());
-                        let roles: Vec<String> = subagents.map(|arr| {
+                        let mut roles: Vec<String> = subagents.map(|arr| {
                             arr.iter().filter_map(|sub| {
                                 sub.get("Role").or_else(|| sub.get("TypeName")).and_then(|r| r.as_str()).map(|s| s.to_string())
                             }).collect()
                         }).unwrap_or_default();
+                        if roles.is_empty() {
+                            if let Some(r) = args.get("Role").or_else(|| args.get("TypeName")).and_then(|x| x.as_str()) {
+                                roles.push(r.to_string());
+                            }
+                        }
 
                         let args_str = serde_json::to_string(&args).unwrap_or_default().to_lowercase();
                         let is_pc2 = args_str.contains("agent2")
@@ -421,7 +435,15 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                             || args_str.contains("deepseek")
                             || args_str.contains("192.168.1.102");
 
-                        let nid = if is_pc2 { "PC-2".to_string() } else { "PC-1-Antigravity".to_string() };
+                        let nid = if is_pc2 {
+                            "PC-2".to_string()
+                        } else {
+                            crate::agent_identity::AgentIdentity::for_antigravity_session(
+                                conv_id,
+                                roles.first().map(|s| s.as_str()),
+                                "PC-1",
+                            )
+                        };
                         (
                             EventType::DecisionStep,
                             format!("Subagent Swarm Invocation: {} [{}]", roles.join(", "), summary),
@@ -437,13 +459,13 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                             format!("Subagent Lifecycle [Action: {}]", action),
                             None,
                             vec![],
-                            "PC-1-Antigravity".to_string(),
+                            distinct_ag_node.clone(),
                         )
                     }
                     "read_url_content" => {
                         let url = args.get("Url").and_then(|u| u.as_str()).unwrap_or("url").to_string();
                         let is_pc2 = url.contains("192.168.1.102") || url.contains(":8642");
-                        let nid = if is_pc2 { "PC-2".to_string() } else { "PC-1-Antigravity".to_string() };
+                        let nid = if is_pc2 { "PC-2".to_string() } else { distinct_ag_node.clone() };
                         let target = if is_pc2 {
                             format!("Agent2 / PC-2 HTTP Request: {} [{}]", url, summary)
                         } else {
@@ -459,7 +481,7 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                             format!("Background Task Management: {} ({})", action, task_id),
                             None,
                             vec![],
-                            "PC-1-Antigravity".to_string(),
+                            distinct_ag_node.clone(),
                         )
                     }
                     "schedule" => {
@@ -468,7 +490,7 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                             format!("Scheduled Task: {}", summary),
                             None,
                             vec![],
-                            "PC-1-Antigravity".to_string(),
+                            distinct_ag_node.clone(),
                         )
                     }
                     _ => {
@@ -477,7 +499,7 @@ pub fn process_transcript_line(line: &str, conv_id: &str, db: &Database, tx: &br
                             format!("Tool Action [{}]: {}", name, summary),
                             None,
                             vec![],
-                            "PC-1-Antigravity".to_string(),
+                            distinct_ag_node.clone(),
                         )
                     }
                 };

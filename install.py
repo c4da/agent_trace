@@ -29,6 +29,9 @@ import subprocess
 import threading
 import urllib.request
 import urllib.error
+import hashlib
+import shutil
+from urllib.parse import urlparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # --- ANSI Color Utilities (Auto-detect terminal support) ---
@@ -314,6 +317,216 @@ def test_or_start_gateway() -> bool:
 
 # --- Core Execution Modes ---
 
+def setup_and_register_mcp():
+    """Builds (if missing) and auto-registers agent_trace_mcp into Antigravity, Claude, and Cursor."""
+    print(cyan("[*] Verifying Standalone Native Rust MCP Server (agent_trace_mcp)..."))
+    mcp_candidates = [
+        os.path.join(SCRIPT_DIR, "target", "release", "agent_trace_mcp.exe"),
+        os.path.join(SCRIPT_DIR, "target", "debug", "agent_trace_mcp.exe"),
+        os.path.join(SCRIPT_DIR, "target", "release", "agent_trace_mcp"),
+        os.path.join(SCRIPT_DIR, "target", "debug", "agent_trace_mcp"),
+    ]
+    mcp_bin = None
+    for cand in mcp_candidates:
+        if os.path.isfile(cand):
+            mcp_bin = cand
+            break
+
+    if not mcp_bin and shutil.which("cargo"):
+        print(yellow("[*] Compiling agent_trace_mcp via cargo..."))
+        try:
+            subprocess.run(["cargo", "build", "--bin", "agent_trace_mcp"], cwd=SCRIPT_DIR, check=True)
+            for cand in mcp_candidates:
+                if os.path.isfile(cand):
+                    mcp_bin = cand
+                    break
+        except Exception as e:
+            print(yellow(f"[!] Warning: cargo build agent_trace_mcp failed: {e}"))
+
+    if mcp_bin:
+        print(green(f"[+] Native MCP binary ready: {mcp_bin}"))
+        # 1. Antigravity MCP registration
+        user_home = os.path.expanduser("~")
+        antigravity_mcp_dir = os.path.join(user_home, ".gemini", "antigravity", "mcp", "agent-trace")
+        try:
+            os.makedirs(antigravity_mcp_dir, exist_ok=True)
+            schema_file = os.path.join(antigravity_mcp_dir, "mcp.json")
+            mcp_config = {
+                "name": "agent-trace",
+                "command": mcp_bin,
+                "args": [],
+                "env": { "AGENT_TRACE_GW_URL": "http://127.0.0.1:8080" }
+            }
+            with open(schema_file, "w", encoding="utf-8") as f:
+                json.dump(mcp_config, f, indent=2)
+            print(green(f"[+] Registered MCP server for Antigravity at: {schema_file}"))
+        except Exception as e:
+            print(yellow(f"[!] Antigravity MCP registration notice: {e}"))
+
+        # 2. Claude Desktop config registration
+        if platform.system() == "Windows":
+            claude_cfg = os.path.expandvars(r"%APPDATA%\Claude\claude_desktop_config.json")
+        else:
+            claude_cfg = os.path.expanduser("~/Library/Application Support/Claude/claude_desktop_config.json")
+        if os.path.exists(os.path.dirname(claude_cfg)):
+            try:
+                cfg_data = {}
+                if os.path.isfile(claude_cfg):
+                    with open(claude_cfg, "r", encoding="utf-8") as f:
+                        cfg_data = json.load(f)
+                mcp_servers = cfg_data.setdefault("mcpServers", {})
+                mcp_servers["agent-trace"] = {
+                    "command": mcp_bin,
+                    "args": [],
+                    "env": { "AGENT_TRACE_GW_URL": "http://127.0.0.1:8080" }
+                }
+                with open(claude_cfg, "w", encoding="utf-8") as f:
+                    json.dump(cfg_data, f, indent=2)
+                print(green(f"[+] Registered MCP server for Claude Desktop at: {claude_cfg}"))
+            except Exception as e:
+                print(yellow(f"[!] Claude Desktop MCP registration notice: {e}"))
+    else:
+        print(yellow("[!] agent_trace_mcp binary not found. Run cargo build --bin agent_trace_mcp when ready."))
+
+def auto_detect_lead_via_udp(timeout_sec=4) -> str:
+    """Listens on UDP :8089 for Lead discovery beacon."""
+    print(cyan(f"[*] Scanning LAN for Lead Node discovery beacon on UDP :8089 ({timeout_sec}s timeout)..."))
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("", 8089))
+        sock.settimeout(timeout_sec)
+        data, addr = sock.recvfrom(1024)
+        sock.close()
+        beacon = json.loads(data.decode("utf-8"))
+        if beacon.get("service") == "agent_trace_gw":
+            ip = beacon.get("lead_ip") or addr[0]
+            port = beacon.get("lead_port", 8080)
+            detected = f"http://{ip}:{port}"
+            print(green(f"[+] Auto-discovered Lead Node via UDP beacon: {detected}"))
+            return detected
+    except Exception:
+        pass
+    return ""
+
+def pull_and_run_rust_worker(lead_url: str) -> bool:
+    """Downloads agent_trace_gw.exe from Lead Node via OTA, verifies SHA-256, and executes as background worker."""
+    dest_dir = os.path.expandvars(r"%LOCALAPPDATA%\AgentTrace") if platform.system() == "Windows" else os.path.expanduser("~/.local/share/AgentTrace")
+    os.makedirs(dest_dir, exist_ok=True)
+    exe_name = "agent_trace_gw.exe" if platform.system() == "Windows" else "agent_trace_gw"
+    dest_exe = os.path.join(dest_dir, exe_name)
+
+    print(cyan(f"[*] Fetching OTA manifest from {lead_url}/api/v1/dist/manifest ..."))
+    try:
+        manifest_url = f"{lead_url.rstrip('/')}/api/v1/dist/manifest"
+        req = urllib.request.Request(manifest_url, headers=gateway_headers())
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            manifest = json.loads(resp.read().decode("utf-8"))
+        expected_hash = manifest.get("sha256", "").lower()
+
+        # Check existing binary hash
+        if os.path.isfile(dest_exe) and expected_hash:
+            h = hashlib.sha256()
+            with open(dest_exe, "rb") as f:
+                while chunk := f.read(65536):
+                    h.update(chunk)
+            if h.hexdigest().lower() == expected_hash:
+                print(green(f"[+] Existing binary matches manifest SHA-256 ({expected_hash[:16]}...). Ready."))
+                flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+                subprocess.Popen([dest_exe, "--worker", "--lead", lead_url], creationflags=flags)
+                return True
+
+        # Download binary
+        bin_url = f"{lead_url.rstrip('/')}/api/v1/dist/agent_trace_gw.exe"
+        print(cyan(f"[*] Downloading {exe_name} ({manifest.get('size_bytes', 0) // 1024} KB) from {bin_url}..."))
+        urllib.request.urlretrieve(bin_url, dest_exe)
+
+        # Verify SHA-256
+        h = hashlib.sha256()
+        with open(dest_exe, "rb") as f:
+            while chunk := f.read(65536):
+                h.update(chunk)
+        downloaded_hash = h.hexdigest().lower()
+        if expected_hash and downloaded_hash != expected_hash:
+            print(red(f"[-] Checksum mismatch! Expected {expected_hash}, got {downloaded_hash}"))
+            return False
+
+        print(green(f"[+] Verification passed (SHA-256: {downloaded_hash[:16]}...). Launching Rust Worker Daemon..."))
+        flags = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+        subprocess.Popen([dest_exe, "--worker", "--lead", lead_url], creationflags=flags)
+        return True
+    except Exception as e:
+        print(yellow(f"[!] OTA Rust binary download failed ({e})."))
+        return False
+
+def push_workers_remotely(worker_ips: list, lead_url: str):
+    """Remotely deploys/upgrades worker nodes via Lead Gateway OTA endpoint and native Windows WMI/Remoting."""
+    print(bold(cyan("\n==========================================================")))
+    print(bold(cyan(" 🚀 PUSHING AGENTTRACE WORKER DEPLOYMENT OVER-THE-AIR")))
+    print(bold(cyan("==========================================================")))
+    base_lead = lead_url.rstrip("/")
+    for ip in worker_ips:
+        ip = ip.strip()
+        if not ip:
+            continue
+        print(cyan(f"[*] Deploying to target worker: {ip}..."))
+
+        # 1. On Windows, attempt native WMI process creation (no touching remote PC needed)
+        if sys.platform == "win32":
+            print(cyan(f" [*] Attempting Windows WMI remote process creation on {ip}..."))
+            boot_ps = f"powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command \\\"irm {base_lead}/bootstrap.ps1 | iex\\\""
+            ps_script = f"""
+            $bootCmd = "{boot_ps}"
+            try {{
+                $res = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{CommandLine=$bootCmd}} -ComputerName "{ip}" -ErrorAction Stop
+                if ($res.ReturnValue -eq 0) {{
+                    Write-Output "SUCCESS:$($res.ProcessId)"
+                }} else {{
+                    Write-Output "RETURN_CODE:$($res.ReturnValue)"
+                }}
+            }} catch {{
+                Write-Output "ERROR:$($_.Exception.Message)"
+            }}
+            """
+            try:
+                proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps_script], capture_output=True, text=True, timeout=8)
+                out = proc.stdout.strip()
+                if "SUCCESS:" in out:
+                    pid = out.split("SUCCESS:")[1].strip()
+                    print(bold(green(f" [+] Success: Created remote worker process on {ip} (PID: {pid}) via WMI!")))
+                    continue
+                else:
+                    print(gray(f"     WMI probe info: {out}"))
+                    if "Access is denied" in out or "ERROR:" in out:
+                        print(yellow(f"     💡 To unlock Windows Remote PowerShell / WMI on {ip}, run once on {ip} (Admin PS):"))
+                        print(cyan("        Enable-PSRemoting -Force -SkipNetworkProfileCheck"))
+                        print(cyan("        Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'LocalAccountTokenFilterPolicy' -Value 1 -Type DWord"))
+                        print(cyan("        Set-Item WSMan:\\localhost\\Client\\TrustedHosts -Value '*' -Force"))
+            except Exception as ex:
+                print(gray(f"     WMI probe skipped: {ex}"))
+
+        # 2. Attempt Lead Gateway OTA trigger
+        try:
+            req_data = json.dumps({"target_ip": ip, "port": 8642, "method": "hermes_or_ssh"}).encode("utf-8")
+            req = urllib.request.Request(
+                f"{base_lead}/api/v1/cluster/deploy-worker",
+                data=req_data,
+                headers=gateway_headers()
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                if res.get("delivered_automatically"):
+                    print(green(f" [+] Success: {ip} successfully bootstrapped OTA!"))
+                else:
+                    print(yellow(f" [!] Notice for {ip}: {res.get('details')}"))
+                    print(cyan(f"\n 💡 ZERO-TYPING ALTERNATIVES (No email or chat drafts needed!):"))
+                    print(green(f"   1. 1-Click File:  Open browser on {ip} -> http://{base_lead.split('://')[-1]}/worker.cmd (Downloads & runs in 1 click)"))
+                    print(green(f"   2. Web Joiner:    Open browser on {ip} -> http://{base_lead.split('://')[-1]}/join"))
+                    print(green(f"   3. Win+V Sync:    Copy on PC-1 (Ctrl+C), press Win+V on PC-2 to paste: `{res.get('manual_bootstrap_command')}`\n"))
+        except Exception as e:
+            print(red(f" [-] Failed to trigger deploy for {ip}: {e}"))
+
+
 def run_express_lead():
     """Sets up Lead Node in ~30 seconds (Standalone Workstation)."""
     print(bold(cyan("\n==========================================================")))
@@ -324,9 +537,10 @@ def run_express_lead():
     test_ollama()
     test_hermes()
     test_or_start_gateway()
+    setup_and_register_mcp()
 
     cfg["mode"] = "single_node"
-    cfg["completed_phases"] = ["prereqs", "ollama", "hermes", "gateway"]
+    cfg["completed_phases"] = ["prereqs", "ollama", "hermes", "gateway", "mcp"]
     save_config(cfg)
 
     print(bold(green("\n==========================================================")))
@@ -338,17 +552,38 @@ def run_express_lead():
     print(yellow("\n 💡 WANT TO ADD A WORKER NODE LATER?"))
     print(gray(" Run: python install.py anytime to discover and pair worker nodes!\n"))
 
-def run_worker_setup(lead_url: str):
+def run_worker_setup(lead_url: str = None):
     """Sets up Worker Node on Linux or Windows and pairs with Lead Node."""
     print(bold(cyan("\n==========================================================")))
     print(bold(cyan(" 🌐 AGENTTRACE WORKER NODE AUTO-DEPLOYER")))
     print(bold(cyan("==========================================================")))
+
+    # If lead_url not specified or unreachable, attempt UDP auto-detection
+    if not lead_url or not test_tcp_port(urlparse(lead_url).hostname or "127.0.0.1", urlparse(lead_url).port or 8080):
+        detected = auto_detect_lead_via_udp(2)
+        if detected:
+            lead_url = detected
+    if not lead_url:
+        lead_url = f"http://{get_local_lan_ip()}:8080"
+
     print(yellow(f"[+] Lead Gateway Target: {lead_url}"))
 
     my_ip = get_local_lan_ip()
     hostname = socket.gethostname()
     gpu = detect_gpu()
     print(gray(f"[*] Node: {hostname} | IP: {my_ip} | Acceleration: {gpu}"))
+
+    # Prefer launching native Rust binary via OTA
+    if pull_and_run_rust_worker(lead_url):
+        print(bold(green("\n==========================================================")))
+        print(bold(green(" 🎉 RUST WORKER EDGE GATEWAY ACTIVE!")))
+        print(bold(green("==========================================================")))
+        print(gray(f" - Connected to Lead: {lead_url}"))
+        print(gray(" - Mode: Fully Contained Rust Node with Local Safe Zones & Ed25519 Signing"))
+        return
+
+    # Fallback to pure Python proxy if Rust binary could not run
+    print(yellow("[!] Falling back to lightweight Python pass-through proxy..."))
 
     # Detect local LLM
     local_port = 8642
@@ -578,11 +813,21 @@ def main():
     parser = argparse.ArgumentParser(description="AgentTrace Single-File Universal Installer & Swarm Orchestrator")
     parser.add_argument("--lead", action="store_true", help="Run Express Lead Node setup (~30s)")
     parser.add_argument("--worker", action="store_true", help="Run Worker Node setup")
-    parser.add_argument("--lead-url", type=str, default="http://192.168.1.101:8080", help="Lead Gateway URL for worker pairing")
+    parser.add_argument("--lead-url", type=str, default=None, help="Lead Gateway URL for worker pairing (defaults to auto-discovered LAN IP)")
     parser.add_argument("--discover", action="store_true", help="Run LAN subnet discovery scan")
+    parser.add_argument("--push-workers", nargs="+", type=str, help="Remotely push OTA installation to worker IPs (e.g. --push-workers 192.168.1.102)")
     args = parser.parse_args()
 
-    if args.lead:
+    if not args.lead_url:
+        local_lan = get_local_lan_ip()
+        if test_tcp_port("127.0.0.1", DEFAULT_LEAD_PORT):
+            args.lead_url = f"http://{local_lan}:{DEFAULT_LEAD_PORT}"
+        else:
+            args.lead_url = auto_detect_lead_via_udp(2) or f"http://{local_lan}:{DEFAULT_LEAD_PORT}"
+
+    if args.push_workers:
+        push_workers_remotely(args.push_workers, args.lead_url)
+    elif args.lead:
         run_express_lead()
     elif args.worker:
         run_worker_setup(args.lead_url)

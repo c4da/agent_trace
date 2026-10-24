@@ -46,6 +46,16 @@ pub fn classify_intent(prompt: &str) -> RoutingIntent {
 
     if prompt_lower.contains("architect")
         || prompt_lower.contains("refactor")
+        || prompt_lower.contains("rework")
+        || prompt_lower.contains("redesign")
+        || prompt_lower.contains("frontend")
+        || prompt_lower.contains("rename")
+        || prompt_lower.contains("feature")
+        || prompt_lower.contains("component")
+        || prompt_lower.contains(" ui ")
+        || prompt_lower.starts_with("ui ")
+        || prompt_lower.ends_with(" ui")
+        || prompt_lower.contains("user interface")
         || prompt_lower.contains("proof")
         || prompt_lower.contains("physics")
         || prompt_lower.contains("math")
@@ -62,6 +72,10 @@ pub fn classify_intent(prompt: &str) -> RoutingIntent {
         || prompt_lower.contains("parser")
         || prompt_lower.contains("generate")
         || prompt_lower.contains("scaffold")
+        || prompt_lower.contains("implement")
+        || prompt_lower.contains("endpoint")
+        || prompt_lower.contains("html")
+        || prompt_lower.contains("css")
     {
         RoutingIntent::FastCodeGeneration
     } else if prompt_lower.contains("verify")

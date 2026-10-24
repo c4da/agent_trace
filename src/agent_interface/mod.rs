@@ -4,6 +4,7 @@
 //! for external AI agents (Hermes, Claude Code, Copilot, watchdogs) to inspect,
 //! verify, and govern the telemetry ledger and cluster routing.
 
+pub mod cluster_ops;
 pub mod executor;
 pub mod mcp;
 pub mod routes;
@@ -52,6 +53,7 @@ mod tests {
         assert!(tool_names.contains(&"list_containment_zones".to_string()));
         assert!(tool_names.contains(&"upsert_containment_zone".to_string()));
         assert!(tool_names.contains(&"confine_agent_to_playground".to_string()));
+        assert!(tool_names.contains(&"check_cluster_health".to_string()));
 
         for t in tools {
             assert!(t["description"].is_string());

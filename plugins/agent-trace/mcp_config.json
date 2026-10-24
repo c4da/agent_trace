@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agent-trace": {
+      "command": "C:\\cada\\projects\\agent_trace_gw\\target\\debug\\agent_trace_mcp.exe",
+      "args": [],
+      "env": {
+        "AGENTTRACE_URL": "http://localhost:8080"
+      }
+    }
+  }
+}

@@ -20,6 +20,7 @@ Instead of manually deciding which agent (`qwen3.8:27b`, `qwen3.5:9b`, `deepseek
 | **`wg-security-audit`** | 🛡️ **Security & Zone Audit** | **Swarm**: `DeepSeek-R1 (1.5B)` + `Qwen 3.5 (9B)` + `GitHub Copilot CLI` | `docs/HOW_TO_SAFE_ZONES_AND_PLAYGROUNDS.md`<br>*(Block `VaultNoAccess`, collapse lexical `..` traversals, RFC 3986 SSRF check)* |
 | **`wg-ui-development`** | 🖥️ **UI Development & Ergonomics** | **Stage 1**: `DeepSeek-R1 (1.5B CUDA)` (*SanityVerifier*)<br>**Stage 2**: `Qwen 3.5 (9B Fast Code)` (*PrimaryBuilder*) | `docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md`<br>*(High density 30–50 records, scenario toolbars, j/k/P/M/F/W operator tools)* |
 | **`wg-documentation`** | 📚 **Documentation & Technical Writing** | **Solo / Pipeline**: `DeepSeek-R1 (1.5B CUDA)` (*LeadArchitect / TechnicalWriter*) | `docs/DOCUMENTATION_STANDARDS.md`<br>*(Line 0 How-To index, feature-per-file modular docs, no personal paths)* |
+| **`wg-cluster-ops`** | 🌐 **Cluster Infrastructure & Node Ops** | **Stage 1**: `Qwen 3.8 (27B Heavy)` (*LeadArchitect*)<br>**Stage 2**: `Hermes Agent` / `Copilot CLI` (*ToolExecutor*) + `DeepSeek-R1 (1.5B CUDA)` (*SanityVerifier*) | `rules/rule-cluster-ops.md`<br>*(Zero-walk bootstrap, port sanity check, read-only worker verification, WinRM fallback)* |
 
 ---
 
@@ -138,6 +139,18 @@ Instead of manually deciding which agent (`qwen3.8:27b`, `qwen3.5:9b`, `deepseek
 - **CLI Command**:
   ```bash
   python sdk/agent_trace_client.py --workgroup wg-documentation --ask "Audit and update the How-To index on Line 0 of README.md"
+  ```
+
+---
+
+### Use Case 8: 🌐 Cluster Infrastructure & Remote Node Ops (`wg-cluster-ops`)
+- **The Problem**: Configuring edge worker nodes manually requires walking between machines, transferring tokens via email/messengers, or opening insecure, unauthenticated remote command-lines.
+- **Assigned Agents**: `Qwen 3.8 (27B Heavy)` (*LeadArchitect*) plans deployment $\rightarrow$ `Hermes Agent` / `Copilot CLI` (*ToolExecutor*) executes zero-walk commands $\rightarrow$ `DeepSeek-R1 (1.5B CUDA)` (*SanityVerifier*) audits service health on `:8080` & `:8642`.
+- **Attached `.MD` Rules**: `rules/rule-cluster-ops.md`
+  - *Rule Enforced*: Zero-walk bootstrap scripts (`/join.cmd`, `/worker.cmd`, `/winrm.cmd`); verify worker telemetry proxying to Lead Node; safe LAN execution without unrestricted shell elevation.
+- **CLI Command**:
+  ```bash
+  python sdk/agent_trace_client.py --workgroup wg-cluster-ops --ask "Verify PC-2 worker node connectivity and run health check on port 8080 and 8642"
   ```
 
 ---

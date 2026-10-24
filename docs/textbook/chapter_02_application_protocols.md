@@ -193,30 +193,128 @@ JSON-RPC 2.0 is a lightweight, language-agnostic protocol that allows a client t
     ```
 5.  **Batching:** Allows a client to send multiple requests in a single HTTP payload, improving network efficiency.
 
-### 2.3.2 Model Context Protocol (MCP)
+### 2.3.2 Model Context Protocol (MCP): The Universal Agent Substrate
 
-MCP is an architectural pattern designed to manage complex, multi-stage interactions, often seen in sophisticated IDEs or AI agent frameworks. It defines distinct roles to manage the flow of information and execution context.
+The **Model Context Protocol (MCP)**, originally open-sourced by Anthropic and rapidly adopted by leading developer tools (Antigravity, Cursor, Claude Desktop, Windsurf), standardizes how AI applications connect to external tools, context sources, and backend services.
 
-**Architectural Roles:**
+Before MCP, every developer tool invented its own proprietary plugin API or tool-calling schema. An agent framework written for LangChain could not easily expose tools to Cursor, and an IDE extension could not natively inspect another agent's telemetry. MCP solves this fragmentation by establishing an open, JSON-RPC 2.0-based protocol for bi-directional context exchange.
 
-*   **Host (Client/IDE):** The primary user interface. It initiates requests, manages the overall workflow, and presents the final results to the user. It is the orchestrator.
-*   **Server (Tools/Resources):** The backend service that executes the heavy lifting (e.g., running a compiler, calling a database, executing an AI model). It is the executor.
-*   **Protocol Handlers:** Middleware or specialized components that translate between the Host's high-level intent and the Server's low-level execution requirements. They manage state, authentication, and protocol adherence.
+#### Architectural Roles in MCP
 
-**Flow Diagram (MCP Interaction):**
+1. **Host (Client/IDE):** The conversational interface or reasoning orchestrator (e.g., Antigravity, Claude Desktop, Cursor). It spawns or connects to MCP servers, discovers available tools and prompts, and coordinates tool execution based on LLM intent.
+2. **MCP Server (Substrate / Tool Provider):** A lightweight process exposing tools, resources, and prompt templates. In AgentTrace, this is implemented as a standalone, zero-dependency native Rust binary (`agent_trace_mcp.exe`).
+3. **Daemon / Target Backend:** The persistent service executing heavy workloads, maintaining state, and guarding resources. `agent_trace_mcp.exe` acts as an ergonomic, stdio-to-HTTP gateway translating IDE requests into authenticated calls against `http://localhost:8080`.
+
+#### The Transport Layer: Stdio vs. HTTP+SSE
+
+MCP defines two primary transport mechanisms:
+* **Standard I/O (`stdio`):** The Host spawns the MCP server executable as a child process and communicates via newline-delimited JSON-RPC 2.0 messages over standard input (`stdin`) and standard output (`stdout`). Standard error (`stderr`) is reserved for out-of-band human-readable diagnostics and debugging. This mode requires zero network port allocation, works seamlessly behind firewalls, and enforces process-level lifecycle coupling.
+* **Server-Sent Events over HTTP (`sse`):** Used when the server runs on a remote machine. The client initiates an HTTP GET request to receive continuous SSE event streams and POSTs JSON-RPC requests to a separate command endpoint.
 
 ```mermaid
-graph LR
-    A[Host: User Intent] --> B(Protocol Handler);
-    B --> C[Server: Execution Engine];
-    C --> D{Resource/Database};
-    D --> C;
-    C --> B;
-    B --> E[Host: Display Result];
-    style A fill:#f9f,stroke:#333
-    style E fill:#f9f,stroke:#333
-    style C fill:#ccf,stroke:#333
+graph TD
+    subgraph AI IDE / Host (Antigravity, Cursor, Claude Desktop)
+        A[LLM Reasoning Engine] --> B[MCP Client Controller]
+    end
+
+    subgraph Native MCP Process (agent_trace_mcp.exe)
+        C[stdio Line Reader] --> D[JSON-RPC 2.0 Dispatcher]
+        D --> E[HTTP Reqwest Client]
+    end
+
+    subgraph Background Daemon (agent_trace_gw.exe)
+        F[Axum API Server :8080] --> G[Cryptographic Ledger]
+        F --> H[CAS Pre-Image Guard]
+        F --> I[Prompt Hub & Mesh Router]
+    end
+
+    B <-->|stdin / stdout (JSON-RPC 2.0)| C
+    E <-->|Local HTTP REST /api/v1/...| F
 ```
+
+#### MCP Lifecycle & Handshake Flow
+
+An MCP session proceeds through four deterministic stages:
+
+1. **Initialization (`initialize`):**
+   The host transmits its client metadata, protocol version (`2024-11-05`), and declared capabilities. The server replies with its server information and supported capability blocks (`tools`, `resources`, `prompts`).
+   ```json
+   // Request (Host -> Server)
+   {
+     "jsonrpc": "2.0",
+     "id": 1,
+     "method": "initialize",
+     "params": {
+       "protocolVersion": "2024-11-05",
+       "capabilities": {},
+       "clientInfo": { "name": "antigravity", "version": "1.0.0" }
+     }
+   }
+
+   // Response (Server -> Host)
+   {
+     "jsonrpc": "2.0",
+     "id": 1,
+     "result": {
+       "protocolVersion": "2024-11-05",
+       "capabilities": {
+         "tools": { "listChanged": false }
+       },
+       "serverInfo": {
+         "name": "agent-trace-mcp",
+         "version": "0.1.0"
+       }
+     }
+   }
+   ```
+
+2. **Initialized Notification (`notifications/initialized`):**
+   The host sends a one-way notification acknowledging readiness.
+
+3. **Tool Discovery (`tools/list`):**
+   The host requests all registered tools. The server responds with an array of tool objects, each containing a name, description, and JSON Schema `inputSchema`.
+   ```json
+   {
+     "jsonrpc": "2.0",
+     "id": 2,
+     "method": "tools/list",
+     "params": {}
+   }
+   ```
+
+4. **Tool Execution (`tools/call`):**
+   When the model decides to invoke a tool, the host sends `tools/call` with parameters conforming to the advertised schema:
+   ```json
+   {
+     "jsonrpc": "2.0",
+     "id": 3,
+     "method": "tools/call",
+     "params": {
+       "name": "log_event",
+       "arguments": {
+         "source": "antigravity-lead",
+         "event_type": "file_write",
+         "target": "C:/cada/projects/Strux/src/cad/extrude.rs",
+         "details": "Refactored extrude modifier into SRP module"
+       }
+     }
+   }
+   ```
+
+#### The AgentTrace Native Tool Catalog
+
+The `agent_trace_mcp` executable exposes 8 high-level governance and orchestration tools directly to the IDE:
+
+| Tool Name | Parameters | Description |
+| :--- | :--- | :--- |
+| `log_event` | `source`, `event_type`, `target`, `details` | Commits an event to the actor-based SHA-256 cryptographic ledger. |
+| `verify_ledger` | *(none)* | Audits the entire blockchain-style ledger on disk, verifying hashes and signatures. |
+| `get_threat_summary` | *(none)* | Queries the real-time behavioral analytics engine for Blast Radius Scores and BPI violations. |
+| `get_active_nodes` | *(none)* | Returns cluster nodes discovered over UDP `:8089` and their live model capabilities. |
+| `proxy_chat_completion` | `model`, `prompt`, `temperature` | Routes prompts through the Zero-Token Hub to local/cluster models (`qwen3.8:27b`, `deepseek-r1:1.5b`). |
+| `upsert_workgroup` | `id`, `name`, `description`, `lead_node_id`, `worker_node_ids` | Declares or reconfigures an agent problem workgroup. |
+| `attach_workgroup_rule`| `workgroup_id`, `rule_path`, `content` | Dynamically attaches a markdown rule mesh (e.g. Work-First UI or Anti-Monolith invariants). |
+| `deploy_cluster_worker` | `target_host`, `method`, `user`, `target_dir` | Executes Zero-Walk OTA distribution to provision a worker node over the network. |
 
 ***
 

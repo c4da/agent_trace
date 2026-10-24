@@ -58,3 +58,12 @@ pub fn get_all_nodes(conn: &Connection) -> SqliteResult<Vec<NodeHeartbeat>> {
     }
     Ok(nodes)
 }
+
+/// Updates a node's operational status and last_seen timestamp.
+pub fn update_node_status(conn: &Connection, node_id: &str, status: &str, last_seen: &str) -> SqliteResult<bool> {
+    let rows_affected = conn.execute(
+        "UPDATE nodes SET status = ?1, last_seen = ?2 WHERE node_id = ?3",
+        params![status, last_seen, node_id],
+    )?;
+    Ok(rows_affected > 0)
+}

@@ -1,0 +1,2742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrace Desktop Client // Multi-Project Workspace</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --panel: #252526;
+      --card-bg: #2d2d2d;
+      --border: #3c3c3c;
+      --accent: #0e639c;
+      --accent-hover: #1177bb;
+      --accent-glow: transparent;
+      --green: #4ec9b0;
+      --orange: #cca700;
+      --red: #f48771;
+      --purple: #c586c0;
+      --text: #cccccc;
+      --text-bright: #ffffff;
+      --text-muted: #858585;
+      --selection: #264f78;
+      --list-hover: #2a2d2e;
+      --list-active: #37373d;
+      --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Nav Bar */
+    header {
+      height: 48px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+    }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .node-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: p 1.5s infinite; }
+    @keyframes p { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+
+    .nav-links {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+    .nav-link:hover, .nav-link.active {
+      color: var(--text);
+      border-color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    /* 3-Pane Workspace Container */
+    .workspace {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Left Sidebar: Projects, Sessions, Workgroups, Rules */
+    .project-card {
+      background: #252526;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      margin-bottom: 5px;
+      padding: 6px 8px;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .project-card:hover {
+      background: #2a2d2e;
+      border-color: #4b4b4b;
+    }
+    .project-card.active {
+      background: #2d2d2d;
+      border-color: #3c3c3c;
+      border-left: 3px solid #0e639c;
+      cursor: default;
+    }
+    .project-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+    .project-active-details {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid #383838;
+    }
+    .badge-branch {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--green);
+      background: #1e1e1e;
+      padding: 1px 4px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+    }
+    .badge-branch-muted {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      background: #1e1e1e;
+      padding: 1px 4px;
+      border-radius: 2px;
+    }
+    .badge-tech {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      background: #3a3d41;
+      padding: 1px 5px;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    .badge-count {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: #9cdcfe;
+      background: #1e1e1e;
+      padding: 1px 5px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    aside.sidebar-left {
+      width: 320px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .sidebar-section {
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 9px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0,0,0,0.18);
+      cursor: pointer;
+    }
+    .section-body {
+      overflow-y: auto;
+      padding: 6px 8px;
+    }
+
+    /* Center Main Chat / Execution Pane */
+    main.chat-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      overflow: hidden;
+    }
+    .chat-header {
+      padding: 10px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .messages-stream {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .msg-card {
+      position: relative;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-width: 920px;
+    }
+    .msg-card:hover .msg-actions {
+      opacity: 1;
+      visibility: visible;
+    }
+    .msg-user {
+      align-self: flex-end;
+      background: rgba(88, 166, 255, 0.08);
+      border-color: rgba(88, 166, 255, 0.3);
+    }
+    .msg-agent {
+      align-self: flex-start;
+      width: 100%;
+    }
+    .msg-actions {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.15s ease;
+      background: #252526;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 2px 4px;
+      z-index: 5;
+    }
+    .msg-action-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      cursor: pointer;
+      border-radius: 2px;
+    }
+    .msg-action-btn:hover {
+      background: #37373d;
+      color: var(--text-bright);
+    }
+    .msg-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      padding-right: 60px; /* Leave room for hover actions */
+    }
+    .msg-content {
+      font-size: 13.5px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .thought-accordion {
+      background: #1e1e1e;
+      border: 1px solid #333333;
+      border-left: 2px solid var(--purple);
+      border-radius: 2px;
+      margin: 4px 0;
+      overflow: hidden;
+    }
+    .thought-summary {
+      padding: 6px 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #b392f0;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(197, 134, 192, 0.05);
+    }
+    .thought-summary:hover {
+      background: rgba(197, 134, 192, 0.1);
+      color: #d1b5ff;
+    }
+    .thought-summary::-webkit-details-marker {
+      display: none;
+    }
+    .thought-arrow {
+      display: inline-block;
+      transition: transform 0.15s ease;
+      font-weight: 700;
+    }
+    details[open] .thought-arrow {
+      transform: rotate(90deg);
+    }
+    .thought-content {
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.5;
+      color: #a0a0a0;
+      border-top: 1px solid #2a2a2a;
+      white-space: pre-wrap;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+    .cot-foldout {
+      background: rgba(0,0,0,0.25);
+      border-left: 2px solid var(--purple);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: #b392f0;
+      margin-top: 6px;
+    }
+    .stage-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #1e283a;
+      color: var(--accent);
+    }
+    .prompt-queue-bar {
+      display: none;
+      background: #252526;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--orange);
+      border-radius: 2px;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--orange);
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .prompt-queue-bar.visible {
+      display: flex;
+    }
+    .btn-stop {
+      background: #a82a2a !important;
+      border-color: #c93b3b !important;
+      color: #ffffff !important;
+    }
+    .btn-stop:hover {
+      background: #8b1e1e !important;
+      border-color: #a82a2a !important;
+    }
+    .idle-divert-banner {
+      background: #172233;
+      border: 1px solid #28446b;
+      border-left: 3px solid var(--green);
+      border-radius: 2px;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #9cdcfe;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .btn-divert {
+      background: #0e639c !important;
+      border-color: #1177bb !important;
+      color: #ffffff !important;
+      font-weight: 600;
+      padding: 3px 8px !important;
+      font-size: 10.5px !important;
+    }
+    .btn-divert:hover {
+      background: #1177bb !important;
+    }
+
+    /* Prompt Input Dock */
+    .input-dock {
+      padding: 12px 20px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .prompt-box {
+      width: 100%;
+      min-height: 60px;
+      max-height: 160px;
+      background: #1e1e1e;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+      resize: vertical;
+    }
+    .prompt-box:focus {
+      border-color: var(--accent);
+      box-shadow: none;
+    }
+    .input-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn {
+      background: var(--accent);
+      color: #ffffff;
+      border: 1px solid var(--accent);
+      font-weight: 500;
+      font-size: 11px;
+      padding: 5px 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-secondary {
+      background: #3a3d41;
+      color: #cccccc;
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: #45494e; color: #ffffff; }
+    .btn-ghost-sm {
+      background: #252526;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .btn-ghost-sm:hover {
+      background: #2a2d2e;
+      border-color: #555555;
+      color: #ffffff;
+    }
+    .btn-accent-sm {
+      background: var(--accent);
+      color: #ffffff;
+      border: 1px solid var(--accent);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .btn-accent-sm:hover { background: var(--accent-hover); }
+    .btn-accent-sm:hover { opacity: 0.9; }
+    .chevron {
+      display: inline-block;
+      font-size: 9px;
+      margin-right: 6px;
+      color: var(--text-muted);
+      transition: transform 0.15s ease;
+    }
+    .btn-icon-sm {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    .btn-icon-sm:hover { color: var(--red); background: rgba(248,81,73,0.15); }
+
+    /* Multi-Column Split Layout & Multi-Lane Architecture */
+    .btn-view-toggle {
+      background: #252526;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .btn-view-toggle:hover {
+      background: #2d2d2d;
+      color: var(--text);
+    }
+    .btn-view-toggle.active {
+      background: #0e639c;
+      border-color: #1177bb;
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* Project Book & Audit Chronicle */
+    .project-book-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .chronicle-toolbar {
+      padding: 8px 16px;
+      background: #252526;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .chronicle-stream {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .chronicle-card {
+      background: #252526;
+      border: 1px solid var(--border);
+      border-left: 3px solid #388bfd;
+      border-radius: 4px;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chronicle-card.decision { border-left-color: #388bfd; }
+    .chronicle-card.governance { border-left-color: #d29922; }
+    .chronicle-card.security { border-left-color: #f85149; }
+    .chronicle-card.benchmark { border-left-color: #3fb950; }
+    .chronicle-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .chronicle-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chronicle-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .chronicle-badge-dec { background: rgba(56, 139, 253, 0.15); color: #79c0ff; border: 1px solid rgba(56, 139, 253, 0.35); }
+    .chronicle-badge-gov { background: rgba(210, 153, 34, 0.15); color: #e3b341; border: 1px solid rgba(210, 153, 34, 0.35); }
+    .chronicle-badge-bench { background: rgba(63, 185, 80, 0.15); color: #56d364; border: 1px solid rgba(63, 185, 80, 0.35); }
+    .chronicle-section-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .chronicle-section-body {
+      background: #1e1e1e;
+      border: 1px solid #333333;
+      border-radius: 3px;
+      padding: 8px 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #cccccc;
+    }
+    .chronicle-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .tag-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #79c0ff;
+      background: rgba(56, 139, 253, 0.1);
+      padding: 1px 6px;
+      border-radius: 3px;
+      border: 1px solid rgba(56, 139, 253, 0.2);
+    }
+
+    .split-columns-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+    .agent-lane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      min-width: 0;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .agent-lane:last-child {
+      border-right: none;
+    }
+    .lane-header {
+      padding: 8px 12px;
+      background: #252526;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      user-select: none;
+    }
+    .lane-title-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .lane-badge {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 2px;
+    }
+    .lane-badge-pc1 {
+      background: #0e639c;
+      color: #ffffff;
+    }
+    .lane-badge-pc2 {
+      background: #238636;
+      color: #ffffff;
+    }
+    .lane-status-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      background: #1e1e1e;
+      color: var(--text-muted);
+    }
+    .lane-status-pill.computing {
+      background: rgba(210, 153, 34, 0.15);
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+    .lane-status-pill.idle {
+      color: var(--green);
+    }
+    .lane-messages-stream {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Prompt Stack Bar */
+    .prompt-stack-bar {
+      background: #181818;
+      border-bottom: 1px solid var(--border);
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+    .stack-pills-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .stack-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      background: #252526;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .stack-pill:hover {
+      border-color: #555555;
+    }
+    .stack-pill.running {
+      border-color: var(--orange);
+      color: #e3b341;
+      background: rgba(210, 153, 34, 0.1);
+    }
+    .stack-pill.solved {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(35, 134, 54, 0.1);
+    }
+    .stack-pill.queued {
+      border-color: #444444;
+      color: var(--text-muted);
+    }
+    .stack-pill-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 0 2px;
+      opacity: 0.8;
+    }
+    .stack-pill-btn:hover {
+      opacity: 1;
+      color: var(--red);
+    }
+
+    /* Modal Dialogs */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: #252526;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      width: 480px;
+      max-width: 92vw;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .modal-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .modal-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      background: rgba(0,0,0,0.2);
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .form-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .form-input {
+      background: #3c3c3c;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 2px;
+      outline: none;
+      width: 100%;
+    }
+    .form-input:focus {
+      border-color: var(--accent);
+      box-shadow: none;
+    }
+
+
+    /* Right Sidebar: In-App Markdown Rule Editor */
+    aside.sidebar-right {
+      width: 440px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .editor-header {
+      padding: 10px 14px;
+      background: rgba(0,0,0,0.2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .editor-file-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 250px;
+    }
+    .editor-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .rule-textarea {
+      flex: 1;
+      width: 100%;
+      background: #070a10;
+      border: none;
+      color: #d1d5db;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 14px;
+      outline: none;
+      resize: none;
+      white-space: pre-wrap;
+    }
+    .editor-preview {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: #0a0e16;
+      font-size: 13px;
+      line-height: 1.6;
+      display: none;
+    }
+    .editor-preview h1, .editor-preview h2, .editor-preview h3 { margin: 12px 0 6px; color: var(--accent); }
+    .editor-preview ul, .editor-preview ol { padding-left: 20px; margin-bottom: 10px; }
+    .editor-preview code { font-family: var(--font-mono); background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 3px; font-size: 11px; }
+
+    /* Interactive List Items */
+    .tree-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.12s;
+      margin-bottom: 2px;
+    }
+    .tree-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+    .tree-item.active { background: var(--accent-glow); color: var(--accent); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Bar -->
+  <header>
+    <div class="brand-wrap">
+      <span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: #0e639c; background: #2d2d2d; border: 1px solid #3c3c3c; padding: 2px 6px; border-radius: 2px;">AT</span>
+      <span>AgentTrace</span>
+      <span style="font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: #f59e0b; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); padding: 1px 6px; border-radius: 3px; letter-spacing: 0.5px; text-transform: uppercase;" title="UI is in Developer Beta Preview. Automation should focus directly on the Gateway REST API.">BETA · API FIRST</span>
+      <span style="font-family: var(--font-mono); font-size: 11px; color: #79c0ff; background: rgba(56, 139, 253, 0.1); border: 1px solid rgba(56, 139, 253, 0.25); padding: 2px 8px; border-radius: 4px; font-weight: normal;" title="Agent Flight Recorder & Project Chronicle">"Here's a tool — let your agent read it, he will thank you later"</span>
+      <div id="pill-pc1" class="node-pill"><div id="dot-pc1" class="pulse-dot"></div><span id="text-pc1">PC-1 (Lead) [IDLE]</span></div>
+      <div id="pill-pc2" class="node-pill"><div id="dot-pc2" class="pulse-dot"></div><span id="text-pc2">PC-2 (Worker) [IDLE]</span></div>
+      <div id="pill-copilot" class="node-pill" style="display: none;" title="GitHub Copilot CLI detected on PC-1"><div class="pulse-dot" style="background: #bc8cff;"></div><span id="text-copilot">Copilot CLI [Active]</span></div>
+    </div>
+    <div class="nav-links">
+      <a href="/client" class="nav-link active">Studio</a>
+      <a href="/console" class="nav-link">Terminal TUI</a>
+      <a href="/dashboard" class="nav-link">Dashboard</a>
+      <a href="/workgroups" class="nav-link">Workgroups Mesh</a>
+      <a href="/policies" class="nav-link">Policies &amp; Whitelists</a>
+      <a href="/graph" class="nav-link">Contribution Graph</a>
+      <a href="/mobile" class="nav-link" style="color: #f0883e;">Mobile</a>
+    </div>
+  </header>
+
+  <!-- 3-Pane Desktop Workspace -->
+  <div class="workspace">
+
+    <!-- LEFT SIDEBAR: Projects, Sessions, Workgroups, Rules -->
+    <aside class="sidebar-left">
+
+      <!-- 1. PROJECTS (Antigravity Explorer: Browse Every Project & Jump Conversations) -->
+      <div class="sidebar-section" style="flex: 1; min-height: 380px; display: flex; flex-direction: column;">
+        <!-- Projects Explorer Header -->
+        <div class="section-header" style="cursor: default;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span>PROJECTS</span>
+            <span id="project-count-badge" style="font-family: var(--font-mono); font-size: 10px; color: var(--accent);">0</span>
+          </div>
+          <button class="btn-ghost-sm" onclick="openAddProjectModal()" title="Add / Open New Project Root (+)">+ Project</button>
+        </div>
+
+        <!-- Search / Filter Input -->
+        <div style="padding: 6px 8px; border-bottom: 1px solid var(--border); background: #252526;">
+          <input type="text" id="project-search-input" placeholder="Filter projects..." oninput="filterProjects(this.value)" style="width: 100%; background: #3c3c3c; border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 2px; font-family: var(--font-mono); font-size: 11px; outline: none;">
+        </div>
+
+        <!-- Projects Explorer List -->
+        <div class="section-body" id="projects-list-container" style="flex: 1; overflow-y: auto; padding: 6px 8px;">
+          <div style="color: var(--text-muted); padding: 8px;">Loading projects...</div>
+        </div>
+      </div>
+
+      <!-- ALL OTHER SUBMENUS: COLLAPSIBLE AND COLLAPSED BY DEFAULT -->
+
+      <!-- 2. Context & Directives (Collapsed by Default) -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="toggleDrawer('context-drawer')">
+          <div style="display: flex; align-items: center;">
+            <span class="chevron" id="chev-context-drawer">›</span>
+            <span>CONTEXT &amp; DIRECTIVES</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--accent);">Memory</span>
+        </div>
+        <div class="section-body" id="context-drawer" style="display: none; padding: 10px 12px;">
+          <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 6px;">Session invariants &amp; directives:</div>
+          <textarea id="conv-context-summary-sidebar" style="width: 100%; height: 70px; background: #070a10; border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 11px; padding: 6px 8px; border-radius: 4px; resize: vertical; outline: none;" placeholder="e.g. Strux CAD/FEM invariants, keep files under 400 lines..." onblur="syncContextSummary(this.value)"></textarea>
+        </div>
+      </div>
+
+      <!-- 3. Problem Workgroups (Collapsed by Default) -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="toggleDrawer('wg-drawer')">
+          <div style="display: flex; align-items: center;">
+            <span class="chevron" id="chev-wg-drawer">›</span>
+            <span>PROBLEM WORKGROUPS</span>
+          </div>
+          <span id="active-wg-badge" style="color: var(--accent); font-size: 10px;">auto</span>
+        </div>
+        <div class="section-body" id="wg-drawer" style="display: none; max-height: 140px;">
+          <div class="tree-item active" onclick="selectWorkgroup('auto')">Auto-Arbitrate</div>
+          <div class="tree-item" onclick="selectWorkgroup('wg-coding')">Coding &amp; Architecture</div>
+          <div class="tree-item" onclick="selectWorkgroup('wg-code-refactor')">Code Refactoring</div>
+          <div class="tree-item" onclick="selectWorkgroup('wg-ui-development')">UI Development</div>
+          <div class="tree-item" onclick="selectWorkgroup('wg-documentation')">Documentation</div>
+          <div class="tree-item" onclick="selectWorkgroup('wg-image-gen')">Image &amp; SVG Gen</div>
+          <div class="tree-item" onclick="selectWorkgroup('wg-security-audit')">Security &amp; Zone Audit</div>
+        </div>
+      </div>
+
+      <!-- 4. Governance Rule Files (Collapsed by Default) -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="toggleDrawer('rules-drawer')">
+          <div style="display: flex; align-items: center;">
+            <span class="chevron" id="chev-rules-drawer">›</span>
+            <span>GOVERNANCE RULES (.md)</span>
+          </div>
+          <span style="font-size: 10px; color: var(--green);">Live Disk</span>
+        </div>
+        <div class="section-body" id="rules-drawer" style="display: none; max-height: 160px;">
+          <div id="rules-list-container"><div style="color: var(--text-muted); padding: 8px;">Scanning markdown rules...</div></div>
+        </div>
+      </div>
+
+      <!-- 5. Workspace Artifacts (Collapsed by Default) -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="toggleDrawer('artifacts-drawer')">
+          <div style="display: flex; align-items: center;">
+            <span class="chevron" id="chev-artifacts-drawer">›</span>
+            <span>WORKSPACE ARTIFACTS</span>
+          </div>
+          <span id="artifacts-drawer-count" style="color: var(--accent); font-size: 10px;">0 items</span>
+        </div>
+        <div class="section-body" id="artifacts-drawer" style="display: none; max-height: 140px;">
+          <div style="color: var(--text-muted); padding: 8px;">Loading artifacts...</div>
+        </div>
+      </div>
+
+      <!-- 6. Background Tasks Monitor (Collapsed by Default) -->
+      <div class="sidebar-section">
+        <div class="section-header" onclick="toggleDrawer('tasks-drawer')">
+          <div style="display: flex; align-items: center;">
+            <span class="chevron" id="chev-tasks-drawer">›</span>
+            <span>BACKGROUND TASKS</span>
+          </div>
+          <span id="tasks-drawer-count" style="color: var(--green); font-size: 10px;">0 active</span>
+        </div>
+        <div class="section-body" id="tasks-drawer" style="display: none; max-height: 130px;">
+          <div style="color: var(--text-muted); padding: 8px;">No active background tasks.</div>
+        </div>
+      </div>
+
+    </aside>
+
+
+    <!-- CENTER CHAT & EXECUTION CANVAS -->
+    <main class="chat-center">
+      <div class="chat-header">
+        <div>
+          <span>Project: </span>
+          <strong id="active-project-name-label" style="color: var(--green);">agent_trace_gw</strong>
+          <span style="color: var(--border); margin: 0 6px;">|</span>
+          <span>Session: </span>
+          <strong id="active-session-title-label" style="color: var(--accent);">Default Session</strong>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <!-- Multi-Lane View Mode Switcher -->
+          <div style="display: flex; background: #1e1e1e; border: 1px solid var(--border); border-radius: 2px; overflow: hidden;">
+            <button id="btn-view-chronicle" class="btn-view-toggle active" onclick="setViewMode('chronicle')" title="Autonomous Project Book, Architectural Decisions & Audit Chronicle">📖 Project Book (1)</button>
+            <button id="btn-view-unified" class="btn-view-toggle" onclick="setViewMode('unified')" title="Unified chronological waterfall stream">⚡ Live Dispatch (2)</button>
+            <button id="btn-view-split" class="btn-view-toggle" onclick="setViewMode('split')" title="Smart multi-column split view by agent/node">Split Columns (3)</button>
+          </div>
+          <button class="nav-link" onclick="toggleSection('context-scratchpad-drawer')">Context (C)</button>
+          <button class="nav-link" onclick="clearMessages()">Clear Screen</button>
+          <button class="nav-link" onclick="toggleRightPane()">Rule Editor (E)</button>
+        </div>
+      </div>
+
+      <!-- Persistent Context Scratchpad Drawer -->
+      <div id="context-scratchpad-drawer" style="display: none; padding: 10px 18px; background: rgba(0,0,0,0.25); border-bottom: 1px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--accent);">
+            Persistent Conversation Directives &amp; Invariants
+          </span>
+          <span id="context-saved-receipt" style="font-size: 10px; color: var(--green);">Auto-saved with session</span>
+        </div>
+        <textarea id="conv-context-summary" style="width: 100%; height: 60px; background: #070a10; border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 11px; padding: 6px 10px; border-radius: 4px; resize: vertical; outline: none;" placeholder="Enter persistent context or rules for this conversation (e.g. 'Strux CAD/FEM, Euler chi=2, never touch RustCAD')..." onblur="saveConversationContext()"></textarea>
+      </div>
+
+      <!-- Prompt Stack Bar (Concurrent In-Flight Multi-Agent Prompts) -->
+      <div id="prompt-stack-bar" class="prompt-stack-bar" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: var(--text-muted); font-weight: 700;">≡ STACK:</span>
+          <div id="stack-pills-row" class="stack-pills-row"></div>
+        </div>
+        <div id="stack-summary-text" style="color: var(--text-muted); font-size: 10px;">0 in flight</div>
+      </div>
+
+      <!-- Autonomous Project Book & Audit Chronicle View -->
+      <div class="project-book-container" id="project-book-container">
+        <div class="chronicle-toolbar">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-family: var(--font-mono); font-weight: 700; color: #ffffff; font-size: 12px;">PROJECT CHRONICLE</span>
+            <span id="chronicle-ledger-badge" style="font-family: var(--font-mono); font-size: 11px; background: rgba(63, 185, 80, 0.15); color: var(--green); border: 1px solid rgba(63, 185, 80, 0.35); padding: 2px 8px; border-radius: 4px;">
+              🛡️ SHA-256 Chain Verified · 22,660+ Blocks Intact
+            </span>
+            <span style="color: var(--text-muted); font-size: 11px;">(Populated automatically via Agent MCP &amp; Hub)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button class="btn-ghost-sm" onclick="filterChronicle('all')" id="btn-filter-all">All</button>
+            <button class="btn-ghost-sm" onclick="filterChronicle('#architecture')">#architecture</button>
+            <button class="btn-ghost-sm" onclick="filterChronicle('#srp-refactor')">#srp-refactor</button>
+            <button class="btn-ghost-sm" onclick="filterChronicle('#benchmark')">#benchmark</button>
+            <button class="btn-ghost-sm" onclick="filterChronicle('#governance')">#governance</button>
+            <button class="btn-ghost-sm" onclick="loadProjectChronicle()" title="Reload chronicle entries">↻ Refresh</button>
+          </div>
+        </div>
+        <div class="chronicle-stream" id="chronicle-stream">
+          <!-- Populated dynamically by loadProjectChronicle() -->
+        </div>
+      </div>
+
+      <!-- Message History Stream (Unified Chronological View) -->
+      <div class="messages-stream" id="messages-stream" style="display: none;">
+        <div class="msg-card msg-agent">
+          <div class="msg-actions">
+            <button class="msg-action-btn" onclick="quoteMessage(this)" title="Quote message into prompt input">Quote</button>
+            <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy text to clipboard">Copy</button>
+          </div>
+          <div class="msg-meta">
+            <span>AgentTrace Gateway</span>
+            <span>Ready</span>
+          </div>
+          <div class="msg-content">Welcome to the Antigravity Desktop Studio for AgentTrace Gateway.
+You can swap between projects (e.g. `agent_trace_gw`, `Strux`, `hacking_road`), save persistent conversation contexts, and execute tasks across PC-1 and PC-2.</div>
+        </div>
+      </div>
+
+      <!-- Smart Multi-Column Split Lanes (Side-by-Side Agent Execution) -->
+      <div class="split-columns-container" id="split-columns-container" style="display: none;">
+        <!-- Lane 1: PC-1 Lead Node -->
+        <div class="agent-lane" id="lane-pc1">
+          <div class="lane-header">
+            <div class="lane-title-group">
+              <span class="lane-badge lane-badge-pc1">PC-1 LEAD</span>
+              <span style="font-weight: 600; color: #ffffff;">Architect &amp; Heavy Reasoning</span>
+              <span style="color: var(--text-muted); font-size: 10px;">[qwen3.8:27b / qwen3.5:9b / copilot-cli]</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="lane-status-pill idle" id="lane-pc1-status">IDLE</span>
+              <button class="btn-ghost-sm" onclick="setTargetNodeQuick('PC-1')" title="Target PC-1 for next prompt">Target</button>
+            </div>
+          </div>
+          <div class="lane-messages-stream" id="lane-pc1-messages">
+            <div style="color: var(--text-muted); font-size: 11px; padding: 12px; font-style: italic;">
+              PC-1 Lead Node ready. Architectural dispatches, refactoring, and heavy reasoning tasks will stream in this lane.
+            </div>
+          </div>
+        </div>
+
+        <!-- Lane 2: PC-2 Worker Node -->
+        <div class="agent-lane" id="lane-pc2">
+          <div class="lane-header">
+            <div class="lane-title-group">
+              <span class="lane-badge lane-badge-pc2">PC-2 WORKER</span>
+              <span style="font-weight: 600; color: #ffffff;">CUDA Fast Verifier &amp; Edge</span>
+              <span style="color: var(--text-muted); font-size: 10px;">[deepseek-r1:1.5b CUDA]</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="lane-status-pill idle" id="lane-pc2-status">IDLE</span>
+              <button class="btn-ghost-sm" onclick="setTargetNodeQuick('PC-2')" title="Target PC-2 for next prompt">Target</button>
+            </div>
+          </div>
+          <div class="lane-messages-stream" id="lane-pc2-messages">
+            <div style="color: var(--text-muted); font-size: 11px; padding: 12px; font-style: italic;">
+              PC-2 Worker Node ready. Fast GPU sanity checks, regex validation, and parallel dispatches will stream in this lane.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multiline Prompt Input Dock -->
+      <div class="input-dock">
+        <!-- Idle Node Divert Suggestion Banner (Proactive Cluster Load-Balancer) -->
+        <div id="idle-divert-banner" class="idle-divert-banner" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="pulse-dot" style="background: var(--green);"></div>
+            <span>Lead node is busy. <strong id="divert-node-label" style="color: #ffffff;">PC-2</strong> is <strong style="color: var(--green);">IDLE</strong> in network! <span id="divert-reason-text" style="color: var(--text-muted); font-size: 10px;">Send prompt there to execute immediately.</span></span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-divert" id="btn-divert-action" onclick="divertToIdleNode()">
+              ⚡ Send to PC-2 Now (Zero Wait)
+            </button>
+            <button class="btn-ghost-sm" onclick="dismissDivertBanner()">Dismiss</button>
+          </div>
+        </div>
+
+        <!-- Prompt Queue Bar (Antigravity Asynchronous Queue) -->
+        <div id="prompt-queue-bar" class="prompt-queue-bar">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="pulse-dot" style="background: var(--orange);"></div>
+            <span>PROMPT QUEUE: <strong id="queue-count-badge">0</strong> pending prompt(s)</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-ghost-sm" id="btn-queue-divert" onclick="divertQueuedPromptToIdle()" style="color: var(--green); display: none;">⚡ Divert to Idle Node</button>
+            <button class="btn-ghost-sm" onclick="clearPromptQueue()" title="Cancel and clear all queued prompts">Clear Queue</button>
+          </div>
+        </div>
+
+        <textarea id="prompt-input" class="prompt-box" placeholder="Ask local cluster models... [Enter to Dispatch or Queue, Shift+Enter for newline]"></textarea>
+        <div class="input-actions">
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);" id="dispatch-hint">
+            Squad: <strong id="active-squad-label" style="color: var(--accent);">auto</strong> · Mode: <strong id="current-mode-label" style="color: var(--green);">auto</strong>
+            <span id="queue-status-text" style="color: var(--orange); margin-left: 8px; display: none;">[Cluster busy — typing will enqueue next task]</span>
+          </div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+            <select id="workgroup-select" onchange="onWorkgroupSelectChanged(this.value)" style="background: #080c14; border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 2px; font-size: 11px; outline: none; font-family: var(--font-mono);">
+              <option value="auto">Squad: Auto-Arbitrate</option>
+              <option value="wg-coding">Squad: wg-coding (Architecture &amp; Features)</option>
+              <option value="wg-code-refactor">Squad: wg-code-refactor (Refactor &amp; Invariants)</option>
+              <option value="wg-ui-development">Squad: wg-ui-development (UI &amp; Canvas)</option>
+              <option value="wg-documentation">Squad: wg-documentation (Docs &amp; Specs)</option>
+              <option value="wg-image-gen">Squad: wg-image-gen (Image &amp; SVG)</option>
+              <option value="wg-security-audit">Squad: wg-security-audit (Security &amp; Vault)</option>
+            </select>
+            <select id="target-node-select" onchange="onTargetNodeChanged()" style="background: #080c14; border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 2px; font-size: 11px; outline: none; font-family: var(--font-mono);">
+              <option value="auto">Node: Auto (Arbitrate)</option>
+              <option value="PC-1">Node: PC-1 (Lead)</option>
+              <option value="PC-2">Node: PC-2 (Worker · CUDA)</option>
+            </select>
+            <select id="model-select" onchange="onModelSelectChanged(this.value)" style="background: #080c14; border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 2px; font-size: 11px; outline: none; font-family: var(--font-mono);">
+              <option value="auto">Model: Auto (Router Choice)</option>
+              <optgroup label="PC-1 Lead Node">
+                <option value="copilot-cli" id="opt-copilot-cli">copilot-cli (GitHub Copilot CLI Agent)</option>
+                <option value="qwen3.8:27b">qwen3.8:27b (Heavy 27B Reasoning)</option>
+                <option value="qwen3.5:9b">qwen3.5:9b (Fast Lead Partner)</option>
+                <option value="qwen3:8b">qwen3:8b (Lightweight Fast)</option>
+                <option value="gemma4:latest">gemma4:latest (Fast Local Gemma)</option>
+              </optgroup>
+              <optgroup label="PC-2 Worker Node">
+                <option value="deepseek-r1:1.5b">deepseek-r1:1.5b (CUDA Fast Verifier)</option>
+                <option value="hermes-agent">hermes-agent (Autonomous Agent)</option>
+              </optgroup>
+            </select>
+            <select id="mode-select" style="background: #080c14; border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 2px; font-size: 11px; outline: none; font-family: var(--font-mono);">
+              <option value="auto">Single-Shot Auto</option>
+              <option value="pipeline">2-Stage Pipeline (Draft &rarr; Verify)</option>
+              <option value="swarm">Parallel Swarm (Qwen + DeepSeek)</option>
+            </select>
+            <button class="btn" id="btn-send" onclick="handleSendOrStop()">Dispatch to Cluster</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT SIDEBAR: In-App Markdown Rule Editor & Inspector -->
+    <aside class="sidebar-right" id="sidebar-right">
+      <div class="editor-header">
+        <div class="editor-file-path" id="editor-file-title">docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md</div>
+        <div style="display: flex; gap: 6px;">
+          <button class="nav-link" id="btn-toggle-preview" onclick="toggleEditorPreview()">Preview</button>
+          <button class="btn" style="padding: 4px 10px; font-size: 11px;" id="btn-save-rule" onclick="saveActiveRule()">Save (Ctrl+S)</button>
+        </div>
+      </div>
+      <div class="editor-body">
+        <textarea id="rule-content-textarea" class="rule-textarea" spellcheck="false" placeholder="Select a rule file to load its contents..."></textarea>
+        <div id="rule-preview-container" class="editor-preview"></div>
+      </div>
+      <div style="padding: 8px 12px; background: rgba(0,0,0,0.3); border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;" id="editor-status-bar">
+        <span>Ready</span>
+        <span id="editor-save-receipt">Unchanged</span>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    let activeProjectId = 'agent_trace_gw';
+    let allProjects = [];
+    let currentConversationId = null;
+    let activeWorkgroup = 'auto';
+    let currentRulePath = 'docs/UI_DESIGN_PHILOSOPHY_AND_PROMPT.md';
+    let isPreviewMode = false;
+    let currentViewMode = 'chronicle'; // 'chronicle', 'unified', or 'split'
+    let currentChronicleFilter = 'all';
+    let activeDispatches = new Map(); // dispatchId -> { id, prompt, targetNode, startTime, controller, intervalId }
+    let pendingPromptQueue = [];
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      const chronicleEl = document.getElementById('project-book-container');
+      const stream = document.getElementById('messages-stream');
+      const splitContainer = document.getElementById('split-columns-container');
+      const btnChronicle = document.getElementById('btn-view-chronicle');
+      const btnUnified = document.getElementById('btn-view-unified');
+      const btnSplit = document.getElementById('btn-view-split');
+
+      if (btnChronicle) btnChronicle.classList.remove('active');
+      if (btnUnified) btnUnified.classList.remove('active');
+      if (btnSplit) btnSplit.classList.remove('active');
+
+      if (mode === 'chronicle') {
+        if (chronicleEl) chronicleEl.style.display = 'flex';
+        if (stream) stream.style.display = 'none';
+        if (splitContainer) splitContainer.style.display = 'none';
+        if (btnChronicle) btnChronicle.classList.add('active');
+        loadProjectChronicle();
+      } else if (mode === 'split') {
+        if (chronicleEl) chronicleEl.style.display = 'none';
+        if (stream) stream.style.display = 'none';
+        if (splitContainer) splitContainer.style.display = 'flex';
+        if (btnSplit) btnSplit.classList.add('active');
+
+        const pc1Lane = document.getElementById('lane-pc1-messages');
+        const pc2Lane = document.getElementById('lane-pc2-messages');
+        if (pc1Lane) pc1Lane.scrollTop = pc1Lane.scrollHeight;
+        if (pc2Lane) pc2Lane.scrollTop = pc2Lane.scrollHeight;
+      } else {
+        if (chronicleEl) chronicleEl.style.display = 'none';
+        if (stream) stream.style.display = 'flex';
+        if (splitContainer) splitContainer.style.display = 'none';
+        if (btnUnified) btnUnified.classList.add('active');
+
+        if (stream) stream.scrollTop = stream.scrollHeight;
+      }
+    }
+
+    async function loadProjectChronicle() {
+      const container = document.getElementById('chronicle-stream');
+      if (!container) return;
+
+      try {
+        let resp = await fetch('/api/v1/events?limit=80');
+        if (!resp.ok) {
+          resp = await fetch('/api/v1/telemetry?limit=80');
+        }
+        if (!resp.ok) return;
+        const events = await resp.json();
+        renderChronicleEvents(events);
+      } catch (e) {
+        console.error('Failed to load project chronicle:', e);
+      }
+    }
+
+    function filterChronicle(filter) {
+      currentChronicleFilter = filter;
+      loadProjectChronicle();
+    }
+
+    function renderChronicleEvents(events) {
+      const container = document.getElementById('chronicle-stream');
+      if (!container) return;
+
+      let items = (events || []).filter(e => {
+        if (currentChronicleFilter === 'all') return true;
+        const details = typeof e.action_details === 'object' ? JSON.stringify(e.action_details) : (e.action_details || '');
+        const target = e.target || '';
+        return details.toLowerCase().includes(currentChronicleFilter.toLowerCase()) ||
+               target.toLowerCase().includes(currentChronicleFilter.toLowerCase());
+      });
+
+      if (!items.length) {
+        container.innerHTML = `
+          <div style="padding: 24px; text-align: center; color: var(--text-muted); font-family: var(--font-mono);">
+            <div style="font-size: 14px; margin-bottom: 6px;">📖 No chronicle entries found for filter "${escapeHtml(currentChronicleFilter)}"</div>
+            <div style="font-size: 11px;">Agent architectural decisions recorded via MCP <code>record_project_decision</code> or Central Hub prompts will appear here automatically.</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = items.map(e => {
+        const isDecision = e.event_type === 'DecisionStep';
+        const isSecurity = e.security_verdict === 'Flagged' || e.security_verdict === 'Blocked';
+        const cardClass = isDecision ? 'decision' : (isSecurity ? 'security' : 'benchmark');
+        
+        const details = typeof e.action_details === 'object' ? e.action_details : {};
+        const title = details.title || e.target || 'System Milestone';
+        const rationale = details.rationale || '';
+        const lessons = details.lessons_learned || '';
+        const rules = details.rules_verified || [];
+        const tags = details.tags || [];
+        const recordedBy = details.recorded_by || e.node_id || 'PC-1';
+        const timestamp = new Date(e.timestamp).toLocaleTimeString();
+
+        return `
+          <div class="chronicle-card ${cardClass}">
+            <div class="chronicle-header">
+              <div class="chronicle-title">
+                <span class="chronicle-badge ${isDecision ? 'chronicle-badge-dec' : (isSecurity ? 'chronicle-badge-gov' : 'chronicle-badge-bench')}">
+                  ${isDecision ? 'DECISION' : e.event_type}
+                </span>
+                <span>${escapeHtml(title)}</span>
+              </div>
+              <div class="chronicle-meta-row">
+                <span>By: <strong style="color: #ffffff;">${escapeHtml(recordedBy)}</strong></span>
+                <span>${escapeHtml(timestamp)}</span>
+                <span style="color: var(--green); font-size: 10px;" title="SHA-256 Block Hash: ${escapeHtml(e.event_hash)}">
+                  ✓ ${(e.event_hash || '').slice(0, 10)}...
+                </span>
+              </div>
+            </div>
+
+            ${rationale ? `
+              <div>
+                <div class="chronicle-section-title">Architecture Rationale &amp; Intent:</div>
+                <div class="chronicle-section-body">${escapeHtml(rationale)}</div>
+              </div>
+            ` : ''}
+
+            ${lessons ? `
+              <div>
+                <div class="chronicle-section-title" style="color: var(--green);">What The Agent Learned:</div>
+                <div class="chronicle-section-body" style="border-left: 2px solid var(--green);">${escapeHtml(lessons)}</div>
+              </div>
+            ` : ''}
+
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              ${rules.map(r => `<span class="tag-pill" style="color: var(--orange); border-color: rgba(204,167,0,0.3); background: rgba(204,167,0,0.1);">⚖️ ${escapeHtml(r)}</span>`).join('')}
+              ${tags.map(t => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
+            </div>
+
+            ${e.diff ? `
+              <details style="margin-top: 4px;">
+                <summary style="cursor: pointer; font-family: var(--font-mono); font-size: 11px; color: var(--accent);">Inspect Verified Diff / Patch</summary>
+                <pre style="margin-top: 6px; padding: 8px; background: #14161a; border: 1px solid var(--border); font-family: var(--font-mono); font-size: 11px; color: #a5d6ff; overflow-x: auto; max-height: 200px;">${escapeHtml(e.diff)}</pre>
+              </details>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setTargetNodeQuick(nodeId) {
+      const select = document.getElementById('target-node-select');
+      if (select) {
+        select.value = nodeId;
+        selectedTargetNode = nodeId;
+      }
+      const input = document.getElementById('prompt-input');
+      if (input) input.focus();
+    }
+
+    function quoteMessage(btn) {
+      const card = btn.closest('.msg-card');
+      if (!card) return;
+      const contentEl = card.querySelector('.msg-content');
+      if (!contentEl) return;
+      const rawText = contentEl.innerText || contentEl.textContent || '';
+      const quoted = rawText
+        .trim()
+        .split('\n')
+        .map(line => `> ${line}`)
+        .join('\n');
+
+      const input = document.getElementById('prompt-input');
+      if (input) {
+        const existing = input.value.trim();
+        input.value = existing ? `${existing}\n\n${quoted}\n\n` : `${quoted}\n\n`;
+        input.focus();
+        input.scrollTop = input.scrollHeight;
+      }
+    }
+
+    function copyMessage(btn) {
+      const card = btn.closest('.msg-card');
+      if (!card) return;
+      const contentEl = card.querySelector('.msg-content');
+      if (!contentEl) return;
+      const text = contentEl.innerText || contentEl.textContent || '';
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }).catch(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      });
+    }
+
+    function handleSendOrStop() {
+      const input = document.getElementById('prompt-input');
+      if (activeDispatches.size > 0 && (!input || !input.value.trim())) {
+        stopAllGenerations();
+      } else {
+        sendPrompt();
+      }
+    }
+
+    function stopAllGenerations() {
+      activeDispatches.forEach((d, id) => {
+        if (d.controller) d.controller.abort();
+      });
+    }
+
+    function abortDispatch(dispatchId) {
+      const d = activeDispatches.get(dispatchId);
+      if (d && d.controller) {
+        d.controller.abort();
+      }
+    }
+
+    function updateSendButtonState() {
+      const btn = document.getElementById('btn-send');
+      const queueStatus = document.getElementById('queue-status-text');
+      if (!btn) return;
+
+      const activeCount = activeDispatches.size;
+      const input = document.getElementById('prompt-input');
+      const hasInput = input && input.value.trim().length > 0;
+
+      if (activeCount > 0 && !hasInput) {
+        btn.textContent = `■ Stop Active (${activeCount})`;
+        btn.classList.add('btn-stop');
+        if (queueStatus) queueStatus.style.display = 'inline';
+      } else {
+        btn.textContent = activeCount > 0 ? 'Dispatch Concurrent' : 'Dispatch to Cluster';
+        btn.classList.remove('btn-stop');
+        if (queueStatus) queueStatus.style.display = activeCount > 0 ? 'inline' : 'none';
+      }
+    }
+
+    function updatePromptStackUI() {
+      const bar = document.getElementById('prompt-stack-bar');
+      const row = document.getElementById('stack-pills-row');
+      const summary = document.getElementById('stack-summary-text');
+      if (!bar || !row) return;
+
+      const activeCount = activeDispatches.size;
+      const queuedCount = pendingPromptQueue.length;
+
+      if (activeCount === 0 && queuedCount === 0) {
+        bar.style.display = 'none';
+        return;
+      }
+
+      bar.style.display = 'flex';
+      if (summary) summary.textContent = `${activeCount} active · ${queuedCount} queued`;
+
+      let pillsHtml = '';
+
+      // Active dispatches
+      activeDispatches.forEach((d, id) => {
+        const elapsedSec = ((Date.now() - d.startTime) / 1000).toFixed(1);
+        const shortPrompt = d.prompt.length > 20 ? d.prompt.substring(0, 20) + '...' : d.prompt;
+        pillsHtml += `
+          <div class="stack-pill running" id="pill-${id}" title="${escapeHtml(d.prompt)}">
+            <span class="pulse-dot" style="background: var(--orange); width: 6px; height: 6px;"></span>
+            <strong>[${d.targetNode}]</strong>
+            <span id="stack-timer-${id}">${elapsedSec}s</span>
+            <span style="color: var(--text-muted); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">"${escapeHtml(shortPrompt)}"</span>
+            <button class="stack-pill-btn" onclick="abortDispatch('${id}')" title="Stop this prompt">×</button>
+          </div>
+        `;
+      });
+
+      // Queued dispatches
+      pendingPromptQueue.forEach((q, idx) => {
+        const shortPrompt = q.prompt.length > 18 ? q.prompt.substring(0, 18) + '...' : q.prompt;
+        pillsHtml += `
+          <div class="stack-pill queued" title="${escapeHtml(q.prompt)}">
+            <span style="color: var(--text-muted);">#${idx+1} [${q.targetNode || 'auto'}]</span>
+            <span style="color: var(--text-muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">"${escapeHtml(shortPrompt)}"</span>
+          </div>
+        `;
+      });
+
+      row.innerHTML = pillsHtml;
+    }
+
+    function updateQueueUI() {
+      const bar = document.getElementById('prompt-queue-bar');
+      const badge = document.getElementById('queue-count-badge');
+      if (!bar || !badge) return;
+      if (pendingPromptQueue.length > 0) {
+        bar.classList.add('visible');
+        badge.textContent = pendingPromptQueue.length;
+      } else {
+        bar.classList.remove('visible');
+        badge.textContent = '0';
+      }
+    }
+
+    function clearPromptQueue() {
+      pendingPromptQueue = [];
+      updateQueueUI();
+      updatePromptStackUI();
+    }
+
+    let clusterAvailability = null;
+    let selectedTargetNode = 'auto';
+    let selectedModel = 'auto';
+
+    function onTargetNodeChanged() {
+      const select = document.getElementById('target-node-select');
+      if (select) {
+        selectedTargetNode = select.value;
+      }
+    }
+
+    function onModelSelectChanged(val) {
+      selectedModel = val;
+      const targetNodeSelect = document.getElementById('target-node-select');
+      if (val.startsWith('deepseek') || val === 'hermes-agent') {
+        if (targetNodeSelect) {
+          targetNodeSelect.value = 'PC-2';
+          selectedTargetNode = 'PC-2';
+        }
+      } else if (val.startsWith('qwen') || val.startsWith('gemma') || val.includes('copilot')) {
+        if (targetNodeSelect) {
+          targetNodeSelect.value = 'PC-1';
+          selectedTargetNode = 'PC-1';
+        }
+      }
+    }
+
+    function onWorkgroupSelectChanged(val) {
+      selectWorkgroup(val);
+    }
+
+    async function checkClusterAvailability() {
+      try {
+        const res = await fetch('/api/v1/cluster/availability');
+        const data = await res.json();
+        clusterAvailability = data;
+
+        // Update Header pills
+        const dotPc1 = document.getElementById('dot-pc1');
+        const textPc1 = document.getElementById('text-pc1');
+        const dotPc2 = document.getElementById('dot-pc2');
+        const textPc2 = document.getElementById('text-pc2');
+
+        const pc1Node = (data.nodes || []).find(n => n.node_id === 'PC-1');
+        const pc2Node = (data.nodes || []).find(n => n.node_id === 'PC-2');
+
+        if (pc1Node && textPc1) {
+          textPc1.textContent = `PC-1 (Lead) [${pc1Node.status}]`;
+          if (dotPc1) dotPc1.style.background = pc1Node.is_busy ? 'var(--orange)' : 'var(--green)';
+        }
+        if (pc2Node && textPc2) {
+          textPc2.textContent = `PC-2 (Worker) [${pc2Node.status}]`;
+          if (dotPc2) dotPc2.style.background = pc2Node.is_busy ? 'var(--orange)' : 'var(--green)';
+        }
+
+        const pillCopilot = document.getElementById('pill-copilot');
+        const optCopilot = document.getElementById('opt-copilot-cli');
+        const hasCopilot = pc1Node && (pc1Node.supported_models || []).includes('copilot-cli');
+        if (pillCopilot) pillCopilot.style.display = hasCopilot ? 'flex' : 'none';
+        if (optCopilot) {
+          optCopilot.textContent = hasCopilot ? 'copilot-cli (GitHub Copilot CLI Agent · Ready)' : 'copilot-cli (Not Detected)';
+          optCopilot.disabled = !hasCopilot;
+        }
+
+        // Check if we should offer diversion to an idle machine!
+        const banner = document.getElementById('idle-divert-banner');
+        const queueDivertBtn = document.getElementById('btn-queue-divert');
+        const divertLabel = document.getElementById('divert-node-label');
+        const divertActionBtn = document.getElementById('btn-divert-action');
+
+        // DO NOT pop up immediately on a single dispatched prompt!
+        // Only offer diversion if:
+        // 1) There are queued prompts waiting in pendingPromptQueue, OR
+        // 2) The user is typing a NEW prompt in the prompt input while other dispatches are active!
+        const promptInputEl = document.getElementById('prompt-input');
+        const hasQueuedPrompts = pendingPromptQueue.length > 0;
+        const isTypingNewPrompt = promptInputEl && promptInputEl.value.trim().length > 0 && activeDispatches.size > 0;
+
+        const shouldOffer = (hasQueuedPrompts || isTypingNewPrompt) && data.has_idle_alternative && data.suggested_idle_node;
+
+        if (shouldOffer) {
+          const idleNode = data.suggested_idle_node;
+          if (divertLabel) divertLabel.textContent = idleNode;
+          if (hasQueuedPrompts) {
+            if (divertActionBtn) divertActionBtn.textContent = `⚡ Divert Queued Prompt to ${idleNode}`;
+          } else {
+            if (divertActionBtn) divertActionBtn.textContent = `⚡ Send to ${idleNode} Now (Zero Wait)`;
+          }
+          if (banner) banner.style.display = 'flex';
+          if (queueDivertBtn) queueDivertBtn.style.display = hasQueuedPrompts ? 'inline-flex' : 'none';
+        } else {
+          if (banner) banner.style.display = 'none';
+          if (queueDivertBtn) queueDivertBtn.style.display = 'none';
+        }
+      } catch (e) {
+        console.warn('Failed to poll cluster availability:', e);
+      }
+    }
+
+    function dismissDivertBanner() {
+      const banner = document.getElementById('idle-divert-banner');
+      if (banner) banner.style.display = 'none';
+    }
+
+    async function divertToIdleNode() {
+      if (!clusterAvailability || !clusterAvailability.suggested_idle_node) return;
+      const targetNode = clusterAvailability.suggested_idle_node;
+
+      // If we have prompts queued, divert the first queued prompt!
+      if (pendingPromptQueue.length > 0) {
+        const queued = pendingPromptQueue.shift();
+        updateQueueUI();
+        updatePromptStackUI();
+        dismissDivertBanner();
+        executeDispatch(queued.prompt, queued.mode, queued.activeWorkgroup, queued.contextSummary, targetNode);
+        return;
+      }
+
+      // If user has a prompt typed in input, send it to the idle node!
+      const input = document.getElementById('prompt-input');
+      const prompt = input.value.trim();
+      if (prompt) {
+        const mode = document.getElementById('mode-select').value;
+        const contextSummary = document.getElementById('conv-context-summary').value.trim();
+        input.value = '';
+        dismissDivertBanner();
+        executeDispatch(prompt, mode, activeWorkgroup, contextSummary, targetNode);
+      }
+    }
+
+    function divertQueuedPromptToIdle() {
+      divertToIdleNode();
+    }
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadProjectChronicle();
+      await loadProjects();
+      await loadRulesList();
+      await loadArtifactsDrawer();
+      await loadTasksDrawer();
+      await loadRuleContent(currentRulePath);
+      await checkClusterAvailability();
+      setInterval(checkClusterAvailability, 3000);
+
+      const promptInputEl = document.getElementById('prompt-input');
+      if (promptInputEl) {
+        promptInputEl.addEventListener('input', () => {
+          checkClusterAvailability();
+        });
+      }
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          saveActiveRule();
+        }
+        if (e.key === 'Enter' && !e.shiftKey && document.activeElement === document.getElementById('prompt-input')) {
+          e.preventDefault();
+          sendPrompt();
+        }
+        const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+        if (!isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          if (e.key === '1') setViewMode('chronicle');
+          if (e.key === '2') setViewMode('unified');
+          if (e.key === '3') setViewMode('split');
+        }
+      });
+    });
+
+    let projectSearchQuery = '';
+
+    // 1. Projects Management & Antigravity Explorer
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/v1/projects');
+        const data = await res.json();
+        allProjects = data.projects || [];
+        if (!activeProjectId || !allProjects.find(p => p.id === activeProjectId)) {
+          activeProjectId = data.active_project_id || (allProjects[0] ? allProjects[0].id : 'agent_trace_gw');
+        }
+
+        const countBadge = document.getElementById('project-count-badge');
+        if (countBadge) countBadge.textContent = allProjects.length;
+
+        renderProjectsList();
+        updateProjectUI();
+        await loadConversations(activeProjectId);
+      } catch (err) {
+        console.error('Failed to load projects:', err);
+      }
+    }
+
+    function filterProjects(query) {
+      projectSearchQuery = (query || '').toLowerCase().trim();
+      renderProjectsList();
+    }
+
+    function renderProjectsList() {
+      const container = document.getElementById('projects-list-container');
+      if (!container) return;
+
+      const filtered = allProjects.filter(p => {
+        if (!projectSearchQuery) return true;
+        return (p.name || '').toLowerCase().includes(projectSearchQuery)
+          || (p.path || '').toLowerCase().includes(projectSearchQuery)
+          || (p.tech_stack || '').toLowerCase().includes(projectSearchQuery);
+      });
+
+      if (!filtered.length) {
+        container.innerHTML = '<div style="color: var(--text-muted); padding: 8px; font-size: 11px;">No matching projects.</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(p => {
+        const isActive = p.id === activeProjectId;
+        if (isActive) {
+          return `
+            <div class="project-card active">
+              <div class="project-header-row">
+                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                  <span style="color: var(--accent); font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${escapeHtml(p.name)}
+                  </span>
+                  <span class="badge-branch">${escapeHtml(p.git_branch || 'clean')}</span>
+                </div>
+                <span class="badge-tech">${escapeHtml(p.tech_stack || '')}</span>
+              </div>
+              <div class="project-active-details">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; font-family: var(--font-mono); font-size: 10px; margin-bottom: 6px;">
+                  <span style="color: var(--text-muted); flex-shrink: 0;">Root:</span>
+                  <span style="color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;" title="${escapeHtml(p.path)}">${escapeHtml(p.path)}</span>
+                  <button class="btn-ghost-sm" style="padding: 1px 5px; font-size: 9px;" onclick="openEditProjectRootModal('${p.id}', '${escapeHtml(p.name)}', '${escapeHtml(p.path)}')">Edit</button>
+                </div>
+                <div style="border-top: 1px solid #383838; padding-top: 6px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <span style="font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px;">CONVERSATIONS</span>
+                      <span id="conv-count-badge" style="font-family: var(--font-mono); font-size: 9px; color: var(--accent);">0</span>
+                    </div>
+                    <button class="btn-accent-sm" onclick="createNewConversation()">+ New Chat</button>
+                  </div>
+                  <div id="convs-list-container" style="max-height: 220px; overflow-y: auto;">
+                    <div style="color: var(--text-muted); padding: 4px; font-size: 11px;">Loading sessions...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          return `
+            <div class="project-card" onclick="switchProject('${p.id}')" title="Click to activate ${escapeHtml(p.name)}">
+              <div class="project-header-row">
+                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                  <span style="font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${escapeHtml(p.name)}
+                  </span>
+                  <span class="badge-branch-muted">${escapeHtml(p.git_branch || 'clean')}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                  <span class="badge-tech">${escapeHtml(p.tech_stack || '')}</span>
+                  <span class="badge-count" title="${p.conversation_count || 0} active chats">${p.conversation_count || 0}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }).join('');
+    }
+
+    async function switchProject(projectId) {
+      activeProjectId = projectId;
+      renderProjectsList();
+      updateProjectUI();
+      try {
+        await fetch('/api/v1/projects/active', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: projectId })
+        });
+      } catch (e) {}
+      await loadConversations(projectId);
+    }
+
+    function updateProjectUI() {
+      const proj = allProjects.find(p => p.id === activeProjectId);
+      if (proj) {
+        document.getElementById('active-project-name-label').textContent = proj.name;
+      }
+    }
+
+    // 2. Conversations / Sessions Management
+    async function loadConversations(projectId) {
+      const container = document.getElementById('convs-list-container');
+      if (!container) return;
+      try {
+        const res = await fetch(`/api/v1/projects/${projectId}/conversations`);
+        const data = await res.json();
+        const convs = data.conversations || [];
+
+        const countBadge = document.getElementById('conv-count-badge');
+        if (countBadge) countBadge.textContent = convs.length;
+
+        // update project conversation count locally
+        const pObj = allProjects.find(p => p.id === projectId);
+        if (pObj) pObj.conversation_count = convs.length;
+
+        if (!convs.length) {
+          container.innerHTML = '<div style="color: var(--text-muted); padding: 6px; font-size: 11px;">No chats. Click + New Chat.</div>';
+          // Create default conversation if none exist
+          await createNewConversation('Initial Session');
+          return;
+        }
+
+        container.innerHTML = convs.map(c => `
+          <div class="tree-item ${c.id === currentConversationId ? 'active' : ''}" onclick="selectConversation('${c.id}')">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">
+              ${escapeHtml(c.title)}
+            </span>
+            <button class="btn-icon-sm" onclick="deleteConversation('${c.id}', event)" title="Delete session">✕</button>
+          </div>
+        `).join('');
+
+        // Select first if not set
+        if (!currentConversationId || !convs.find(c => c.id === currentConversationId)) {
+          selectConversation(convs[0].id);
+        }
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--red); padding: 6px;">Error: ${err.message}</div>`;
+      }
+    }
+
+    async function createNewConversation(customTitle) {
+      const title = customTitle || prompt('Enter conversation name:', 'Refactoring Session');
+      if (!title) return;
+
+      try {
+        const res = await fetch('/api/v1/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: activeProjectId,
+            title: title,
+            active_workgroup: activeWorkgroup,
+            context_summary: ''
+          })
+        });
+        const conv = await res.json();
+        currentConversationId = conv.id;
+        await loadConversations(activeProjectId);
+        await selectConversation(conv.id);
+      } catch (err) {
+        alert('Failed to create session: ' + err.message);
+      }
+    }
+
+    function renderMessageCardHtml(m) {
+      const isUser = m.role === 'user';
+      const thoughtHtml = m.reasoning ? `
+        <details class="thought-accordion">
+          <summary class="thought-summary">
+            <span class="thought-arrow">&#x203A;</span>
+            <span>Thought Process</span>
+          </summary>
+          <div class="thought-content">${escapeHtml(m.reasoning)}</div>
+        </details>
+      ` : '';
+      const nodeBadge = m.node_id ? `<span class="badge-branch" style="color: ${m.node_id === 'PC-2' ? 'var(--green)' : '#9cdcfe'};">[${escapeHtml(m.node_id)}]</span>` : '';
+      const durationText = m.duration_ms ? ` · ${(m.duration_ms/1000).toFixed(1)}s` : '';
+
+      return `
+        <div class="msg-card ${isUser ? 'msg-user' : 'msg-agent'}">
+          <div class="msg-actions">
+            <button class="msg-action-btn" onclick="quoteMessage(this)" title="Quote message">Quote</button>
+            <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy text">Copy</button>
+          </div>
+          <div class="msg-meta">
+            <span>${isUser ? 'You' : (m.agent_id ? escapeHtml(m.agent_id) : 'AgentTrace Cluster')} ${nodeBadge}</span>
+            <span>${new Date(m.timestamp).toLocaleTimeString()}${durationText}</span>
+          </div>
+          ${m.stage_info ? `<div class="stage-badge">${escapeHtml(m.stage_info)}</div>` : ''}
+          ${thoughtHtml}
+          <div class="msg-content">${escapeHtml(m.content)}</div>
+        </div>
+      `;
+    }
+
+    function renderAllConversationViews(messages, title) {
+      const stream = document.getElementById('messages-stream');
+      const pc1Lane = document.getElementById('lane-pc1-messages');
+      const pc2Lane = document.getElementById('lane-pc2-messages');
+
+      if (!messages || !messages.length) {
+        const welcomeHtml = `
+          <div class="msg-card msg-agent">
+            <div class="msg-actions">
+              <button class="msg-action-btn" onclick="quoteMessage(this)" title="Quote message">Quote</button>
+              <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy text">Copy</button>
+            </div>
+            <div class="msg-meta"><span>AgentTrace</span><span>Session Ready</span></div>
+            <div class="msg-content">Session: <strong>${escapeHtml(title || 'New Session')}</strong>. Ask anything regarding this workspace.</div>
+          </div>
+        `;
+        if (stream) stream.innerHTML = welcomeHtml;
+        if (pc1Lane) pc1Lane.innerHTML = `<div style="color: var(--text-muted); font-size: 11px; padding: 12px; font-style: italic;">PC-1 Lead Node ready. Heavy reasoning &amp; architectural dispatches stream here.</div>`;
+        if (pc2Lane) pc2Lane.innerHTML = `<div style="color: var(--text-muted); font-size: 11px; padding: 12px; font-style: italic;">PC-2 Worker Node ready. Fast GPU sanity verification streams here.</div>`;
+        return;
+      }
+
+      // 1. Unified Stream
+      if (stream) {
+        stream.innerHTML = messages.map(m => renderMessageCardHtml(m)).join('');
+        stream.scrollTop = stream.scrollHeight;
+      }
+
+      // 2. Split Columns: Partition into PC-1 vs PC-2
+      const pc1Msgs = [];
+      const pc2Msgs = [];
+
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        const isPc2 = m.node_id === 'PC-2' || (m.stage_info && m.stage_info.includes('PC-2')) || (m.agent_id && m.agent_id.toLowerCase().includes('deepseek'));
+        if (isPc2) {
+          pc2Msgs.push(m);
+        } else {
+          pc1Msgs.push(m);
+        }
+      }
+
+      if (pc1Lane) {
+        if (pc1Msgs.length > 0) {
+          pc1Lane.innerHTML = pc1Msgs.map(m => renderMessageCardHtml(m)).join('');
+        } else {
+          pc1Lane.innerHTML = `<div style="color: var(--text-muted); font-size: 11px; padding: 12px; font-style: italic;">No PC-1 dispatches recorded in this session yet.</div>`;
+        }
+        pc1Lane.scrollTop = pc1Lane.scrollHeight;
+      }
+
+      if (pc2Lane) {
+        if (pc2Msgs.length > 0) {
+          pc2Lane.innerHTML = pc2Msgs.map(m => renderMessageCardHtml(m)).join('');
+        } else {
+          pc2Lane.innerHTML = `<div style="color: var(--text-muted); font-size: 11px; padding: 12px; font-style: italic;">No PC-2 dispatches recorded in this session yet.</div>`;
+        }
+        pc2Lane.scrollTop = pc2Lane.scrollHeight;
+      }
+    }
+
+    async function selectConversation(convId) {
+      currentConversationId = convId;
+      document.querySelectorAll('#convs-list-container .tree-item').forEach(el => el.classList.remove('active'));
+
+      try {
+        const res = await fetch(`/api/v1/conversations/${convId}`);
+        const conv = await res.json();
+
+        document.getElementById('active-session-title-label').textContent = conv.title;
+        document.getElementById('conv-context-summary').value = conv.context_summary || '';
+        const sidebarCtx = document.getElementById('conv-context-summary-sidebar');
+        if (sidebarCtx) sidebarCtx.value = conv.context_summary || '';
+
+        if (conv.active_workgroup) {
+          selectWorkgroup(conv.active_workgroup);
+        }
+
+        // Render both Unified stream and Split column lanes
+        renderAllConversationViews(conv.messages, conv.title);
+      } catch (err) {
+        console.error('Failed to load conversation:', err);
+      }
+    }
+
+    function syncContextSummary(val) {
+      document.getElementById('conv-context-summary').value = val;
+      saveConversationContext();
+    }
+
+    async function saveConversationContext() {
+      if (!currentConversationId) return;
+      const summary = document.getElementById('conv-context-summary').value;
+      const receipt = document.getElementById('context-saved-receipt');
+      receipt.textContent = 'Saving...';
+
+      try {
+        await fetch(`/api/v1/conversations/${currentConversationId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ context_summary: summary })
+        });
+        receipt.textContent = 'Saved to session';
+        receipt.style.color = 'var(--green)';
+      } catch (e) {
+        receipt.textContent = 'Save failed';
+      }
+    }
+
+    async function deleteConversation(convId, event) {
+      if (event) event.stopPropagation();
+      if (!confirm('Delete this session?')) return;
+      try {
+        await fetch(`/api/v1/conversations/${convId}`, { method: 'DELETE' });
+        if (currentConversationId === convId) currentConversationId = null;
+        await loadConversations(activeProjectId);
+      } catch (e) {}
+    }
+
+    // 3. Workgroups & Concurrent Multi-Lane Prompt Dispatch
+    function selectWorkgroup(wgId) {
+      activeWorkgroup = wgId;
+      document.querySelectorAll('#wg-list-container .tree-item, #wg-drawer .tree-item').forEach(el => el.classList.remove('active'));
+      const activeBadge = document.getElementById('active-wg-badge');
+      if (activeBadge) activeBadge.textContent = wgId;
+      const activeSquadLabel = document.getElementById('active-squad-label');
+      if (activeSquadLabel) activeSquadLabel.textContent = wgId === 'auto' ? 'Auto-Arbitrated' : wgId;
+      const wgSelect = document.getElementById('workgroup-select');
+      if (wgSelect && wgSelect.value !== wgId) {
+        wgSelect.value = wgId;
+      }
+    }
+
+    async function sendPrompt() {
+      const input = document.getElementById('prompt-input');
+      const prompt = input.value.trim();
+      if (!prompt) return;
+
+      const mode = document.getElementById('mode-select').value;
+      const contextSummary = document.getElementById('conv-context-summary').value.trim();
+
+      // Check if a specific target node is already busy with an active dispatch
+      const isNodeBusy = (node) => {
+        for (let d of activeDispatches.values()) {
+          if (d.targetNode === node) return true;
+        }
+        return false;
+      };
+
+      let targetNode = selectedTargetNode === 'auto' ? null : selectedTargetNode;
+
+      // Smart Stack Arbitrator:
+      // If Auto, route to whichever node is idle!
+      if (!targetNode) {
+        if (!isNodeBusy('PC-1')) {
+          targetNode = 'PC-1';
+        } else if (!isNodeBusy('PC-2')) {
+          targetNode = 'PC-2'; // Automatically divert to idle PC-2!
+        } else {
+          targetNode = 'PC-1'; // Both busy, queue for PC-1
+        }
+      }
+
+      // If the target node is ALREADY busy with an ongoing dispatch, queue it in the prompt stack!
+      if (isNodeBusy(targetNode)) {
+        pendingPromptQueue.push({
+          prompt,
+          mode,
+          activeWorkgroup,
+          contextSummary,
+          projectId: activeProjectId,
+          conversationId: currentConversationId,
+          targetNode
+        });
+        input.value = '';
+        updateQueueUI();
+        updatePromptStackUI();
+        updateSendButtonState();
+        checkClusterAvailability();
+        return;
+      }
+
+      // Target node is idle -> dispatch immediately in parallel!
+      input.value = '';
+      updateSendButtonState();
+      await executeDispatch(prompt, mode, activeWorkgroup, contextSummary, targetNode);
+    }
+
+    async function executeDispatch(prompt, mode, wgId, contextSummary, targetNodeOverride) {
+      const stream = document.getElementById('messages-stream');
+      const effectiveTargetNode = targetNodeOverride || (selectedTargetNode === 'auto' ? 'PC-1' : selectedTargetNode);
+      const isPc2 = effectiveTargetNode === 'PC-2';
+      const targetLane = document.getElementById(isPc2 ? 'lane-pc2-messages' : 'lane-pc1-messages');
+      const laneStatusBadge = document.getElementById(isPc2 ? 'lane-pc2-status' : 'lane-pc1-status');
+
+      const dispatchId = 'disp-' + Math.random().toString(36).substr(2, 6);
+      const startTime = Date.now();
+      const controller = new AbortController();
+
+      // 1. Append User message to both Unified stream & target Lane
+      const userHtml = `
+        <div class="msg-card msg-user">
+          <div class="msg-actions">
+            <button class="msg-action-btn" onclick="quoteMessage(this)" title="Quote message">Quote</button>
+            <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy text">Copy</button>
+          </div>
+          <div class="msg-meta">
+            <span>You</span>
+            <span>${new Date().toLocaleTimeString()} &rarr; [${effectiveTargetNode}]</span>
+          </div>
+          <div class="msg-content">${escapeHtml(prompt)}</div>
+        </div>
+      `;
+
+      if (stream) {
+        stream.insertAdjacentHTML('beforeend', userHtml);
+        stream.scrollTop = stream.scrollHeight;
+      }
+      if (targetLane) {
+        targetLane.insertAdjacentHTML('beforeend', userHtml);
+        targetLane.scrollTop = targetLane.scrollHeight;
+      }
+
+      // Persist user msg to conversation
+      if (currentConversationId) {
+        fetch(`/api/v1/conversations/${currentConversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'user', content: prompt, node_id: effectiveTargetNode })
+        }).catch(() => {});
+      }
+
+      // 2. Append Agent loading placeholder to both Unified stream & target Lane
+      const agentPlaceholderHtml = (prefix) => `
+        <div class="msg-card msg-agent" id="${prefix}-${dispatchId}">
+          <div class="msg-actions">
+            <button class="msg-action-btn" onclick="abortDispatch('${dispatchId}')" style="color: var(--orange);" title="Cancel this specific prompt">■ Stop</button>
+            <button class="msg-action-btn" onclick="quoteMessage(this)" title="Quote message">Quote</button>
+            <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy text">Copy</button>
+          </div>
+          <div class="msg-meta">
+            <span>AgentTrace [${effectiveTargetNode}]</span>
+            <span style="color: var(--orange);" id="timer-text-${prefix}-${dispatchId}">Executing (0.0s)...</span>
+          </div>
+          <div class="msg-content" style="color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+            <div class="pulse-dot" style="background: var(--orange); width: 7px; height: 7px;"></div>
+            <span>Routing across ${effectiveTargetNode} cluster hardware...</span>
+          </div>
+        </div>
+      `;
+
+      if (stream) {
+        stream.insertAdjacentHTML('beforeend', agentPlaceholderHtml('agent-unified'));
+        stream.scrollTop = stream.scrollHeight;
+      }
+      if (targetLane) {
+        targetLane.insertAdjacentHTML('beforeend', agentPlaceholderHtml('agent-lane'));
+        targetLane.scrollTop = targetLane.scrollHeight;
+      }
+
+      // Update lane header status
+      if (laneStatusBadge) {
+        laneStatusBadge.textContent = 'COMPUTING ⏳';
+        laneStatusBadge.className = 'lane-status-pill computing';
+      }
+
+      // 3. Register in activeDispatches Map and start live elapsed timer
+      const intervalId = setInterval(() => {
+        const sec = ((Date.now() - startTime) / 1000).toFixed(1);
+        const tUnified = document.getElementById(`timer-text-agent-unified-${dispatchId}`);
+        const tLane = document.getElementById(`timer-text-agent-lane-${dispatchId}`);
+        const tStack = document.getElementById(`stack-timer-${dispatchId}`);
+        if (tUnified) tUnified.textContent = `Executing (${sec}s)...`;
+        if (tLane) tLane.textContent = `Executing (${sec}s)...`;
+        if (tStack) tStack.textContent = `${sec}s`;
+      }, 100);
+
+      activeDispatches.set(dispatchId, {
+        id: dispatchId,
+        prompt: prompt,
+        targetNode: effectiveTargetNode,
+        startTime: startTime,
+        controller: controller,
+        intervalId: intervalId
+      });
+
+      updatePromptStackUI();
+      updateSendButtonState();
+      checkClusterAvailability();
+
+      try {
+        const res = await fetch('/api/v1/hub/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            prompt: prompt,
+            project_id: activeProjectId,
+            project_path: (allProjects.find(p => p.id === activeProjectId) || {}).path || null,
+            workgroup_id: wgId === 'auto' ? null : wgId,
+            mode: mode,
+            requested_model: selectedModel === 'auto' ? null : selectedModel,
+            target_node: effectiveTargetNode,
+            agent_id: `Antigravity-${activeProjectId}`,
+            system_prompt: `You are an expert AI software engineer assisting the developer on repository '${activeProjectId}'. Provide direct code implementations, architectural solutions, and exact code modifications.\nProject: ${activeProjectId}` + (contextSummary ? `\nContext Directives:\n${contextSummary}` : '')
+          })
+        });
+
+        const data = await res.json();
+        const totalDurationSec = (data.total_duration_ms ? (data.total_duration_ms / 1000) : ((Date.now() - startTime) / 1000)).toFixed(1);
+
+        let stagesHtml = '';
+        if (data.stages && data.stages.length) {
+          stagesHtml = data.stages.map(s => {
+            const sec = (s.duration_ms / 1000).toFixed(1);
+            const thoughtDetails = s.reasoning ? `
+              <details class="thought-accordion">
+                <summary class="thought-summary">
+                  <span class="thought-arrow">&#x203A;</span>
+                  <span>Thought for ${sec}s (${escapeHtml(s.node_id)})</span>
+                </summary>
+                <div class="thought-content">${escapeHtml(s.reasoning)}</div>
+              </details>
+            ` : '';
+            return `
+              <div style="margin-top: 6px;">
+                <span class="stage-badge">${escapeHtml(s.stage_name)} · ${s.node_id} [${s.selected_model}]</span>
+                ${thoughtDetails}
+              </div>
+            `;
+          }).join('');
+        }
+
+        const replyContent = data.response || data.primary_response || '';
+        const nodeAttribution = data.stages && data.stages[0] ? data.stages[0].node_id : effectiveTargetNode;
+        const modelAttribution = data.stages && data.stages[0] ? data.stages[0].selected_model : 'Cluster';
+
+        const solvedCardInnerHtml = `
+          <div class="msg-actions">
+            <button class="msg-action-btn" onclick="quoteMessage(this)" title="Quote message">Quote</button>
+            <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy text">Copy</button>
+          </div>
+          <div class="msg-meta">
+            <span>${escapeHtml(data.matched_workgroup || 'Cluster Router')} [${escapeHtml(nodeAttribution)}]</span>
+            <span style="color: var(--green); font-weight: 600;">Solved in ${totalDurationSec}s · Zero Tokens</span>
+          </div>
+          ${stagesHtml}
+          <div class="msg-content" style="margin-top: 10px;">${escapeHtml(replyContent)}</div>
+        `;
+
+        // Update card in Unified Stream
+        const cardUnified = document.getElementById(`agent-unified-${dispatchId}`);
+        if (cardUnified) cardUnified.innerHTML = solvedCardInnerHtml;
+
+        // Update card in Target Lane
+        const cardLane = document.getElementById(`agent-lane-${dispatchId}`);
+        if (cardLane) cardLane.innerHTML = solvedCardInnerHtml;
+
+        // Persist assistant message to conversation with node_id & duration
+        if (currentConversationId) {
+          fetch(`/api/v1/conversations/${currentConversationId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              role: 'assistant',
+              content: replyContent,
+              stage_info: data.stages && data.stages[0] ? data.stages[0].stage_name : null,
+              reasoning: data.stages && data.stages[0] ? data.stages[0].reasoning : null,
+              node_id: nodeAttribution,
+              agent_id: modelAttribution,
+              duration_ms: data.total_duration_ms || (Date.now() - startTime)
+            })
+          }).catch(() => {});
+        }
+
+        // Update Prompt Stack pill to Solved ✓
+        const stackPill = document.getElementById(`pill-${dispatchId}`);
+        if (stackPill) {
+          stackPill.className = 'stack-pill solved';
+          stackPill.innerHTML = `
+            <span class="pulse-dot" style="background: var(--green); width: 6px; height: 6px;"></span>
+            <strong>[${effectiveTargetNode}]</strong>
+            <span>Solved in ${totalDurationSec}s ✓</span>
+          `;
+          setTimeout(() => {
+            if (stackPill && stackPill.parentNode) stackPill.remove();
+            updatePromptStackUI();
+          }, 8000);
+        }
+
+      } catch (err) {
+        const isAbort = err.name === 'AbortError';
+        const errHtml = `
+          <div class="msg-actions">
+            <button class="msg-action-btn" onclick="quoteMessage(this)" title="Quote message">Quote</button>
+            <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy text">Copy</button>
+          </div>
+          <div class="msg-meta">
+            <span style="color: ${isAbort ? 'var(--orange)' : 'var(--red)'};">${isAbort ? 'Preempted' : 'Cluster Execution Error'}</span>
+            <span>[${effectiveTargetNode}]</span>
+          </div>
+          <div class="msg-content" style="color: ${isAbort ? 'var(--text-muted)' : 'var(--red)'}; font-style: ${isAbort ? 'italic' : 'normal'};">
+            ${isAbort ? '[Execution halted by user]' : escapeHtml(err.message)}
+          </div>
+        `;
+
+        const cardUnified = document.getElementById(`agent-unified-${dispatchId}`);
+        if (cardUnified) cardUnified.innerHTML = errHtml;
+
+        const cardLane = document.getElementById(`agent-lane-${dispatchId}`);
+        if (cardLane) cardLane.innerHTML = errHtml;
+
+        const stackPill = document.getElementById(`pill-${dispatchId}`);
+        if (stackPill) stackPill.remove();
+
+      } finally {
+        clearInterval(intervalId);
+        activeDispatches.delete(dispatchId);
+
+        // Reset Lane status if no other dispatches on this node
+        let nodeStillBusy = false;
+        for (let d of activeDispatches.values()) {
+          if (d.targetNode === effectiveTargetNode) {
+            nodeStillBusy = true;
+            break;
+          }
+        }
+        if (!nodeStillBusy && laneStatusBadge) {
+          laneStatusBadge.textContent = 'IDLE';
+          laneStatusBadge.className = 'lane-status-pill idle';
+        }
+
+        updateSendButtonState();
+        updatePromptStackUI();
+        checkClusterAvailability();
+        loadTasksDrawer();
+
+        if (stream) stream.scrollTop = stream.scrollHeight;
+        if (targetLane) targetLane.scrollTop = targetLane.scrollHeight;
+
+        // Drain Prompt Queue: check if any queued task is waiting for this newly freed node!
+        if (pendingPromptQueue.length > 0) {
+          const matchIdx = pendingPromptQueue.findIndex(q => !q.targetNode || q.targetNode === effectiveTargetNode);
+          if (matchIdx !== -1) {
+            const nextTask = pendingPromptQueue.splice(matchIdx, 1)[0];
+            updateQueueUI();
+            updatePromptStackUI();
+            setTimeout(() => {
+              executeDispatch(nextTask.prompt, nextTask.mode, nextTask.activeWorkgroup, nextTask.contextSummary, nextTask.targetNode || effectiveTargetNode);
+            }, 60);
+          }
+        }
+      }
+    }
+
+    // 4. Rule Files Editing
+    async function loadRulesList() {
+      const container = document.getElementById('rules-list-container');
+      try {
+        const res = await fetch('/api/v1/workgroups');
+        const data = await res.json();
+        const files = data.discovered_markdown_files || [];
+        container.innerHTML = files.map(f => `
+          <div class="tree-item ${f.path === currentRulePath ? 'active' : ''}" onclick="selectRuleFile('${f.path}')">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;">${f.path}</span>
+            <span style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">${Math.round(f.size_bytes/1024)}K</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--red); padding: 8px;">Failed to load rules: ${err.message}</div>`;
+      }
+    }
+
+    async function selectRuleFile(path) {
+      currentRulePath = path;
+      document.getElementById('editor-file-title').textContent = path;
+      document.querySelectorAll('#rules-list-container .tree-item').forEach(el => el.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      await loadRuleContent(path);
+    }
+
+    async function loadRuleContent(path) {
+      const ta = document.getElementById('rule-content-textarea');
+      const status = document.getElementById('editor-save-receipt');
+      status.textContent = 'Loading...';
+      try {
+        const res = await fetch(`/api/v1/rules/file?path=${encodeURIComponent(path)}`);
+        const data = await res.json();
+        ta.value = data.content || '';
+        status.textContent = `Loaded ${data.size_bytes} bytes`;
+        renderPreview();
+      } catch (err) {
+        ta.value = `// Failed to load: ${err.message}`;
+      }
+    }
+
+    async function saveActiveRule() {
+      const ta = document.getElementById('rule-content-textarea');
+      const status = document.getElementById('editor-save-receipt');
+      status.textContent = 'Saving to disk...';
+      try {
+        const res = await fetch('/api/v1/rules/file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_path: currentRulePath, content: ta.value })
+        });
+        const data = await res.json();
+        status.textContent = `Saved ${data.size_bytes}B at ${new Date().toLocaleTimeString()}`;
+        status.style.color = 'var(--green)';
+        setTimeout(() => { status.style.color = 'var(--text-muted)'; }, 3000);
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+        status.style.color = 'var(--red)';
+      }
+    }
+
+    function toggleEditorPreview() {
+      isPreviewMode = !isPreviewMode;
+      const ta = document.getElementById('rule-content-textarea');
+      const prev = document.getElementById('rule-preview-container');
+      const btn = document.getElementById('btn-toggle-preview');
+
+      if (isPreviewMode) {
+        renderPreview();
+        ta.style.display = 'none';
+        prev.style.display = 'block';
+        btn.textContent = 'Edit Code';
+        btn.classList.add('active');
+      } else {
+        ta.style.display = 'block';
+        prev.style.display = 'none';
+        btn.textContent = 'Preview';
+        btn.classList.remove('active');
+      }
+    }
+
+    function renderPreview() {
+      const raw = document.getElementById('rule-content-textarea').value;
+      const prev = document.getElementById('rule-preview-container');
+      let html = raw
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+        .replace(/^\> (.*$)/gim, '<blockquote style="border-left: 2px solid var(--accent); padding-left: 10px; color: var(--text-muted);">$1</blockquote>')
+        .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/gim, '<code>$1</code>')
+        .replace(/^\- (.*$)/gim, '<li>$1</li>')
+        .replace(/\n\n/gim, '<br><br>');
+      prev.innerHTML = html;
+    }
+
+    // 5. Drawers
+    async function loadArtifactsDrawer() {
+      const container = document.getElementById('artifacts-drawer');
+      try {
+        const res = await fetch('/api/v1/artifacts');
+        const data = await res.json();
+        const artifacts = data.artifacts || [];
+        document.getElementById('artifacts-drawer-count').textContent = artifacts.length + ' items';
+        container.innerHTML = artifacts.slice(0, 8).map(a => `
+          <div class="tree-item" onclick="openArtifactInEditor('${a.id}', '${a.file_path}')">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;">${escapeHtml(a.title)}</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--text-muted); padding: 4px;">Loading...</div>`;
+      }
+    }
+
+    async function openArtifactInEditor(id, filePath) {
+      if (filePath.endsWith('.md') || filePath.endsWith('.txt')) {
+        await selectRuleFile(filePath);
+      } else {
+        window.open(`/api/v1/artifacts/${id}?raw=true`, '_blank');
+      }
+    }
+
+    async function loadTasksDrawer() {
+      const container = document.getElementById('tasks-drawer');
+      try {
+        const res = await fetch('/api/v1/tasks');
+        const data = await res.json();
+        const tasks = data.tasks || [];
+        document.getElementById('tasks-drawer-count').textContent = tasks.length + ' active';
+        if (!tasks.length) {
+          container.innerHTML = `<div style="color: var(--text-muted); padding: 4px;">No active background tasks.</div>`;
+          return;
+        }
+        container.innerHTML = tasks.slice(0, 4).map(t => `
+          <div class="tree-item">
+            <span>${escapeHtml(t.name.slice(0, 24))}</span>
+            <span class="stage-badge">${t.status}</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<div style="color: var(--text-muted); padding: 4px;">Tasks offline</div>`;
+      }
+    }
+
+    function toggleSection(id) {
+      const el = document.getElementById(id);
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleDrawer(id) {
+      const el = document.getElementById(id);
+      const chev = document.getElementById('chev-' + id);
+      if (!el) return;
+      const isHidden = el.style.display === 'none' || !el.style.display;
+      if (isHidden) {
+        el.style.display = 'block';
+        if (chev) chev.textContent = 'v';
+      } else {
+        el.style.display = 'none';
+        if (chev) chev.textContent = '›';
+      }
+    }
+
+    function openAddWorkspaceModal() {
+      document.getElementById('new-workspace-name').value = '';
+      document.getElementById('new-workspace-path').value = 'C:\\cada\\projects\\';
+      document.getElementById('modal-add-workspace').classList.add('active');
+      document.getElementById('new-workspace-name').focus();
+    }
+
+    function closeAddWorkspaceModal() {
+      document.getElementById('modal-add-workspace').classList.remove('active');
+    }
+
+    async function saveNewWorkspace() {
+      const name = document.getElementById('new-workspace-name').value.trim();
+      const path = document.getElementById('new-workspace-path').value.trim();
+      if (!name || !path) {
+        alert('Please provide both a Workspace Name and Root Folder Path.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/v1/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, path: path })
+        });
+        const proj = await res.json();
+        closeAddWorkspaceModal();
+        await loadProjects();
+        await switchProject(proj.id);
+      } catch (err) {
+        alert('Failed to register workspace: ' + err.message);
+      }
+    }
+
+    function openEditWorkspaceRootModal() {
+      const proj = allProjects.find(p => p.id === activeProjectId);
+      if (!proj) return;
+      document.getElementById('edit-workspace-name').value = proj.name;
+      document.getElementById('edit-workspace-path').value = proj.path;
+      document.getElementById('modal-edit-workspace-root').classList.add('active');
+      document.getElementById('edit-workspace-path').focus();
+    }
+
+    function closeEditWorkspaceRootModal() {
+      document.getElementById('modal-edit-workspace-root').classList.remove('active');
+    }
+
+    async function saveWorkspaceRoot() {
+      const path = document.getElementById('edit-workspace-path').value.trim();
+      if (!path) {
+        alert('Root folder path cannot be empty.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/v1/projects/${activeProjectId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: path })
+        });
+        const updated = await res.json();
+        const p = allProjects.find(x => x.id === activeProjectId);
+        if (p) {
+          p.path = updated.path;
+          p.tech_stack = updated.tech_stack;
+          p.git_branch = updated.git_branch;
+        }
+        updateProjectUI();
+        closeEditWorkspaceRootModal();
+      } catch (err) {
+        alert('Failed to update workspace root: ' + err.message);
+      }
+    }
+
+    function toggleRightPane() {
+      const el = document.getElementById('sidebar-right');
+      el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function clearMessages() {
+      document.getElementById('messages-stream').innerHTML = '';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+
+  <!-- MODAL: ADD NEW PROJECT -->
+  <div id="modal-add-project" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>Add Project</span>
+        <button class="btn-icon-sm" onclick="closeAddProjectModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 12px; color: var(--text-muted);">
+          Register a project repository folder. Agents, conversations, and rule files will be anchored to this directory.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Project Name</label>
+          <input type="text" id="new-project-name" class="form-input" placeholder="e.g. Strux, Hacking Road, agent_trace_gw">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Root Directory Path</label>
+          <input type="text" id="new-project-path" class="form-input" placeholder="e.g. C:\cada\projects\Strux">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost-sm" onclick="closeAddProjectModal()">Cancel</button>
+        <button class="btn" style="padding: 6px 14px; font-size: 12px;" onclick="saveNewProject()">Create &amp; Switch Project</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT PROJECT ROOT FOLDER -->
+  <div id="modal-edit-project-root" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>Set Project Root Directory</span>
+        <button class="btn-icon-sm" onclick="closeEditProjectRootModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-project-id">
+        <div class="form-group">
+          <label class="form-label">Project Name</label>
+          <input type="text" id="edit-project-name" class="form-input" readonly style="opacity: 0.7;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Root Directory Path</label>
+          <input type="text" id="edit-project-path" class="form-input" placeholder="e.g. C:\cada\projects\custom_path">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost-sm" onclick="closeEditProjectRootModal()">Cancel</button>
+        <button class="btn" style="padding: 6px 14px; font-size: 12px;" onclick="saveProjectRoot()">Save Project Root</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+

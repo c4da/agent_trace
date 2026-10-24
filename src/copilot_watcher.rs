@@ -250,9 +250,10 @@ fn process_copilot_line(line: &str, session_id: &str, db: &Database, tx: &broadc
             }
         };
 
+        let copilot_agent_id = crate::agent_identity::AgentIdentity::for_copilot_session(session_id, "PC-1");
         let mut ev = TraceEvent {
             event_id: uuid::Uuid::new_v4().to_string().replace('-', ""),
-            node_id: "PC-1-Copilot".to_string(),
+            node_id: copilot_agent_id,
             session_id: session_id.to_string(),
             timestamp: ts_str,
             event_type,
@@ -284,9 +285,10 @@ fn process_copilot_line(line: &str, session_id: &str, db: &Database, tx: &broadc
     else if ev_type == "model.model_call_started" || ev_type == "model.turn_started" {
         let model = data.get("model").and_then(|m| m.as_str()).unwrap_or("gpt-6-luna");
 
+        let copilot_agent_id = crate::agent_identity::AgentIdentity::for_copilot_session(session_id, "PC-1");
         let mut ev = TraceEvent {
             event_id: uuid::Uuid::new_v4().to_string().replace('-', ""),
-            node_id: "PC-1-Copilot".to_string(),
+            node_id: copilot_agent_id,
             session_id: session_id.to_string(),
             timestamp: ts_str,
             event_type: EventType::LlmInference,

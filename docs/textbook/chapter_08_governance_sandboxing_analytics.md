@@ -145,4 +145,70 @@ if is_spike:
     BRS_adjustment = 20 
 ```
 
-By combining the instantaneous risk assessment of the **Blast Radius Score** with the contextual awareness of **Temporal Bucketing** and **Hotspot Analysis**, we achieve a robust, multi-dimensional defense against both accidental misbehavior and sophisticated malicious compromise. This layered approach ensures that the computational environment remains secure, auditable, and predictable.
+***
+
+## 8.4 Active Containment: Pre-Image CAS Auto-Revert Guard & Symlink Hardening
+
+Conventional APM and observability systems suffer from a fatal flaw: **passive latency**. If an agent writes a backdoor, deletes a database migration, or modifies a production configuration file, recording the crime in a log file (even a cryptographic one) does not undo the damage. By the time an engineer reads the alert, the corrupted state may have triggered catastrophic cascade failures.
+
+To achieve true autonomous resilience, AgentTrace pairs passive ledger verification with an active **Pre-Image Content-Addressable Storage (CAS) Auto-Revert Guard** (`src/cas_guard.rs`) and **Symlink Boundary Hardening** (`src/zones.rs`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as Autonomous Agent
+    participant GW as AgentTrace Gateway
+    participant CAS as Pre-Image CAS Guard
+    participant Disk as Physical File System
+
+    Agent->>GW: Request File Mutation (e.g., target.rs)
+    GW->>CAS: Snapshot Pre-Image (bytes, SHA-256)
+    CAS-->>GW: Pre-Image Cached in RAM (<1ms)
+    GW->>Disk: Allow Targeted Mutation
+    Note over Disk: Disk modified by agent
+    GW->>GW: Post-Mutation Policy & Integrity Check
+    alt Violation Detected (BPI breach, unexpected drift)
+        GW->>CAS: Trigger Instant Auto-Revert
+        CAS->>Disk: Atomic Byte Overwrite (<5ms)
+        GW-->>Agent: HTTP 403 Forbidden (Reverted to Pre-Image)
+        Note over GW: Mutation logged to cryptographic ledger
+    else Clean Mutation
+        GW-->>Agent: HTTP 200 OK (Committed)
+    end
+```
+
+### 8.4.1 In-Memory CAS Snapshot Architecture (`src/cas_guard.rs`)
+
+The Pre-Image CAS Guard maintains an in-memory cache of file contents protected by asynchronous reader-writer locks (`std::sync::RwLock`):
+
+```rust
+pub struct PreImageCasGuard {
+    snapshots: RwLock<HashMap<PathBuf, Vec<u8>>>,
+}
+```
+
+1. **`record_pre_image(path)`**:
+   Before an agent initiates an edit or overwrite tool call, the gateway checks if the file exists on disk. If present, it loads the raw bytes into memory and maps them to the canonical `PathBuf`.
+2. **`revert_file(path)`**:
+   If an anomaly, BPI violation, or unauthorized file drift is detected during or immediately following execution, `revert_file` retrieves the cached pre-image bytes and atomically restores the file to disk within **<5ms**.
+3. **`evict(path)`**:
+   Once a mutation is cryptographically signed and confirmed clean, the pre-image entry is evicted to reclaim RAM.
+
+### 8.4.2 Symlink & NTFS Junction Boundary Hardening (`src/zones.rs`)
+
+A classic vulnerability in file sandboxing is the **Directory Junction / Symlink Bypass**. An agent restricted to `C:/cada/projects/playground` might create a symbolic link:
+```powershell
+New-Item -ItemType SymbolicLink -Path "C:\cada\projects\playground\leak" -Target "C:\cada\projects\.secrets"
+```
+A naive path filter comparing string prefixes would see `C:\cada\projects\playground\leak` and erroneously grant access.
+
+AgentTrace neutralizes this via strict canonicalization:
+* Before checking whitelist or blacklist rules, every path is resolved using `std::fs::canonicalize(path)` (or Windows `GetFinalPathNameByHandle`).
+* This resolves all soft links, hard links, directory junctions, and `..` relative traversals down to their physical volume GUID and hardware storage path.
+* If the canonical path points outside the designated Safe Zone, the request is immediately aborted and recorded as a high-severity security event.
+
+***
+
+## 8.5 Summary
+
+By combining the instantaneous risk assessment of the **Blast Radius Score** with **Temporal Bucketing**, **Symlink Hardening**, and the sub-5ms **Pre-Image CAS Auto-Revert Guard**, AgentTrace achieves a self-healing security perimeter that prevents autonomous agent compromise from escalating into permanent system damage.

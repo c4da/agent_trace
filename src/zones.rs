@@ -87,25 +87,37 @@ pub fn resolve_canonical_target(raw: &str) -> String {
     }
 
     let joined = stack.join("/");
-    if is_abs_slash {
+    let preliminary = if is_abs_slash {
         format!("/{}", joined)
     } else {
         joined
+    };
+
+    // If candidate path exists and is a symlink/junction, resolve its target to prevent symlink traversal
+    let candidate = std::path::Path::new(&preliminary);
+    if let Ok(target) = std::fs::read_link(candidate) {
+        let mut canon_str = target.to_string_lossy().to_string();
+        if canon_str.starts_with(r"\\?\") {
+            canon_str = canon_str[4..].to_string();
+        }
+        return canon_str.replace('\\', "/").to_lowercase();
     }
+
+    preliminary
 }
 
-/// Checks whether a zone rule applies to the given `agent_id`.
+/// Checks whether a zone rule applies to the given `agent_id` (supports both base agent IDs and `#instance` tagged IDs).
 pub fn zone_applies_to_agent(zone: &ContainmentZone, agent_id: &str) -> bool {
     let agent_lower = agent_id.to_lowercase();
-    if zone
-        .exempt_agents
-        .iter()
-        .any(|ex| ex.to_lowercase() == agent_lower)
-    {
+    let base_agent = agent_lower.split('#').next().unwrap_or(&agent_lower);
+    if zone.exempt_agents.iter().any(|ex| {
+        let ex_l = ex.to_lowercase();
+        ex_l == agent_lower || ex_l == base_agent
+    }) {
         return false;
     }
     let scope = zone.applies_to.trim().to_lowercase();
-    scope == "*" || scope == "all" || scope == agent_lower
+    scope == "*" || scope == "all" || scope == agent_lower || scope == base_agent
 }
 
 /// Extracts candidate filesystem paths and destructive flags from a shell command string.

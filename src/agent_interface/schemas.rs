@@ -11,6 +11,218 @@ pub async fn get_agent_tools() -> Json<Value> {
         "description": "Autonomous governance, telemetry auditing, and cluster management tools for AI agents.",
         "tools": [
             {
+                "name": "record_project_decision",
+                "description": "Records an architectural decision, milestone, or learning summary to the cryptographic ledger and Studio Project Book. Automatically signed and chained into the SHA-256 ledger.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["title", "rationale"],
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "Short milestone or decision title."
+                        },
+                        "rationale": {
+                            "type": "string",
+                            "description": "Why this decision was made and architectural rationale."
+                        },
+                        "tags": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Classification tags (e.g. ['#architecture', '#srp-refactor', '#benchmark', '#governance'])."
+                        },
+                        "lessons_learned": {
+                            "type": "string",
+                            "description": "Educational findings for human learning and future agent runs."
+                        },
+                        "rules_verified": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Governance rules verified (e.g. ['rule-work-first-ui', 'rule-srp-coding'])."
+                        },
+                        "diff": {
+                            "type": "string",
+                            "description": "Optional unified code diff or affected files."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "get_workgroup_rules",
+                "description": "Retrieves active Problem Workgroups and their attached Markdown governance rules (such as Work-First UI and SRP coding).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "workgroup_id": {
+                            "type": "string",
+                            "description": "Optional specific workgroup ID (e.g. 'wg-coding', 'wg-ui-workfirst'). Omit for all."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "upsert_workgroup",
+                "description": "Creates or updates a Problem Workgroup hierarchy with assigned agents, models, and domain objectives in the cluster.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["name", "problem_domain"],
+                    "properties": {
+                        "id": {
+                            "type": "string",
+                            "description": "Unique workgroup ID (e.g. 'wg-cad-strux', 'wg-governance'). Auto-generated if omitted."
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Human-readable workgroup name."
+                        },
+                        "problem_domain": {
+                            "type": "string",
+                            "description": "Target problem domain or subsystem."
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Detailed architectural mission and purpose of the workgroup."
+                        },
+                        "members": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "agent_id": { "type": "string" },
+                                    "role": { "type": "string", "enum": ["Lead", "Worker", "Critic", "Observer"] },
+                                    "preferred_model": { "type": "string" },
+                                    "target_node": { "type": "string" }
+                                }
+                            },
+                            "description": "Team member agents assigned to this workgroup."
+                        },
+                        "trigger_keywords": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Routing keywords that trigger this workgroup."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "attach_workgroup_rule",
+                "description": "Attaches a Markdown (.md) rule file (e.g. Work-First UI, Anti-Monolith SRP) or inline rule text to a Problem Workgroup.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["workgroup_id", "title"],
+                    "properties": {
+                        "workgroup_id": {
+                            "type": "string",
+                            "description": "Target workgroup ID."
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "Rule title (e.g. 'Work-First UI Standards', 'Anti-Monolith SRP Invariants')."
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "Optional relative or absolute path to a Markdown rule file."
+                        },
+                        "inline_markdown": {
+                            "type": "string",
+                            "description": "Optional inline Markdown rule specification content."
+                        },
+                        "enforce_strict": {
+                            "type": "boolean",
+                            "description": "Whether violation of this rule should strictly block execution. Default true."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "deploy_cluster_worker",
+                "description": "Triggers zero-walk Over-the-Air (OTA) binary distribution and remote push provisioning of an agent_trace_gw worker node over the LAN.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["target_ip"],
+                    "properties": {
+                        "target_ip": {
+                            "type": "string",
+                            "description": "Target worker node IP address on the LAN (e.g. '192.168.1.102')."
+                        },
+                        "port": {
+                            "type": "integer",
+                            "description": "Target listening port (default: 8642)."
+                        },
+                        "method": {
+                            "type": "string",
+                            "description": "Provisioning method: 'hermes_or_ssh' or 'powershell'. Default: 'hermes_or_ssh'."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "check_worker_connection",
+                "description": "Performs live network reachability and health checks against a worker node (or all cluster nodes), probing ports 8080 (Gateway), 8642 (Hermes), and 11434 (Ollama), returning latency and gateway installation status.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target_ip": {
+                            "type": "string",
+                            "description": "Target worker node IP (e.g. '192.168.1.102') or 'all' to check all registered/discovered cluster nodes. Defaults to 'all'."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "check_cluster_health",
+                "description": "Performs an autonomous cluster health check across all registered nodes, detecting sleep mode/standby, power-offs, and service degradation, and updating model routing availability.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "force_reprobe": {
+                            "type": "boolean",
+                            "description": "Whether to force an active real-time network probe across all nodes instead of returning cached watchdog results. Defaults to true.",
+                            "default": true
+                        }
+                    }
+                }
+            },
+            {
+                "name": "get_cluster_bootstrap_command",
+                "description": "Generates the exact 1-liner network bootstrap command to install and connect a remote worker node to the Lead Node over the LAN.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "platform": {
+                            "type": "string",
+                            "enum": ["powershell", "bash", "all"],
+                            "description": "Target OS shell format: 'powershell' (Windows), 'bash' (Linux/macOS), or 'all'. Default: 'all'."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "dispatch_cluster_prompt",
+                "description": "Dispatches a code review, boilerplate, or reasoning prompt to the local PC-1/PC-2 cluster at zero token cost via the Central Prompt Hub.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["prompt"],
+                    "properties": {
+                        "prompt": {
+                            "type": "string",
+                            "description": "The prompt or instruction to execute."
+                        },
+                        "workgroup_id": {
+                            "type": "string",
+                            "description": "Target workgroup (e.g. 'wg-coding', 'wg-image-gen', 'auto'). Default: 'auto'."
+                        },
+                        "mode": {
+                            "type": "string",
+                            "description": "Execution mode: 'auto', 'pipeline' (draft -> verify), or 'swarm' (parallel). Default: 'auto'."
+                        },
+                        "requested_model": {
+                            "type": "string",
+                            "description": "Optional explicit model override (e.g. 'qwen3.8:27b', 'hermes-agent')."
+                        }
+                    }
+                }
+            },
+            {
                 "name": "verify_ledger",
                 "description": "Cryptographically verifies the entire SHA-256 hash-chain and Ed25519 signatures of the telemetry ledger. Returns block count, chain validity, head hash, and broken block details if tampered.",
                 "parameters": {

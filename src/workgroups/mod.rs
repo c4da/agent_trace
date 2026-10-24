@@ -10,6 +10,7 @@
 //! - `handlers.rs`: Axum REST API endpoints.
 
 mod compiler;
+mod editor;
 mod handlers;
 mod presets;
 mod registry;
@@ -20,6 +21,7 @@ mod yaml;
 #[cfg(test)]
 mod tests;
 
+pub use editor::{get_rule_file_handler, save_rule_file_handler};
 pub use handlers::{
     apply_workgroup_yaml_handler, attach_markdown_rule_handler, delete_workgroup_handler,
     get_workgroup_yaml_handler, global_workgroups, list_workgroups_handler,

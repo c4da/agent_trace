@@ -302,9 +302,114 @@ pub async fn get_model_handler(state: Arc<AppState>, model_name: String) -> Resu
 
 1.  The `AppState` holds the shared `Arc<RwLock<T>>` and the `broadcast::Sender`.
 2.  When `update_model_handler` runs, it uses `.write().await` to safely gain exclusive access to the registry.
-3.  When `get_model_handler` runs, it uses `.read().await` to safely gain shared access to the registry.
-4.  When a change occurs, it uses `state.telemetry_tx.send()` to broadcast a notification to all listening tasks.
+---
+
+## 🎭 6.5 The Actor Pattern & Bounded MPSC Channels (`ledger_writer.rs`)
+
+As your asynchronous system scales, you will inevitably encounter a fundamental systems design trap: **shared mutable disk bottlenecks**.
+
+### The SQLite Concurrency Dilemma
+
+In AgentTrace, hundreds of asynchronous agent requests arrive simultaneously. Every tool invocation, file mutation, and policy check must be cryptographically recorded in an SQLite database.
+
+If you wrap an SQLite database connection in `Arc<tokio::sync::Mutex<rusqlite::Connection>>`, two severe problems occur:
+1. **Lock Contention & Starvation**: Concurrent async handlers queue up waiting for the mutex. If one thread stalls, the entire web server grinds to a halt.
+2. **SQLite Lock Errors (`sqlite3: database is locked`)**: SQLite handles parallel readers via Write-Ahead Logging (WAL), but writing to the cryptographic hash chain requires strictly sequential commits.
+
+### The Solution: The Actor Pattern with MPSC & Oneshot Channels
+
+Instead of sharing the database connection across 50 threads, we use the **Actor Pattern**:
+* Only **one** dedicated background worker thread owns the `rusqlite::Connection`.
+* All async HTTP handlers send commit commands into a bounded **Multi-Producer, Single-Consumer (`mpsc`)** channel.
+* Each command carries a private **`oneshot::Sender`** channel so the actor can return the newly computed SHA-256 block hash back to the specific caller.
+
+```mermaid
+graph LR
+    subgraph Async Tokio Handlers
+        H1[Handler 1]
+        H2[Handler 2]
+        H3[Handler 3]
+    end
+
+    subgraph Bounded MPSC Channel (Capacity: 1000)
+        Q[(Commit Queue)]
+    end
+
+    subgraph Dedicated Actor Task
+        W[Single Ledger Writer Thread]
+        DB[(SQLite WAL + Crypto Hasher)]
+    end
+
+    H1 -->|LedgerCommand { event, oneshot_tx }| Q
+    H2 -->|LedgerCommand { event, oneshot_tx }| Q
+    H3 -->|LedgerCommand { event, oneshot_tx }| Q
+    Q -->|pop next| W
+    W -->|sequential write & sign| DB
+    W -.->|block hash| H1
+    W -.->|block hash| H2
+    W -.->|block hash| H3
+```
+
+### Real-World Code: How AgentTrace Implements `ledger_writer.rs`
+
+```rust
+use tokio::sync::{mpsc, oneshot};
+use crate::models::TraceEvent;
+
+// 1. Define the message payload containing the event and the return channel
+pub struct LedgerCommand {
+    pub event: TraceEvent,
+    pub respond_to: oneshot::Sender<Result<String, String>>, // Returns the computed SHA-256 block hash
+}
+
+// 2. Cloneable Handle passed to Axum handlers
+#[derive(Clone)]
+pub struct LedgerWriterHandle {
+    sender: mpsc::Sender<LedgerCommand>,
+}
+
+impl LedgerWriterHandle {
+    pub async fn commit_event(&self, event: TraceEvent) -> Result<String, String> {
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let cmd = LedgerCommand {
+            event,
+            respond_to: resp_tx,
+        };
+        
+        // Push to bounded queue (applies backpressure if buffer full)
+        self.sender.send(cmd).await.map_err(|_| "Ledger actor terminated".to_string())?;
+        
+        // Await the dedicated actor's cryptographic commit
+        resp_rx.await.map_err(|_| "Actor dropped response".to_string())?
+    }
+}
+
+// 3. Spawning the Actor Worker
+pub fn spawn_ledger_writer(mut db_conn: rusqlite::Connection) -> LedgerWriterHandle {
+    let (tx, mut rx) = mpsc::channel::<LedgerCommand>(1000);
+
+    tokio::task::spawn_blocking(move || {
+        while let Some(cmd) = rx.blocking_recv() {
+            // Compute sequential SHA-256 hash chain and commit to SQLite
+            let result = commit_to_ledger(&mut db_conn, &cmd.event);
+            let _ = cmd.respond_to.send(result);
+        }
+    });
+
+    LedgerWriterHandle { sender: tx }
+}
+```
+
+#### Why This Pattern Wins
+* **Zero Database Locks**: The database is only touched by a single thread; `database is locked` errors become mathematically impossible.
+* **Bounded Backpressure**: Setting the channel capacity to `1000` prevents memory bloat if agents produce events faster than disk I/O.
+* **Deterministic Chain Ordering**: Cryptographic hash chains ($H_n = \text{SHA256}(H_{n-1} + E_n)$) are guaranteed to be serialized in absolute chronological order.
 
 ---
 
-## 📝
+## 📝 Chapter 6 Summary & Key Takeaways
+
+1. **Async vs. Threads**: Async tasks are lightweight userspace abstractions scheduled onto a small thread pool by Tokio's reactor/executor.
+2. **Never Block in Async**: Use `tokio::task::spawn_blocking` for CPU-heavy cryptography or synchronous database access to avoid starving the async executor.
+3. **Shared State**: Wrap read-heavy state in `Arc<RwLock<T>>` and use `broadcast::channel` to fan out real-time notifications to web clients.
+4. **Actor Concurrency**: Decouple concurrent HTTP handlers from sequential disk storage using bounded `mpsc` and `oneshot` response channels.

@@ -31,25 +31,28 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 
 ---
 
-## 2. AgentTrace Gateway Endpoints
+## 2. AgentTrace Gateway Endpoints & MCP Interface
+- **Native Rust MCP Server**: `.\target\debug\agent_trace_mcp.exe` (Stdio JSON-RPC 2.0 bridge)
+- **Studio UI & Project Book**: `http://localhost:8080/client` (Self-populating Architectural Chronicle)
 - **Terminal Console UI**: `http://localhost:8080/console` (High-density Web TUI)
 - **Visual Dashboard UI**: `http://localhost:8080/dashboard`
 - **Proxy Endpoint**: `http://localhost:8080/v1/chat/completions` (smart auto-routes by model name!)
 - **Aggregated Models Registry**: `http://localhost:8080/v1/models`
 - **Ledger Verification**: `http://localhost:8080/api/v1/ledger/verify`
 - **Telemetry Ingest**: `http://localhost:8080/api/v1/events`
-- **Cluster Summary**: `http://localhost:8080/api/v1/summary`
+- **MCP HTTP Endpoint**: `http://localhost:8080/api/v1/mcp`
 - **Real-Time Stream**: `http://localhost:8080/api/v1/stream` (SSE)
 
 ---
 
-## 3. Operational Protocols & Zero-Token Discipline
-1. **Zero External API Cost**:
-   - Secondary boilerplate, unit tests (`cargo test`), telemetry parsing, and documentation must be delegated to PC-1 (`qwen3.8:27b`, `qwen3:14b`) and PC-2 (`deepseek-r1:1.5b`).
-2. **Queue Waiting Protocol**:
-   - The local LLM may be busy with local agent tasks. Check queue status or retry with backoff before assuming timeouts.
-3. **Cryptographic Provenance**:
-   - Every file edit, diff, and command execution is logged to the gateway to maintain an unbroken SHA-256 hash chain and Ed25519 node signatures.
+## 3. The "Agent Tool & Project Book" Workflow Directive
+> *"Here's a tool — let your agent read it, he will thank you later."*
+
+1. **Agent Tool, Not Human Tool**: Humans type prompts directly in their editor, terminal, or IDE. Agents interact natively with AgentTrace via the standalone Rust MCP binary (`agent_trace_mcp.exe`).
+2. **Autonomous Project Chronicle**: Whenever the agent refactors code, solves architectural problems, or audits security invariants, the agent MUST call `record_project_decision` to log the rationale, tags, and lessons learned. This populates the Studio UI (`/client`) as a structured, educational **Project Book** for human review.
+3. **Zero External API Cost**: Secondary boilerplate, unit tests (`cargo test`), telemetry parsing, and documentation must be delegated to PC-1 (`qwen3.8:27b`, `qwen3.5:9b`) and PC-2 (`hermes-agent` / `deepseek-r1:1.5b`) via `dispatch_cluster_prompt`.
+4. **Dynamic Governance Grounding**: Agents must fetch active Markdown rules via `get_workgroup_rules` before authoring code or modifying UI components.
+5. **Cryptographic Provenance**: Every file edit, diff, and command execution is logged to maintain an unbroken SHA-256 hash chain and Ed25519 node signatures.
 
 ---
 

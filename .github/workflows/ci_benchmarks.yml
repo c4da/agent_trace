@@ -1,0 +1,19 @@
+name: AgentTrace AI Guard — Tests, Adversarial Suite & Sub-5ms Benchmarks
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  verify-and-benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run Unit, Adversarial & Sub-5ms Benchmark Suite
+        run: python3 scripts/update_benchmarks_and_badges.py
+      - name: Verify Zero Compiler Warnings
+        run: cargo check --all-targets

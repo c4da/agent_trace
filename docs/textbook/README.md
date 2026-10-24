@@ -27,6 +27,7 @@ This textbook serves as both an authoritative conceptual reference and an operat
   - HTTP/1.1 vs. HTTP/2 (multiplexing, binary framing) vs. HTTP/3 (QUIC)
   - RESTful API design principles and stateless resource modeling
   - JSON-RPC 2.0 and the Model Context Protocol (MCP) standard
+  - Standalone stdio native MCP executables (`agent_trace_mcp.exe`) vs. HTTP reverse proxies
   - Server-Sent Events (SSE) streaming for real-time LLM token generation vs. bidirectional WebSockets
 
 ### Part II: Advanced Networking & Distributed Edge Topology
@@ -37,8 +38,9 @@ This textbook serves as both an authoritative conceptual reference and an operat
   - Dynamic routing arbitration, capability matching, and fallback cascades
 - [Chapter 4: Local Mesh Discovery & Zero-Conf Clustering](chapter_04_mesh_discovery_clustering.md)
   - Zero-configuration LAN service discovery using UDP broadcast/multicast beacons (`255.255.255.255:8089`)
-  - Decentralized node heartbeats, health monitoring, and stale node pruning
-  - Firewall traversal, LAN routing, CORS security, and mutual TLS (mTLS)
+  - Dynamic local AI engine introspection (Ollama `:11434`, Hermes `:8642`)
+  - Zero-Walk Over-the-Air (OTA) binary distribution and dynamic PowerShell bootstrapping (`/bootstrap.ps1`)
+  - Remote cluster deployment push (`deploy-worker`) and firewall automated provisioning
 
 ### Part III: The Autonomous AI Agent Ecosystem
 - [Chapter 5: Anatomy of Autonomous AI Agents](chapter_05_anatomy_of_ai_agents.md)
@@ -59,10 +61,20 @@ This textbook serves as both an authoritative conceptual reference and an operat
   - Detecting retroactive SQLite modifications and automated ledger verification
 - [Chapter 8: Agent Governance, Sandboxing & Behavioral Analytics](chapter_08_governance_sandboxing_analytics.md)
   - Ingress and egress sandboxing: Read/Write/Network whitelists
-  - Blacklist priority: Preventing credential leakage (`.env`, `.secrets`, private keys)
+  - Blacklist precedence: Preventing credential leakage (`.env`, `.secrets`, private keys)
+  - Pre-Image Content-Addressable Storage (CAS) Auto-Revert Guard (<5ms rollback of rogue mutations)
+  - Symlink & NTFS directory junction boundary containment
   - Behavioral analytics: Read-to-write ratios, blast radius scoring, and threat level classification
-  - Target hotspot analysis and temporal time-series anomaly detection
 - [Chapter 9: The AgentTrace Gateway Implementation](chapter_09_agent_trace_implementation.md)
   - Complete architecture walkthrough of `agent_trace_gw`
-  - Modular handler and service decomposition: `main.rs`, `handlers.rs`, `services.rs`, `db.rs`, `policy.rs`, `analytics.rs`, `agent_interface.rs`
-  - Deploying edge clusters: Bare-metal, dual-PC, and cross-platform topologies
+  - Modular handler and service decomposition: `main.rs`, `handlers.rs`, `ledger_writer.rs`, `ota_dist.rs`, `cas_guard.rs`, `workgroups/`, `client.html`
+  - Problem Workgroups and Dynamic Markdown Rule Mesh
+  - Deploying edge clusters: Zero-Walk OTA bootstrapping, dual-PC heterogeneous topologies, and Living Project Book UI
+- [Chapter 10: Progressive Enterprise Security — Optional TLS/mTLS, ChaCha20-Poly1305 AEAD Vaults, Hard AI Guard & Elastic SIEM (ECS 8.11)](chapter_10_enterprise_ai_guard_tls_mtls_elk_vault.md)
+  - The Progressive Security Philosophy: Plaintext & Permissive by Default, Zero-Trust Opt-In
+  - Optional Secrets-at-Rest Encryption (`ring::aead::CHACHA20_POLY1305` `ENCv1:` envelopes)
+  - Constant-Time Bearer & API-Key Authentication (`constant_time_eq`)
+  - Transport Layer Security (TLS) & Inter-Gateway Mutual TLS (mTLS Thumbprint Pinning + HMAC-SHA256 Anti-Replay)
+  - Synchronous Pre-Execution Hard AI Guard (`HardBlock` vs. `RedactAndForward` vs. `AuditOnly`) & Corporate Claude Code Terminal Hub (`/v1/messages`)
+  - Enterprise 3rd-Party SIEM & ELK Stack Integration (Elastic Common Schema ECS 8.11 `/_bulk` NDJSON)
+

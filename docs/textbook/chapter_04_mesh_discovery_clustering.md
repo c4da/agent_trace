@@ -205,18 +205,106 @@ X-AgentTrace-Token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDIiLCJpYXQiOjE
 
 ***
 
-## 4.5 Summary and Future Work
+***
 
-Chapter 4 has established the foundational principles for building autonomous, self-organizing edge clusters. By leveraging UDP Broadcast for initial reachability, implementing TTL-based heartbeats for failure detection, and enforcing token-based mutual authentication, we achieve a system that is both highly resilient and operationally simple.
+## 4.5 Zero-Walk Over-the-Air (OTA) Binary Distribution & Bootstrap Architecture
 
-**Key Takeaways:**
+In real-world multi-machine topologies (such as developer workstations, lab nodes, and GPU servers), the biggest barrier to deploying a distributed agent cluster is operational friction: **the "sneaker-net" paradox**. Manually walking over to physical machines, configuring dependencies, copying binaries via USB, and fighting firewall dialogs defeats the very premise of autonomous computing.
 
-*   **Zero-Conf:** Achieved via periodic UDP Broadcast Beacons.
-*   **Resilience:** Maintained through autonomous TTL-based pruning of stale nodes.
-*   **Security:** Enforced via network segmentation and application-layer token authentication.
+AgentTrace solves this with a **Zero-Walk Over-the-Air (OTA) Distribution Substrate** embedded directly within the Rust gateway binary.
 
-**Future Research Directions:**
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Lead as Lead Gateway (PC-1 :8080)
+    participant Worker as Worker Machine (PC-2 / Node-02)
 
-1.  **Gossip Protocols:** Transitioning from a centralized Lead Gateway to a decentralized cluster state management using Gossip protocols (e.g., SWIM) to eliminate the single point of failure inherent in the current architecture.
-2.  **Service Mesh Integration:** Integrating the discovered nodes into a full service mesh (e.g., Istio/Linkerd) to handle complex routing, load balancing, and circuit breaking automatically.
-3.  **Secure Bootstrapping:** Developing a robust mechanism for initial trust establishment (e.g., using TPM measurements) to prevent malicious nodes from joining the cluster.
+    Note over Lead: Computes binary SHA-256 on boot
+    Worker->>Lead: GET /bootstrap.ps1
+    Lead-->>Worker: Dynamically rendered PowerShell script
+    Note over Worker: Executes bootstrap script in memory
+    Worker->>Lead: GET /api/v1/dist/manifest
+    Lead-->>Worker: JSON { sha256: "9f3a...", size_bytes: ... }
+    Worker->>Lead: GET /api/v1/dist/agent_trace_gw.exe
+    Lead-->>Worker: Stream binary with X-Content-SHA256 header
+    Note over Worker: Verifies SHA-256 digest integrity
+    Note over Worker: Configures Windows Firewall (:8080, :8089)
+    Note over Worker: Launches agent_trace_gw.exe in worker mode
+    Worker->>Lead: UDP :8089 Dynamic Discovery Beacon
+    Note over Lead: Worker registered in cluster mesh!
+```
+
+### 4.5.1 Self-Inspecting Binary Distribution (`src/ota_dist.rs`)
+
+The gateway binary acts as its own package repository. Using `std::env::current_exe()`, the running executable locates its own binary on disk and computes a cryptographic SHA-256 digest at startup. It then serves these endpoints:
+
+1. **`GET /api/v1/dist/manifest`**:
+   Returns the authoritative distribution manifest containing the binary name, size in bytes, and the Ring-computed SHA-256 hash.
+   ```json
+   {
+     "binary_name": "agent_trace_gw.exe",
+     "sha256": "3a7bd28e4695c0245a165be87034c56e3557e4b97a06f4777c229cfb234bb485",
+     "size_bytes": 18274304,
+     "server_time_utc": "2026-10-17T19:26:31Z"
+   }
+   ```
+
+2. **`GET /api/v1/dist/agent_trace_gw.exe`**:
+   Streams the raw binary executable over HTTP with custom cryptographic headers:
+   ```http
+   HTTP/1.1 200 OK
+   Content-Type: application/octet-stream
+   Content-Disposition: attachment; filename="agent_trace_gw.exe"
+   X-Content-SHA256: 3a7bd28e4695c0245a165be87034c56e3557e4b97a06f4777c229cfb234bb485
+   ```
+
+### 4.5.2 Dynamic Bootstrap Templating (`/bootstrap.ps1`, `/join.cmd`, `/worker.cmd`, `/winrm.cmd`)
+
+When a new worker machine boots, the operator (or an orchestration script) can use any of several dynamically generated, zero-dependency entry points:
+
+1. **Interactive Web Join Portal (`GET /join`)**:
+   Visiting `http://<lead-ip>:8080/join` from any browser on the LAN renders a high-density operator card displaying the detected IP, 1-click copy buttons, and diagnostic checks.
+
+2. **Windows PowerShell Bootstrap (`/bootstrap.ps1` & `/join.cmd`)**:
+   ```powershell
+   irm http://192.168.1.101:8080/join.cmd | iex
+   ```
+   *Downloads the manifest, asserts SHA-256 integrity, provisions Windows Defender firewall rules, and starts the worker daemon.*
+
+3. **Standalone Worker Launcher (`/worker.cmd`)**:
+   ```cmd
+   curl -s http://192.168.1.101:8080/worker.cmd -o worker.cmd && worker.cmd
+   ```
+   *Runs `agent_trace_gw.exe --worker --lead http://<lead-ip>:8080` directly.*
+
+4. **1-Click WinRM Enablement Script (`/winrm.cmd` & `/winrm.ps1`)**:
+   ```powershell
+   irm http://192.168.1.101:8080/winrm.cmd | iex
+   ```
+   *Configures `LocalAccountTokenFilterPolicy`, enables PSRemoting, and sets `TrustedHosts` across the local subnet, enabling safe remote command push from the Lead Node.*
+
+### 4.5.3 Remote Worker Push Deployment (`POST /api/v1/cluster/deploy-worker`)
+
+To eliminate physical interaction entirely, the Lead Gateway provides a remote deployment API (`deploy-worker`) and a corresponding MCP tool (`deploy_cluster_worker`).
+
+When invoked with `target_host`, `user`, and `method` (`ssh` or `winrm`), the Lead connects over the network, pushes the bootstrap command, and verifies that the new node begins broadcasting heartbeats on UDP `:8089` within a 15-second window.
+
+### 4.5.4 Dynamic Inference Model Inspection
+
+Worker nodes automatically discover and introspect their local AI engines upon startup:
+* **Ollama Engine (`http://127.0.0.1:11434/api/tags`)**: Discovers locally installed models (e.g., `qwen3.8:27b`, `qwen3:14b`).
+* **Hermes Agent Engine (`http://127.0.0.1:8642/v1/models`)**: Discovers CUDA-accelerated models (e.g., `deepseek-r1:1.5b`).
+
+These discovered models are packed into the UDP `:8089` discovery beacon. The Lead Gateway dynamically registers each worker's models in its Prompt Hub routing table without requiring static configuration files.
+
+***
+
+## 4.6 Summary and Key Takeaways
+
+Chapter 4 has established the architectural patterns for autonomous, self-organizing edge clusters:
+
+* **Zero-Conf Mesh Discovery**: Realized via periodic UDP Broadcast beacons on port `8089`.
+* **Zero-Walk OTA Distribution**: Self-serving binary distribution and dynamic bootstrap scripts eliminate manual per-machine setup.
+* **Remote Deployment Push**: Orchestrators provision remote cluster workers programmatically via SSH/WinRM.
+* **Dynamic Capability Mapping**: Autonomous node-level inspection of Ollama and Hermes engines automatically populates the cluster routing fabric.
+* **Cryptographic Resilience**: Enforced via SHA-256 pre-execution binary verification and Ed25519 node identity signatures.

@@ -150,6 +150,52 @@ curl -H "Authorization: Bearer <WORKER_KEY>" http://<WORKER_IP>:8642/v1/models
 
 ---
 
+## 4.1 Enabling Windows Remote PowerShell / WinRM (Zero-Touch Push from Lead)
+
+By default on Windows 10/11 (non-domain / Workgroup environments), **Remote PowerShell (WinRM) and WMI process creation are disabled or restricted by UAC**. 
+
+To allow the Lead Node (PC-1) to push deployments directly to the Worker Node (PC-2) without touching PC-2 or emailing commands, configure WinRM once:
+
+### On the Worker Machine (PC-2) — Run ONCE in Administrator PowerShell:
+```powershell
+# 1. Enable WinRM service and configure firewall rules
+Enable-PSRemoting -Force -SkipNetworkProfileCheck
+
+# 2. Allow local admin accounts to retain remote admin privileges (bypasses remote UAC filter)
+Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "LocalAccountTokenFilterPolicy" -Value 1 -Type DWord
+
+# 3. Allow incoming management traffic from your local LAN subnet
+Set-Item WSMan:\localhost\Client\TrustedHosts -Value "192.168.1.*" -Force
+Restart-Service WinRM
+```
+
+### On the Lead Machine (PC-1) — Run ONCE in Administrator PowerShell:
+```powershell
+# Allow PC-1 to connect to LAN worker IPs without Kerberos domain
+Set-Item WSMan:\localhost\Client\TrustedHosts -Value "192.168.1.*" -Force
+Restart-Service WinRM
+```
+
+### ⚡ Now Push Deploy Directly from PC-1:
+```powershell
+# Option A: Automatic cluster deployer
+python install.py --push-workers <WORKER_IP>
+
+# Option B: Direct PowerShell Remote Execution
+Invoke-Command -ComputerName <WORKER_IP> -ScriptBlock { 
+    irm http://<LEAD_IP>:8080/bootstrap.ps1 | iex 
+} -Credential (Get-Credential)
+```
+
+### ⚡ Instant 1-Click Bootstrap URLs (Served by Lead Node Gateway):
+If you are at the Worker PC or want a zero-type setup:
+- **Interactive Join UI**: Open `http://<LEAD_IP>:8080/join` in any browser on the LAN.
+- **1-Click WinRM Enable Script**: `irm http://<LEAD_IP>:8080/winrm.cmd | iex`
+- **1-Click Cluster Join**: `irm http://<LEAD_IP>:8080/join.cmd | iex`
+- **1-Click Worker Daemon Launcher**: `curl -s http://<LEAD_IP>:8080/worker.cmd -o worker.cmd && worker.cmd`
+
+---
+
 ## 5. Point worker agents at the gateway
 
 Any OpenAI-compatible client works. Set these three things:

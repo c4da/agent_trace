@@ -54,10 +54,10 @@ impl ProblemWorkgroup {
     /// Resolves the actual execution node, model identifier, and upstream URL for a workgroup member.
     pub fn resolve_executable_target(member: &super::types::WorkgroupMember, default_upstream: &str) -> (String, String, String) {
         let id_lower = member.agent_id.to_lowercase();
-        if id_lower.contains("deepseek") {
+        if id_lower.contains("deepseek") || id_lower.contains("hermes") || member.node_id == "PC-2" {
             (
                 "PC-2".to_string(),
-                "deepseek-r1:1.5b".to_string(),
+                "hermes-agent".to_string(),
                 "http://192.168.1.102:8642".to_string(),
             )
         } else if id_lower.contains("27b") {
@@ -79,11 +79,10 @@ impl ProblemWorkgroup {
                 default_upstream.to_string(),
             )
         } else if id_lower.contains("copilot") {
-            // Copilot CLI synthesis backed by fast local code model when invoked via HTTP Hub
             (
-                "PC-1-Copilot".to_string(),
-                "qwen3.5:9b".to_string(),
-                default_upstream.to_string(),
+                "PC-1".to_string(),
+                "copilot-cli".to_string(),
+                "cli://copilot".to_string(),
             )
         } else if id_lower.contains("gemini") || id_lower.contains("antigravity") {
             // Architectural synthesis backed by lead node reasoning engine

@@ -155,16 +155,40 @@ pub fn auto_derive_capabilities(
 }
 
 /// Dynamic registry of all models currently active across cluster nodes.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ClusterModelRegistry {
     /// Map of model_key ("node_id:model_id") to model manifest.
     models: HashMap<String, ModelManifest>,
 }
 
+impl Default for ClusterModelRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ClusterModelRegistry {
     pub fn new() -> Self {
-        Self {
+        let mut reg = Self {
             models: HashMap::new(),
+        };
+        reg.register_builtin_tools();
+        reg
+    }
+
+    /// Auto-detects and registers host CLI tools and agents (e.g. GitHub Copilot CLI).
+    pub fn register_builtin_tools(&mut self) {
+        if crate::copilot::is_copilot_installed() {
+            self.register_single_model(
+                "PC-1",
+                "cli://copilot",
+                "copilot-cli",
+                Some(vec![
+                    ModelCapability::FastCodeGeneration,
+                    ModelCapability::ComplexReasoning,
+                    ModelCapability::GeneralExecution,
+                ]),
+            );
         }
     }
 
@@ -331,9 +355,11 @@ impl ClusterModelRegistry {
                     ParameterTier::Frontier => 1,
                 },
                 RoutingIntent::GeneralExecution => match m.parameter_tier {
-                    ParameterTier::Medium => 4,
-                    ParameterTier::Small => 3,
-                    ParameterTier::Large => 2,
+                    ParameterTier::Medium => {
+                        if m.node_id == "PC-1" { 5 } else { 3 }
+                    }
+                    ParameterTier::Large => 4,
+                    ParameterTier::Small => 2,
                     ParameterTier::Frontier => 1,
                 },
             }
@@ -355,6 +381,19 @@ impl ClusterModelRegistry {
         for m in self.models.values_mut() {
             if now - m.last_seen_epoch > ttl_secs {
                 m.is_healthy = false;
+            }
+        }
+    }
+
+    /// Updates the health status and latency for all models hosted on a specific node.
+    pub fn set_node_models_health(&mut self, node_id: &str, is_healthy: bool, epoch: i64, latency_ms: Option<u64>) {
+        for m in self.models.values_mut() {
+            if m.node_id == node_id {
+                m.is_healthy = is_healthy;
+                if is_healthy {
+                    m.last_seen_epoch = epoch;
+                    m.latency_ms = latency_ms;
+                }
             }
         }
     }

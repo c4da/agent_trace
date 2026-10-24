@@ -17,11 +17,11 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
         Html, Response,
     },
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use futures_util::stream::Stream;
-use std::{convert::Infallible, path::PathBuf, sync::Arc};
+use std::{convert::Infallible, path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::CorsLayer;
 
@@ -50,10 +50,17 @@ pub struct AppState {
     pub registry: Arc<RwLock<ClusterModelRegistry>>,
     pub policy: Arc<RwLock<PolicyEngine>>,
     pub ledger_writer: Option<crate::ledger_writer::LedgerWriter>,
+    pub health_watchdog: Option<Arc<crate::cluster_health::ClusterHealthWatchdog>>,
 }
 
 /// Constructs the complete Axum Router for the AgentTrace Gateway.
 pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Router {
+    let claude_state = crate::claude_bridge::ClaudeBridgeState {
+        proxy_cfg: state.proxy_cfg.clone(),
+        policy: state.policy.clone(),
+        node_id: state.node_id.clone(),
+    };
+
     Router::new()
         .route("/", get(serve_dashboard))
         .route("/dashboard", get(serve_dashboard))
@@ -61,6 +68,9 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/workgroups", get(serve_workgroups))
         .route("/console", get(serve_console))
         .route("/terminal", get(serve_console))
+        .route("/client", get(crate::client::serve_client))
+        .route("/app", get(crate::client::serve_client))
+        .route("/mobile", get(crate::mobile::serve_mobile))
         .route("/graph", get(serve_graph))
         .route("/flyer", get(serve_flyer))
         .route("/marketing", get(serve_flyer))
@@ -70,11 +80,32 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/provision.ps1", get(serve_provision_script))
         .route("/install.sh", get(serve_install_sh))
         .route("/provision.sh", get(serve_provision_sh))
-        .route("/dist/agent_trace_gw.exe", get(serve_dist_binary))
+        .route("/bootstrap.ps1", get(crate::ota_dist::serve_bootstrap_ps1))
+        .route("/winrm.ps1", get(crate::ota_dist::serve_winrm_ps1))
+        .route("/winrm.cmd", get(crate::ota_dist::serve_winrm_cmd))
+        .route("/worker.cmd", get(crate::ota_dist::serve_worker_cmd))
+        .route("/join.cmd", get(crate::ota_dist::serve_worker_cmd))
+        .route("/join", get(crate::ota_dist::serve_join_html))
+        .route("/dist/agent_trace_gw.exe", get(crate::ota_dist::stream_binary))
+        .route("/api/v1/dist/manifest", get(crate::ota_dist::get_manifest))
+        .route("/api/v1/dist/agent_trace_gw.exe", get(crate::ota_dist::stream_binary))
+        .route("/api/v1/cluster/deploy-worker", post(crate::ota_dist::deploy_worker))
+        // OpenAI & Corporate Claude Code Terminal API Guard Proxies
         .route("/v1/chat/completions", post(handle_chat_completions).with_state(state.proxy_cfg.clone()))
+        .route("/v1/messages", post(crate::claude_bridge::handle_anthropic_messages).with_state(claude_state))
+        .route("/v1/messages/count_tokens", post(crate::claude_bridge::handle_anthropic_count_tokens))
         .route("/v1/models", get(handle_models).with_state(state.proxy_cfg.clone()))
+        // Active AI Guard, SIEM/ELK Export, Vault & Live Benchmarks
+        .route("/api/v1/guard/intercept", post(guard_intercept_handler))
+        .route("/api/v1/export/elk", get(export_elk_handler))
+        .route("/api/v1/benchmarks", get(get_benchmarks_handler))
+        .route("/api/v1/vault/encrypt", post(encrypt_secret_handler))
         .route("/api/v1/hub/dispatch", post(crate::hub::handle_hub_dispatch).with_state(state.proxy_cfg.clone()))
+        .route("/api/v1/cluster/availability", get(crate::hub::handle_cluster_availability).with_state(state.proxy_cfg.clone()))
+        .route("/api/v1/cluster/health", get(get_cluster_health_handler))
+        .route("/api/v1/cluster/health/probe", post(probe_cluster_health_handler))
         .route("/api/v1/events", post(ingest_event).get(get_events))
+        .route("/api/v1/telemetry", get(get_events))
         .route("/api/v1/heartbeat", post(register_heartbeat))
         .route("/api/v1/summary", get(get_summary))
         .route("/api/v1/ledger/verify", get(verify_ledger_handler))
@@ -99,6 +130,24 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/workgroups/:workgroup_id/rules", post(crate::workgroups::attach_markdown_rule_handler))
         .route("/api/v1/workgroups/:workgroup_id/rules/:rule_id", delete(crate::workgroups::remove_markdown_rule_handler))
         .route("/api/v1/workgroups/:workgroup_id/preview", get(crate::workgroups::preview_workgroup_prompt_handler))
+        // Live Markdown (.md) Rule Reading & Editing Endpoints
+        .route("/api/v1/rules/file", get(crate::workgroups::get_rule_file_handler).post(crate::workgroups::save_rule_file_handler))
+        // Projects, Workspaces & Persistent Conversation Contexts
+        .route("/api/v1/projects", get(crate::projects::list_projects_handler).post(crate::projects::register_project_handler))
+        .route("/api/v1/projects/active", post(crate::projects::set_active_project_handler))
+        .route("/api/v1/projects/:project_id", put(crate::projects::update_project_handler))
+        .route("/api/v1/projects/:project_id/conversations", get(crate::projects::list_project_conversations_handler))
+        .route("/api/v1/conversations", post(crate::projects::create_conversation_handler))
+        .route("/api/v1/conversations/:id", get(crate::projects::get_conversation_handler).put(crate::projects::update_conversation_handler).delete(crate::projects::delete_conversation_handler))
+        .route("/api/v1/conversations/:id/messages", post(crate::projects::append_message_handler))
+        // Artifacts Management Endpoints (Workspace & Antigravity Brain)
+        .route("/api/v1/artifacts", get(crate::artifacts::list_artifacts_handler))
+        .route("/api/v1/artifacts/:id", get(crate::artifacts::get_artifact_handler))
+        .route("/api/v1/artifacts/:id/view", get(crate::artifacts::view_artifact_handler))
+        // Background Tasks Observability & Management Endpoints
+        .route("/api/v1/tasks", get(crate::tasks::list_tasks_handler))
+        .route("/api/v1/tasks/:id", get(crate::tasks::get_task_handler))
+        .route("/api/v1/tasks/:id/cancel", post(crate::tasks::cancel_task_handler))
         // Autonomous Keep-Busy Idle Worker Endpoints
         .route("/api/v1/idle_worker/status", get(crate::idle_worker::get_idle_worker_status_handler))
         .route("/api/v1/idle_worker/config", post(crate::idle_worker::update_idle_worker_config_handler))
@@ -233,7 +282,17 @@ pub async fn ingest_event(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    // 1. Evaluate Agent Sandbox / Whitelist Policy
+    // 1. Evaluate Agent Sandbox / Whitelist Policy & Hard AI Guard
+    if event.node_id.is_empty() || event.node_id == "antigravity" || event.node_id == "local-agent" {
+        let ident = crate::agent_identity::AgentIdentity::from_headers_and_session(
+            &headers,
+            &state.node_id,
+            &event.session_id,
+            None,
+        );
+        event.node_id = ident.canonical_id;
+    }
+
     let action = AccessAction::from_event_type(&event.event_type);
     let agent_id = if !event.node_id.is_empty() {
         &event.node_id
@@ -255,6 +314,20 @@ pub async fn ingest_event(
         }
     }
 
+    // 1b. Hard AI Guard check for destructive shell commands
+    if event.event_type == schema::EventType::CommandRun {
+        let cmd_findings = crate::ai_guard::inspect_shell_command_hard(&event.target);
+        if !cmd_findings.is_empty() {
+            event.security_verdict = SecurityVerdict::Blocked;
+            for f in cmd_findings {
+                let reason = format!("[{}] {}", f.rule_id, f.description);
+                if !event.security_reasons.contains(&reason) {
+                    event.security_reasons.push(reason);
+                }
+            }
+        }
+    }
+
     // Cryptographically record event into the tamper-proof ledger (including blocked attempts for audit trail)
     if let Some(ref writer) = state.ledger_writer {
         event = writer.commit_acknowledged(event).await.map_err(|e| {
@@ -267,14 +340,29 @@ pub async fn ingest_event(
         let _ = state.tx_events.send(msg);
     }
 
-    // If running on worker and lead_url is set, forward event to lead gateway asynchronously
+    // Ship to corporate SIEM / ELK (ECS 8.11) if configured
+    crate::siem_exporter::ship_event_to_siem_async(state.proxy_cfg.client.clone(), event.clone());
+
+    // If running on worker and lead_url is set, forward event to lead gateway with mTLS / HMAC signature
     if let Some(ref target_lead) = state.lead_url {
         let forward_url = format!("{}/api/v1/events", target_lead.trim_end_matches('/'));
         let client = state.proxy_cfg.client.clone();
         let ev_payload = event.clone();
         let tok = state.security.auth_token.clone();
+        let worker_nid = state.node_id.clone();
         tokio::spawn(async move {
-            let mut req = client.post(&forward_url).json(&ev_payload);
+            let body_bytes = serde_json::to_vec(&ev_payload).unwrap_or_default();
+            let now_epoch = chrono::Utc::now().timestamp();
+            let mtls_cfg = crate::security_hardening::InterGatewayMtlsConfig::from_env();
+            let mut req = client
+                .post(&forward_url)
+                .header("content-type", "application/json")
+                .header("x-gateway-node-id", &worker_nid)
+                .header("x-gateway-timestamp", now_epoch.to_string())
+                .body(body_bytes.clone());
+            if let Some(hmac_sig) = mtls_cfg.sign_inter_gateway_request(&worker_nid, now_epoch, &body_bytes) {
+                req = req.header("x-gateway-hmac", hmac_sig);
+            }
             if let Some(t) = tok {
                 req = req.header("x-agenttrace-token", t);
             }
@@ -446,6 +534,27 @@ pub async fn get_events(
     Query(q): Query<EventQuery>,
 ) -> Result<Json<Vec<serde_json::Value>>, StatusCode> {
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
+
+    // If running as a worker connected to a Lead Node, proxy events from the Lead Node so the UI shows full cluster events
+    if let Some(ref target_lead) = state.lead_url {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(1500))
+            .build()
+            .unwrap_or_default();
+        let mut lead_req_url = format!("{}/api/v1/events?limit={}", target_lead.trim_end_matches('/'), limit);
+        if let Some(ref n) = q.node_id {
+            lead_req_url.push_str(&format!("&node_id={}", n));
+        }
+        if let Some(ref et) = q.event_type {
+            lead_req_url.push_str(&format!("&event_type={}", et));
+        }
+        if let Ok(resp) = client.get(&lead_req_url).send().await {
+            if let Ok(lead_events) = resp.json::<Vec<serde_json::Value>>().await {
+                return Ok(Json(lead_events));
+            }
+        }
+    }
+
     let events = state
         .db
         .get_recent_events_filtered(limit, q.node_id.as_deref(), q.event_type.as_deref())
@@ -478,13 +587,64 @@ pub async fn register_heartbeat(
 pub async fn get_summary(
     State(state): State<AppState>,
 ) -> Result<Json<schema::ClusterSummary>, StatusCode> {
+    // If running as a worker connected to a Lead Node, proxy summary from the Lead Node so dashboard displays the whole cluster
+    if let Some(ref target_lead) = state.lead_url {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(1500))
+            .build()
+            .unwrap_or_default();
+        if let Ok(resp) = client.get(format!("{}/api/v1/summary", target_lead.trim_end_matches('/'))).send().await {
+            if let Ok(lead_summary) = resp.json::<schema::ClusterSummary>().await {
+                return Ok(Json(lead_summary));
+            }
+        }
+    }
+
     let summary = state.db.get_cluster_summary().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(summary))
+}
+
+pub async fn get_cluster_health_handler(
+    State(state): State<AppState>,
+) -> Result<Json<crate::cluster_health::ClusterHealthSnapshot>, StatusCode> {
+    if let Some(ref watchdog) = state.health_watchdog {
+        let snap = watchdog.get_cached_snapshot().await;
+        Ok(Json(snap))
+    } else {
+        let wd = crate::cluster_health::ClusterHealthWatchdog::new();
+        let snap = wd.probe_all(&state.db, &state.registry, Some(&state.tx_events)).await;
+        Ok(Json(snap))
+    }
+}
+
+pub async fn probe_cluster_health_handler(
+    State(state): State<AppState>,
+) -> Result<Json<crate::cluster_health::ClusterHealthSnapshot>, StatusCode> {
+    if let Some(ref watchdog) = state.health_watchdog {
+        let snap = watchdog.probe_all(&state.db, &state.registry, Some(&state.tx_events)).await;
+        Ok(Json(snap))
+    } else {
+        let wd = crate::cluster_health::ClusterHealthWatchdog::new();
+        let snap = wd.probe_all(&state.db, &state.registry, Some(&state.tx_events)).await;
+        Ok(Json(snap))
+    }
 }
 
 pub async fn verify_ledger_handler(
     State(state): State<AppState>,
 ) -> Result<Json<ledger::LedgerVerificationReport>, StatusCode> {
+    if let Some(ref target_lead) = state.lead_url {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(1500))
+            .build()
+            .unwrap_or_default();
+        if let Ok(resp) = client.get(format!("{}/api/v1/ledger/verify", target_lead.trim_end_matches('/'))).send().await {
+            if let Ok(lead_report) = resp.json::<ledger::LedgerVerificationReport>().await {
+                return Ok(Json(lead_report));
+            }
+        }
+    }
+
     let report = state.db.verify_ledger().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(report))
 }
@@ -563,5 +723,145 @@ pub async fn reset_alerts_handler(
         let count = state.db.acknowledge_all_alerts().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         Ok(Json(serde_json::json!({ "status": "reset", "acknowledged_count": count })))
     }
+}
+
+/// Synchronous Pre-Execution Hard AI Guard gate (`POST /api/v1/guard/intercept`).
+pub async fn guard_intercept_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<crate::ai_guard::GuardInterceptRequest>,
+) -> Result<(StatusCode, Json<crate::ai_guard::GuardInterceptionResult>), StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let result = {
+        let p_guard = state.policy.read().await;
+        crate::ai_guard::evaluate_hard_guard(&req, &p_guard, crate::ai_guard::GuardEnforcementMode::HardBlock)
+    };
+
+    // Record every guard interception into the cryptographic SHA-256 ledger
+    let mut ev = TraceEvent {
+        event_id: uuid::Uuid::new_v4().simple().to_string(),
+        node_id: req.agent_id.clone(),
+        session_id: "ai-guard-gate".to_string(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        event_type: if req.command.is_some() {
+            schema::EventType::CommandRun
+        } else if req.target_path.is_some() {
+            schema::EventType::FileWrite
+        } else {
+            schema::EventType::LlmInference
+        },
+        target: req
+            .command
+            .clone()
+            .or_else(|| req.target_path.clone())
+            .unwrap_or_else(|| "AI Guard Pre-Execution Inspection".to_string()),
+        action_details: serde_json::json!({
+            "guard_mode": result.enforcement_mode,
+            "hard_blocked": result.hard_blocked,
+            "risk_score": result.risk_score,
+            "findings": result.findings,
+            "evaluation_latency_us": result.evaluation_latency_us,
+        }),
+        diff: None,
+        provenance_sources: vec!["ai_guard".to_string()],
+        security_verdict: result.verdict.clone(),
+        security_reasons: result.reasons.clone(),
+        duration_ms: (result.evaluation_latency_us as f64) / 1000.0,
+        prev_hash: String::new(),
+        event_hash: String::new(),
+        signature: None,
+        public_key: None,
+    };
+
+    if let Some(ref writer) = state.ledger_writer {
+        let _ = writer.try_enqueue(ev.clone());
+    } else {
+        let _ = state.db.insert_event_signed(&mut ev, Some(&*state.identity));
+    }
+    crate::siem_exporter::ship_event_to_siem_async(state.proxy_cfg.client.clone(), ev);
+
+    let status = if result.hard_blocked {
+        StatusCode::FORBIDDEN
+    } else {
+        StatusCode::OK
+    };
+    Ok((status, Json(result)))
+}
+
+#[derive(serde::Deserialize, Default)]
+pub struct ElkExportQuery {
+    pub limit: Option<usize>,
+    pub format: Option<String>,
+    pub index: Option<String>,
+}
+
+/// Exports telemetry and guard events in Elastic Common Schema (ECS 8.11) `/_bulk` NDJSON or stream format (`GET /api/v1/export/elk`).
+pub async fn export_elk_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<ElkExportQuery>,
+) -> Result<Response, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let limit = q.limit.unwrap_or(100).clamp(1, 2000);
+    let raw_events = state
+        .db
+        .get_recent_events(limit)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let typed_events: Vec<TraceEvent> = raw_events
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect();
+
+    let fmt = q.format.as_deref().unwrap_or("bulk");
+    let index = q.index.as_deref().unwrap_or("agenttrace-security-events");
+
+    let ndjson = if fmt == "stream" {
+        crate::siem_exporter::to_ecs_ndjson_stream(&typed_events)
+    } else {
+        crate::siem_exporter::to_elasticsearch_bulk_ndjson(&typed_events, index)
+    };
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "application/x-ndjson; charset=utf-8")
+        .body(Body::from(ndjson))
+        .unwrap())
+}
+
+/// Runs and returns live empirical latency & memory footprint benchmarks (`GET /api/v1/benchmarks`).
+pub async fn get_benchmarks_handler() -> Json<crate::benchmarks::BenchmarkSuiteReport> {
+    let report = tokio::task::spawn_blocking(crate::benchmarks::run_live_benchmarks)
+        .await
+        .unwrap_or_else(|_| crate::benchmarks::run_live_benchmarks());
+    Json(report)
+}
+
+#[derive(serde::Deserialize)]
+pub struct VaultEncryptRequest {
+    pub plaintext: String,
+}
+
+/// Encrypts a secret value using the Gateway's ChaCha20-Poly1305 AEAD Vault (`POST /api/v1/vault/encrypt`).
+pub async fn encrypt_secret_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<VaultEncryptRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !state.security.is_authorized(&headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let vault = crate::security_hardening::EncryptedSecretVault::load_default();
+    let encrypted = vault
+        .encrypt(&req.plaintext)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(serde_json::json!({
+        "cipher": "ChaCha20-Poly1305 (AEAD)",
+        "encrypted_value": encrypted
+    })))
 }
 

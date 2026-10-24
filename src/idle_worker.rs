@@ -307,7 +307,7 @@ impl IdleWorkerState {
         let start = Instant::now();
         let mut findings = Vec::new();
 
-        match db.verify_ledger() {
+        match db.verify_ledger_recent(250) {
             Ok(report) => {
                 let outcome = if report.is_valid { "PASS" } else { "FAIL" };
                 findings.push(format!("Verified cryptographic hash chain across {} blocks.", report.total_blocks));
@@ -449,7 +449,7 @@ pub fn record_user_activity() {
 /// Spawns the background autonomous engine loop.
 pub fn spawn_engine(db: Database) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(3));
+        let mut interval = tokio::time::interval(Duration::from_secs(15));
         let src_path = Path::new("src").to_path_buf();
 
         loop {

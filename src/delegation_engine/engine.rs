@@ -256,9 +256,9 @@ impl AgentDelegationEngine {
             }
         } else {
             AgentDelegationDecision {
-                selected_model: "qwen3.8:27b".to_string(),
+                selected_model: "qwen3.5:9b".to_string(),
                 target_upstream: self.default_upstream.clone(),
-                node_id: "FALLBACK".to_string(),
+                node_id: "PC-1".to_string(),
                 decision_source: DecisionSource::DynamicCapability,
                 intent,
                 reasoning: "No registered cluster models; routed to default local model".to_string(),

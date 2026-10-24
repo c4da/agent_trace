@@ -68,6 +68,64 @@ pub async fn handle_chat_completions(
         .or_else(crate::antigravity_watcher::get_latest_session_id)
         .unwrap_or_else(|| "active_session".to_string());
 
+    // 0b. Synchronous Pre-Execution AI Guard Inspection (DLP Secret Leaks + Prompt Injection + Destructive Commands)
+    let (dlp_findings, scrubbed_prompt) = crate::ai_guard::scan_and_redact_secrets(&last_prompt);
+    let pi_findings = crate::ai_guard::scan_prompt_injection(&last_prompt);
+    let cmd_findings = crate::ai_guard::inspect_shell_command_hard(&last_prompt);
+
+    let enforce_hard_guard = headers
+        .get("x-guard-mode")
+        .and_then(|v| v.to_str().ok())
+        .map(|m| m.eq_ignore_ascii_case("hard"))
+        .unwrap_or(false)
+        || !pi_findings.is_empty()
+        || !cmd_findings.is_empty();
+
+    if enforce_hard_guard && (!dlp_findings.is_empty() || !pi_findings.is_empty() || !cmd_findings.is_empty()) {
+        let agent_ident = crate::agent_identity::AgentIdentity::from_headers_and_session(
+            &headers,
+            "PC-1",
+            &resolved_session_id,
+            Some(&model_name),
+        );
+        let mut reasons = Vec::new();
+        for f in dlp_findings.iter().chain(pi_findings.iter()).chain(cmd_findings.iter()) {
+            reasons.push(format!("[{}] {}", f.rule_id, f.description));
+        }
+        let mut blocked_ev = TraceEvent {
+            event_id: uuid::Uuid::new_v4().simple().to_string(),
+            node_id: agent_ident.canonical_id,
+            session_id: resolved_session_id,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            event_type: EventType::LlmInference,
+            target: format!("AI Guard Pre-Execution Block [{}]", model_name),
+            action_details: serde_json::json!({
+                "status": 403,
+                "model": model_name,
+                "sanitized_prompt": scrubbed_prompt,
+                "dlp_findings": dlp_findings,
+                "pi_findings": pi_findings,
+                "cmd_findings": cmd_findings,
+            }),
+            diff: None,
+            provenance_sources: vec![],
+            security_verdict: SecurityVerdict::Blocked,
+            security_reasons: reasons,
+            duration_ms: 0.15,
+            prev_hash: String::new(),
+            event_hash: String::new(),
+            signature: None,
+            public_key: None,
+        };
+        if let Some(ref writer) = cfg.ledger_writer {
+            let _ = writer.try_enqueue(blocked_ev.clone());
+        } else {
+            let _ = cfg.db.insert_event_signed(&mut blocked_ev, Some(&*cfg.identity));
+        }
+        crate::siem_exporter::ship_event_to_siem_async(cfg.client.clone(), blocked_ev);
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     // 1. Dynamic upstream resolution & smart agent-in-the-loop prompt routing
     let (upstream_base, node_id, effective_model, routing_decision) = if let Some(custom) = headers.get("x-upstream-url").and_then(|v| v.to_str().ok()) {
         let nid = headers
@@ -110,11 +168,18 @@ pub async fn handle_chat_completions(
 
     let t0 = std::time::Instant::now();
 
-    // Prepare forward body (rewriting model if smart router selected a specific target)
-    let forward_body = if let (Some(mut j), Some(ref dec)) = (req_json.clone(), &routing_decision) {
-        if dec.selected_model != model_name {
-            j["model"] = serde_json::Value::String(effective_model.clone());
+    // Prepare forward body (rewriting model if smart router selected a specific target or targeting PC-2)
+    let forward_body = if let Some(mut j) = req_json.clone() {
+        if upstream_base.contains("192.168.1.102") || upstream_base.contains(":8642") {
+            j["model"] = serde_json::Value::String("hermes-agent".to_string());
             serde_json::to_vec(&j).unwrap_or_else(|_| body.to_vec())
+        } else if let Some(ref dec) = routing_decision {
+            if dec.selected_model != model_name {
+                j["model"] = serde_json::Value::String(effective_model.clone());
+                serde_json::to_vec(&j).unwrap_or_else(|_| body.to_vec())
+            } else {
+                body.to_vec()
+            }
         } else {
             body.to_vec()
         }
@@ -376,6 +441,22 @@ pub async fn handle_models(
                 "permission": []
             }));
         }
+    }
+
+    // Ingest Host Tools on PC-1 (GitHub Copilot CLI)
+    if crate::copilot::is_copilot_installed() {
+        let version = crate::copilot::get_copilot_version().unwrap_or_else(|| "1.0".to_string());
+        models_list.push(serde_json::json!({
+            "id": "copilot-cli",
+            "object": "model",
+            "created": 1791370000,
+            "owned_by": "PC-1 (LEAD-NODE)",
+            "node_id": "PC-1",
+            "host": "127.0.0.1:CLI",
+            "role": "GitHub Copilot Autonomous Agent CLI",
+            "version": version,
+            "permission": []
+        }));
     }
 
     // 2. Query PC-2 Worker Models (Hermes Agent :8642)

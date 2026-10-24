@@ -6,21 +6,21 @@
   <title>AgentTrace Gateway // Telemetry &amp; Prompt Hub</title>
   <style>
     :root {
-      --bg-base: #0b0e14;
-      --bg-panel: #11161f;
-      --bg-elevated: #161c28;
-      --bg-input: #090c10;
-      --border: #222936;
-      --border-focus: #3b82f6;
-      --text-main: #e2e8f0;
-      --text-muted: #94a3b8;
-      --text-dim: #64748b;
-      --accent: #3b82f6;
-      --green: #10b981;
-      --amber: #f59e0b;
-      --red: #ef4444;
-      --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
-      --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      --bg-base: #1e1e1e;
+      --bg-panel: #252526;
+      --bg-elevated: #2d2d2d;
+      --bg-input: #3c3c3c;
+      --border: #3c3c3c;
+      --border-focus: #0e639c;
+      --text-main: #cccccc;
+      --text-muted: #858585;
+      --text-dim: #6e7681;
+      --accent: #0e639c;
+      --green: #4ec9b0;
+      --amber: #cca700;
+      --red: #f48771;
+      --mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -362,13 +362,16 @@
     <div class="brand">
       <span class="brand-dot" id="sse-dot"></span>
       <span>AGENTTRACE GATEWAY // TELEMETRY &amp; PROMPT HUB</span>
+      <span style="font-family: var(--font-mono, monospace); font-size: 10px; font-weight: 700; color: #f59e0b; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); padding: 1px 6px; border-radius: 3px; letter-spacing: 0.5px; text-transform: uppercase;" title="UI is in Developer Beta Preview. Automation should focus directly on the Gateway REST API.">BETA · API FIRST</span>
     </div>
     <nav class="nav-links">
-      <a href="/dashboard" class="nav-link active">Dashboard</a>
-      <a href="/policies" class="nav-link">Policies &amp; Whitelists</a>
-      <a href="/workgroups" class="nav-link">Workgroups Mesh</a>
-      <a href="/graph" class="nav-link">Contribution Graph</a>
+      <a href="/client" class="nav-link" style="color: #bc8cff;">Studio</a>
       <a href="/console" class="nav-link">Terminal TUI</a>
+      <a href="/dashboard" class="nav-link active">Dashboard</a>
+      <a href="/workgroups" class="nav-link">Workgroups Mesh</a>
+      <a href="/policies" class="nav-link">Policies &amp; Whitelists</a>
+      <a href="/graph" class="nav-link">Contribution Graph</a>
+      <a href="/mobile" class="nav-link" style="color: #f0883e;">Mobile</a>
     </nav>
   </header>
 
@@ -417,7 +420,7 @@
     <!-- Autonomous Keep-Busy Worker Engine Status Banner -->
     <div style="background: #0d121c; border: 1px solid var(--border); border-left: 3px solid #38bdf8; border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-family: var(--mono); font-size: 12px;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 14px;">⚡</span>
+        <span style="font-family: var(--mono); font-size: 11px; color: var(--accent); font-weight: bold;">[DISPATCH]</span>
         <div>
           <span style="color: var(--text-muted); font-size: 11px;">AUTONOMOUS KEEP-BUSY AGENT ENGINE:</span>
           <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
@@ -443,6 +446,7 @@
             <span>Cluster Nodes &amp; Containment Status</span>
           </div>
           <div style="display: flex; gap: 6px;">
+            <button onclick="probeClusterHealth()" class="btn btn-sm" id="btn-probe-health" style="background: #1f2937; border-color: var(--accent); color: var(--accent);">⚡ Probe Health</button>
             <a href="/policies" class="btn btn-sm">Configure Policies</a>
             <a href="/workgroups" class="btn btn-sm">Edit Agent Mesh</a>
           </div>
@@ -613,12 +617,25 @@
 
       if (Array.isArray(sum.active_nodes) && sum.active_nodes.length > 0) {
         const nodesContainer = document.getElementById('nodes-container');
-        nodesContainer.innerHTML = sum.active_nodes.map(n => `
+        nodesContainer.innerHTML = sum.active_nodes.map(n => {
+          let dotColor = 'var(--green)';
+          let statusBadge = '<span style="color:var(--green); font-size:10.5px; margin-left:6px;">● ONLINE</span>';
+          if (n.status === 'SLEEPING') {
+            dotColor = '#e3b341';
+            statusBadge = '<span style="color:#e3b341; font-weight:bold; font-size:10px; margin-left:6px; background:#382307; padding:1px 6px; border-radius:2px; border:1px solid #9e6a03;">💤 SLEEPING</span>';
+          } else if (n.status === 'OFFLINE') {
+            dotColor = '#f85149';
+            statusBadge = '<span style="color:#f85149; font-weight:bold; font-size:10px; margin-left:6px; background:#3c1e1e; padding:1px 6px; border-radius:2px; border:1px solid #da3633;">❌ OFFLINE</span>';
+          } else if (n.status === 'DEGRADED') {
+            dotColor = '#f0883e';
+            statusBadge = '<span style="color:#f0883e; font-weight:bold; font-size:10px; margin-left:6px; background:#382307; padding:1px 6px; border-radius:2px; border:1px solid #9e6a03;">⚠️ DEGRADED</span>';
+          }
+          return `
           <div class="node-item">
-            <div><span class="status-dot"></span><strong>${escapeHtml(n.node_id)}</strong> · ${escapeHtml(n.ip_address)}</div>
+            <div><span class="status-dot" style="background: ${dotColor};"></span><strong>${escapeHtml(n.node_id)}</strong> · ${escapeHtml(n.ip_address)} ${statusBadge}</div>
             <div style="color: var(--text-muted);">${escapeHtml(n.role)}</div>
           </div>
-        `).join('');
+        `}).join('');
       }
 
       const zones = zData?.zones || [];
@@ -662,7 +679,7 @@
 
       tbody.innerHTML = filtered.slice(0, 80).map(ev => {
         const isSel = ev.event_id === selectedEventId;
-        const ts = (ev.timestamp || '').split('T')[1]?.slice(0, 8) || ev.timestamp || '';
+        const ts = (ev.timestamp || '').replace('T', ' ').slice(0, 19) || ev.timestamp || '';
         let vClass = 'v-allowed';
         if (ev.security_verdict === 'Blocked') vClass = 'v-blocked';
         else if (ev.security_verdict === 'Flagged') vClass = 'v-flagged';
@@ -884,7 +901,7 @@
           statusEl.style.color = '#7ee787';
           statusEl.style.borderColor = '#2ea043';
         } else if (data.status === 'PausedUserPreempted') {
-          statusEl.textContent = '⏸ PREEMPTED (USER ACTIVE)';
+          statusEl.textContent = '[PREEMPTED (USER ACTIVE)]';
           statusEl.style.background = '#382307';
           statusEl.style.color = '#f0883e';
           statusEl.style.borderColor = '#9e6a03';
@@ -906,6 +923,19 @@
         pollDashIdleWorker();
       } catch (err) {
         alert('Failed to trigger idle task: ' + err.message);
+      }
+    }
+
+    async function probeClusterHealth() {
+      const btn = document.getElementById('btn-probe-health');
+      if (btn) btn.textContent = '⏳ Probing...';
+      try {
+        await fetch('/api/v1/cluster/health/probe', { method: 'POST' });
+        await loadSummaryAndEvents();
+      } catch (err) {
+        console.error('Probe health error:', err);
+      } finally {
+        if (btn) btn.textContent = '⚡ Probe Health';
       }
     }
 
