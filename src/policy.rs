@@ -3,6 +3,7 @@
 //! Provides granular path-based and network-based whitelisting, Safe Zone vaults,
 //! Guarded Read-Only repositories, and Danger Zone Agent Playgrounds.
 
+use crate::persistence::{global_persistence, UnifiedPersistenceManager};
 use crate::schema::{EventType, SecurityVerdict};
 use crate::zones::{
     analyze_shell_command, default_cluster_zones, evaluate_zones_for_path,
@@ -10,6 +11,7 @@ use crate::zones::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Defines an access action type for policy evaluation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -189,10 +191,12 @@ impl AgentAccessPolicy {
 }
 
 /// Autonomous Access Policy & Zone Containment Engine store.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PolicyEngine {
     policies: HashMap<String, AgentAccessPolicy>,
     zones: Vec<ContainmentZone>,
+    #[serde(skip)]
+    persistence: Option<Arc<UnifiedPersistenceManager>>,
 }
 
 impl Default for PolicyEngine {
@@ -202,11 +206,56 @@ impl Default for PolicyEngine {
 }
 
 impl PolicyEngine {
+    /// Loads persisted policies and zones from `global_persistence()`, or initializes defaults.
+    pub fn load_or_default() -> Self {
+        Self::new_with_persistence(global_persistence())
+    }
+
+    /// Initializes the Policy Engine backed by a specific `UnifiedPersistenceManager`.
+    pub fn new_with_persistence(pm: Arc<UnifiedPersistenceManager>) -> Self {
+        if let Some(mut loaded) = pm.load_struct::<PolicyEngine>("policies", "engine") {
+            let defaults = Self::new_with_defaults();
+            for (k, v) in defaults.policies {
+                loaded.policies.entry(k).or_insert(v);
+            }
+            for dz in defaults.zones {
+                if !loaded.zones.iter().any(|z| z.zone_id == dz.zone_id) {
+                    loaded.zones.push(dz);
+                }
+            }
+            loaded.persistence = Some(pm);
+            return loaded;
+        }
+        let mut eng = Self::new_with_defaults();
+        eng.persistence = Some(pm);
+        eng.persist();
+        eng
+    }
+
+    /// Reloads policies and zones from the configured `UnifiedPersistenceManager`.
+    pub fn reload_from_persistence(&mut self) {
+        let pm = self.persistence.clone().unwrap_or_else(global_persistence);
+        if let Some(loaded) = pm.load_struct::<PolicyEngine>("policies", "engine") {
+            for (k, v) in loaded.policies {
+                self.policies.insert(k, v);
+            }
+            self.zones = loaded.zones;
+        }
+    }
+
+    /// Persists policies and zones to Local JSON, SQLite, and External DB.
+    pub fn persist(&self) {
+        if let Some(ref pm) = self.persistence {
+            let _ = pm.save_struct("policies", "engine", self);
+        }
+    }
+
     /// Creates a new policy engine pre-configured with secure cluster defaults and zones.
     pub fn new_with_defaults() -> Self {
         let mut engine = Self {
             policies: HashMap::new(),
             zones: default_cluster_zones(),
+            persistence: None,
         };
 
         let read_whitelist = vec![
@@ -414,13 +463,16 @@ impl PolicyEngine {
     /// Inserts or replaces an agent access policy.
     pub fn set_policy(&mut self, policy: AgentAccessPolicy) {
         self.policies.insert(policy.agent_id.clone(), policy);
+        self.persist();
     }
 
     /// Toggles strict Playground Confinement for a specific agent or globally (`*`).
     pub fn set_playground_confinement(&mut self, agent_id: &str, confined: bool) -> AgentAccessPolicy {
         if let Some(existing) = self.policies.get_mut(agent_id) {
             existing.confine_to_playgrounds = confined;
-            return existing.clone();
+            let res = existing.clone();
+            self.persist();
+            return res;
         }
         let mut base = self
             .policies
@@ -438,6 +490,7 @@ impl PolicyEngine {
         base.agent_id = agent_id.to_string();
         base.confine_to_playgrounds = confined;
         self.policies.insert(agent_id.to_string(), base.clone());
+        self.persist();
         base
     }
 
@@ -454,7 +507,11 @@ impl PolicyEngine {
 
     /// Removes an agent policy by ID.
     pub fn remove_policy(&mut self, agent_id: &str) -> bool {
-        self.policies.remove(agent_id).is_some()
+        let removed = self.policies.remove(agent_id).is_some();
+        if removed {
+            self.persist();
+        }
+        removed
     }
 
     /// Lists all configured Safe Zones and Danger Zone Playgrounds.
@@ -473,6 +530,7 @@ impl PolicyEngine {
         } else {
             self.zones.push(zone.clone());
         }
+        self.persist();
         zone
     }
 
@@ -480,7 +538,11 @@ impl PolicyEngine {
     pub fn remove_zone(&mut self, zone_id: &str) -> bool {
         let before = self.zones.len();
         self.zones.retain(|z| z.zone_id != zone_id);
-        self.zones.len() < before
+        let removed = self.zones.len() < before;
+        if removed {
+            self.persist();
+        }
+        removed
     }
 }
 

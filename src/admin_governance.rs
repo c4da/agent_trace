@@ -15,6 +15,7 @@
 //!      a clean, non-leaky terminal message while full forensics are recorded to the Admin ledger.
 
 use crate::ai_guard::{GuardEnforcementMode, GuardFinding, ThreatCategory};
+use crate::persistence::{global_persistence, UnifiedPersistenceManager};
 use crate::security_hardening::constant_time_eq;
 use axum::{
     extract::Path,
@@ -23,13 +24,13 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{OnceLock, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 static GLOBAL_ADMIN_GOVERNANCE: OnceLock<RwLock<AdminGovernanceEngine>> = OnceLock::new();
 
 /// Returns a reference to the process-wide Admin Governance Engine.
 pub fn global_admin_governance() -> &'static RwLock<AdminGovernanceEngine> {
-    GLOBAL_ADMIN_GOVERNANCE.get_or_init(|| RwLock::new(AdminGovernanceEngine::new_with_defaults()))
+    GLOBAL_ADMIN_GOVERNANCE.get_or_init(|| RwLock::new(AdminGovernanceEngine::load_or_default()))
 }
 
 /// Trust classification assigned by the Administrator to a model family.
@@ -136,9 +137,52 @@ pub struct AdminGovernanceEngine {
     pub global: GlobalAdminRestrictions,
     pub model_profiles: HashMap<String, ModelRestrictionProfile>,
     pub default_profile: ModelRestrictionProfile,
+    #[serde(skip)]
+    pub persistence: Option<Arc<UnifiedPersistenceManager>>,
 }
 
 impl AdminGovernanceEngine {
+    /// Loads persisted Admin Governance state from `global_persistence()`, or initializes defaults.
+    pub fn load_or_default() -> Self {
+        Self::new_with_persistence(global_persistence())
+    }
+
+    /// Initializes the Admin Governance Engine backed by a specific `UnifiedPersistenceManager`.
+    pub fn new_with_persistence(pm: Arc<UnifiedPersistenceManager>) -> Self {
+        if let Some(mut loaded) = pm.load_struct::<AdminGovernanceEngine>("admin_governance", "engine") {
+            // Ensure default built-in profiles exist if not explicitly present
+            let defaults = Self::new_with_defaults();
+            for (k, v) in defaults.model_profiles {
+                loaded.model_profiles.entry(k).or_insert(v);
+            }
+            loaded.persistence = Some(pm);
+            return loaded;
+        }
+        let mut eng = Self::new_with_defaults();
+        eng.persistence = Some(pm);
+        eng.persist();
+        eng
+    }
+
+    /// Reloads state from the configured `UnifiedPersistenceManager`.
+    pub fn reload_from_persistence(&mut self) {
+        let pm = self.persistence.clone().unwrap_or_else(global_persistence);
+        if let Some(loaded) = pm.load_struct::<AdminGovernanceEngine>("admin_governance", "engine") {
+            self.global = loaded.global;
+            for (k, v) in loaded.model_profiles {
+                self.model_profiles.insert(k, v);
+            }
+            self.default_profile = loaded.default_profile;
+        }
+    }
+
+    /// Persists the current Admin Governance state to Local JSON, SQLite, and External DB.
+    pub fn persist(&self) {
+        if let Some(ref pm) = self.persistence {
+            let _ = pm.save_struct("admin_governance", "engine", self);
+        }
+    }
+
     /// Initializes the Admin Governance Engine with sensible, production-ready per-model profiles.
     pub fn new_with_defaults() -> Self {
         let mut profiles = HashMap::new();
@@ -271,6 +315,7 @@ impl AdminGovernanceEngine {
             global: GlobalAdminRestrictions::default(),
             model_profiles: profiles,
             default_profile,
+            persistence: None,
         }
     }
 
@@ -305,12 +350,17 @@ impl AdminGovernanceEngine {
     pub fn upsert_model_profile(&mut self, profile: ModelRestrictionProfile) -> ModelRestrictionProfile {
         let key = profile.model_pattern.clone();
         self.model_profiles.insert(key, profile.clone());
+        self.persist();
         profile
     }
 
     /// Removes a per-model restriction profile by pattern.
     pub fn remove_model_profile(&mut self, pattern: &str) -> bool {
-        self.model_profiles.remove(pattern).is_some()
+        let removed = self.model_profiles.remove(pattern).is_some();
+        if removed {
+            self.persist();
+        }
+        removed
     }
 
     /// Evaluates a client request against the Admin's Global + Per-Model Restrictions.
@@ -619,6 +669,7 @@ pub async fn update_global_governance_handler(
         return Err(StatusCode::FORBIDDEN);
     }
     eng.global = new_global.clone();
+    eng.persist();
     Ok(Json(new_global))
 }
 

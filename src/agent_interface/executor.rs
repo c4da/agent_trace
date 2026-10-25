@@ -85,6 +85,7 @@ async fn dispatch_tool(
         "encrypt_vault_secret" => exec_encrypt_vault_secret(&req.parameters),
         "export_siem_elk" => exec_export_siem_elk(state, &req.parameters),
         "manage_admin_model_governance" => exec_manage_admin_model_governance(&req.parameters),
+        "manage_learned_skills" => exec_manage_learned_skills(state, &req.parameters),
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     }
 }
@@ -762,6 +763,85 @@ fn exec_manage_admin_model_governance(params: &Value) -> (bool, Value, Option<St
                     "global": gov.global,
                     "model_profiles": gov.model_profiles,
                     "default_profile": gov.default_profile
+                }),
+                None,
+            )
+        }
+    }
+}
+
+/// Auto-Skill Forge tool to list, distill, upsert, export, or benchmark learned skills.
+fn exec_manage_learned_skills(
+    state: &AgentInterfaceState,
+    params: &Value,
+) -> (bool, Value, Option<String>) {
+    let op = params.get("operation").and_then(|v| v.as_str()).unwrap_or("list");
+    match op {
+        "distill" => {
+            let events = state.db.get_recent_events(150).unwrap_or_default();
+            let Ok(mut sf) = crate::skill_forge::global_skill_forge().write() else {
+                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
+            };
+            let minted = sf.mine_trajectories_from_events(&events);
+            (
+                true,
+                json!({
+                    "minted_count": minted.len(),
+                    "minted_skills": minted,
+                    "total_skills": sf.skills.len()
+                }),
+                None,
+            )
+        }
+        "upsert" => {
+            let Some(skill_val) = params.get("skill") else {
+                return (false, json!({}), Some("'skill' object is required for operation='upsert'".to_string()));
+            };
+            let Ok(skill) = serde_json::from_value::<crate::skill_forge::LearnedSkill>(skill_val.clone()) else {
+                return (false, json!({}), Some("Invalid LearnedSkill JSON structure".to_string()));
+            };
+            let Ok(mut sf) = crate::skill_forge::global_skill_forge().write() else {
+                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
+            };
+            let saved = sf.upsert_skill(skill);
+            (true, serde_json::to_value(saved).unwrap_or(json!({})), None)
+        }
+        "export" => {
+            let Some(skill_id) = params.get("skill_id").and_then(|v| v.as_str()) else {
+                return (false, json!({}), Some("'skill_id' is required for operation='export'".to_string()));
+            };
+            let Ok(sf) = crate::skill_forge::global_skill_forge().read() else {
+                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
+            };
+            match sf.export_skill_to_disk(skill_id, std::path::Path::new(".")) {
+                Ok(exported_paths) => (
+                    true,
+                    json!({
+                        "skill_id": skill_id,
+                        "exported_paths": exported_paths
+                    }),
+                    None,
+                ),
+                Err(e) => (false, json!({}), Some(e)),
+            }
+        }
+        "roi_benchmark" => {
+            let Ok(sf) = crate::skill_forge::global_skill_forge().read() else {
+                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
+            };
+            let report = sf.compute_token_savings_benchmark();
+            (true, serde_json::to_value(report).unwrap_or(json!({})), None)
+        }
+        _ => {
+            let Ok(sf) = crate::skill_forge::global_skill_forge().read() else {
+                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
+            };
+            (
+                true,
+                json!({
+                    "total_skills": sf.skills.len(),
+                    "skills": sf.list_skills(),
+                    "token_roi": sf.compute_token_savings_benchmark()
                 }),
                 None,
             )

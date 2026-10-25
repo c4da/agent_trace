@@ -59,6 +59,7 @@ mod tests {
         assert!(tool_names.contains(&"encrypt_vault_secret".to_string()));
         assert!(tool_names.contains(&"export_siem_elk".to_string()));
         assert!(tool_names.contains(&"manage_admin_model_governance".to_string()));
+        assert!(tool_names.contains(&"manage_learned_skills".to_string()));
 
         for t in tools {
             assert!(t["description"].is_string());

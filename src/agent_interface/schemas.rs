@@ -717,6 +717,29 @@ pub async fn get_agent_tools() -> Json<Value> {
                         }
                     }
                 }
+            },
+            {
+                "name": "manage_learned_skills",
+                "description": "Auto-Skill Forge & De Facto Learning tool: list learned skills ('list'), mine telemetry trajectories to distill new skills ('distill'), upsert a central or per-agent/model skill ('upsert'), export a skill to disk as .agents/skills/<slug>/SKILL.md and .claude/commands/<slug>.md ('export'), or retrieve the v1.1.0 Token-Savings ROI benchmark ('roi_benchmark').",
+                "parameters": {
+                    "type": "object",
+                    "required": ["operation"],
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["list", "distill", "upsert", "export", "roi_benchmark"],
+                            "description": "'list' returns all learned skills; 'distill' mines telemetry events; 'upsert' saves a LearnedSkill; 'export' writes SKILL.md and .claude/commands/<slug>.md; 'roi_benchmark' returns token compression metrics (v1.1.0)."
+                        },
+                        "skill_id": {
+                            "type": "string",
+                            "description": "Skill ID or slug (required for 'export')."
+                        },
+                        "skill": {
+                            "type": "object",
+                            "description": "LearnedSkill JSON object when operation='upsert'."
+                        }
+                    }
+                }
             }
         ]
     });

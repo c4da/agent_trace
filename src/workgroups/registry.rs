@@ -32,9 +32,19 @@ impl WorkgroupRegistry {
     }
 
     /// Initializes a registry populated with the default Problem Workgroups,
-    /// overlaying any persisted user modifications from disk.
+    /// overlaying any persisted user modifications from disk when `persistence_path` is enabled.
     pub fn new_with_defaults(persistence_path: Option<PathBuf>) -> Self {
         let mut groups = default_workgroups();
+
+        if persistence_path.is_some() {
+            if let Some(loaded) = crate::persistence::global_persistence()
+                .load_struct::<WorkgroupRegistry>("workgroups", "registry")
+            {
+                for (k, v) in loaded.groups {
+                    groups.insert(k, v);
+                }
+            }
+        }
 
         if let Some(ref path) = persistence_path {
             if let Ok(raw) = fs::read_to_string(path) {
@@ -50,11 +60,16 @@ impl WorkgroupRegistry {
             groups,
             persistence_path,
         };
-        reg.save_to_disk();
+        if reg.persistence_path.is_some() {
+            reg.save_to_disk();
+        }
         reg
     }
 
     pub fn save_to_disk(&self) {
+        if self.persistence_path.is_some() {
+            let _ = crate::persistence::global_persistence().save_struct("workgroups", "registry", self);
+        }
         if let Some(ref path) = self.persistence_path {
             if let Some(parent) = path.parent() {
                 let _ = fs::create_dir_all(parent);

@@ -150,7 +150,7 @@ def run_scenarios():
         print(f" -> Restored deleted file in {e_resp.get('evaluation_latency_us')} µs!")
 
     t_status, t_data = get_json(f"{LEAD_URL}/api/v1/agent/tools")
-    assert t_status == 200 and len(t_data.get("tools", [])) >= 35, "Expected 35 registered MCP/Agent tools"
+    assert t_status == 200 and len(t_data.get("tools", [])) >= 36, f"Expected 36 registered MCP/Agent tools, got {len(t_data.get('tools', []))}"
     print(f" [PASS] Pre-Image CAS restored deleted file & verified {len(t_data['tools'])} native MCP tools!")
 
     # Scenario 7: Live Admin Per-Model Governance Plane & Shielded Claude Terminal Client
@@ -194,8 +194,102 @@ def run_scenarios():
     print(" -> Shielded Claude Terminal gracefully handled per-model restriction without crashing CLI!")
     print(" [PASS] Admin Per-Model Governance & Shielded Client Layer verified live!")
 
+    # Scenario 8: Live Auto-Skill Forge Distillation, DLP Poison Defense, Disk Export & v1.1.0 Token ROI Benchmark
+    print("\n[Scenario 8] Live Auto-Skill Forge, Disk Materialization & v1.1.0 Token-Savings ROI...")
+    roi_status, roi_data = get_json(f"{LEAD_URL}/api/v1/skills/roi-benchmark")
+    assert roi_status == 200, f"ROI benchmark endpoint failed: {roi_data}"
+    assert roi_data.get("version_tag") == "v1.1.0", f"Expected version_tag v1.1.0, got {roi_data}"
+    assert roi_data.get("token_compression_ratio_pct", 0) >= 90.0, f"Expected >=90% token compression: {roi_data}"
+    assert roi_data.get("unrelated_prompt_bloat_tokens") == 0, "Expected 0 unrelated prompt bloat tokens"
+
+    b_status, b_data = get_json(f"{LEAD_URL}/api/v1/benchmarks")
+    assert b_status == 200 and b_data.get("version_tag") == "v1.1.0", f"Expected benchmark suite version_tag v1.1.0: {b_data}"
+    for m in b_data.get("metrics", []):
+        assert m.get("version_tag") == "v1.1.0", f"Metric missing version_tag v1.1.0: {m}"
+
+    # Upsert a skill with an embedded secret to verify DLP scrubbing before persistence
+    sk_status, sk_saved = post_json(
+        f"{LEAD_URL}/api/v1/skills",
+        {
+            "skill_id": "skill-live-e2e-verify",
+            "slug": "live-e2e-verification-workflow",
+            "name": "Live E2E Verification Workflow",
+            "description": "Verifies live auto-skill injection and scrubs sk-ant-api03-11223344556677889900aabbccddeeff",
+            "scope": "GlobalWorkspace",
+            "status": "Active",
+            "origin": "ErrorRecoveryLoop",
+            "trigger_keywords": ["live-e2e-skill-trigger"],
+            "file_patterns": ["src/skill_forge.rs"],
+            "steps_markdown": "1. Run cargo test --lib before committing\n2. Never leak token sk-ant-api03-11223344556677889900aabbccddeeff",
+            "cold_discovery_tokens_estimate": 16500,
+            "skill_token_footprint": 125,
+            "distillation_tokens_saved": 1800,
+            "times_applied": 1,
+            "created_at": "2026-10-25T16:30:00Z",
+            "updated_at": "2026-10-25T16:30:00Z"
+        }
+    )
+    assert sk_status == 200, f"Skill upsert failed: {sk_saved}"
+    assert "sk-ant-api03-" not in json.dumps(sk_saved), "DLP must scrub secret from persisted skill!"
+
+    # Export the skill to `.agents/skills/` and `.claude/commands/`
+    ex_status, ex_data = post_json(f"{LEAD_URL}/api/v1/skills/skill-live-e2e-verify/export", {})
+    assert ex_status == 200 and len(ex_data.get("exported_files", [])) == 2, f"Skill export failed: {ex_data}"
+
+    # Trigger in-flight injection via Shielded Claude Terminal (`/v1/messages`)
+    c_status, c_resp = post_json(
+        f"{LEAD_URL}/v1/messages",
+        {
+            "model": "claude-3-7-sonnet-latest",
+            "max_tokens": 128,
+            "messages": [
+                {"role": "user", "content": "Please execute the live-e2e-skill-trigger workflow now."}
+            ]
+        }
+    )
+    assert c_status == 200
+    print(f" -> Verified v1.1.0 Token Compression: {roi_data.get('token_compression_ratio_pct')}% ({roi_data.get('avg_cold_rediscovery_tokens')} -> {roi_data.get('avg_distilled_skill_tokens')} tokens)!")
+    print(" [PASS] Auto-Skill Forge Distillation, DLP Defense, Disk Export & v1.1.0 ROI Benchmark verified live!")
+
+    # Scenario 9: Live Pluggable Durable Persistence Status, Reload & Dead External DB Fallback
+    print("\n[Scenario 9] Live Pluggable Durable Persistence & Dead External DB Fallback...")
+    ps_status, ps_data = get_json(f"{LEAD_URL}/api/v1/persistence/status")
+    assert ps_status == 200, f"Persistence status failed: {ps_data}"
+    assert ps_data["local_file_backend"]["connected"] is True
+    assert ps_data["sqlite_kv_backend"]["connected"] is True
+
+    # Point External DB connector to an unreachable port -> must gracefully degrade without crashing!
+    bad_db_status, bad_db_resp = post_json(
+        f"{LEAD_URL}/api/v1/persistence/config",
+        {
+            "enabled": True,
+            "db_url": "http://127.0.0.1:59999/dead-external-db",
+            "auth_token": None,
+            "timeout_ms": 120
+        }
+    )
+    assert bad_db_status == 200
+    assert bad_db_resp["external_db_backend"]["healthy"] is False
+    assert bad_db_resp["sqlite_kv_backend"]["connected"] is True
+
+    # Restore External DB connector to in-memory/local healthy mode and reload all persistent engines
+    ok_db_status, ok_db_resp = post_json(
+        f"{LEAD_URL}/api/v1/persistence/config",
+        {
+            "enabled": True,
+            "db_url": "memory://enterprise-shared-state",
+            "auth_token": None,
+            "timeout_ms": 500
+        }
+    )
+    assert ok_db_status == 200 and ok_db_resp["external_db_backend"]["healthy"] is True
+
+    rel_status, rel_resp = post_json(f"{LEAD_URL}/api/v1/persistence/reload", {})
+    assert rel_status == 200 and rel_resp.get("status") == "reloaded"
+    print(" [PASS] Unified Pluggable Persistence (Local JSON + SQLite SHA-256 + External DB Fallback) verified live!")
+
     print("\n==================================================================")
-    print("  ALL 7 LIVE UNHAPPY & SECURITY SCENARIOS PASSED WITH ZERO ERRORS!")
+    print("  ALL 9 LIVE UNHAPPY & SECURITY SCENARIOS PASSED WITH ZERO ERRORS!")
     print("==================================================================")
 
 if __name__ == "__main__":

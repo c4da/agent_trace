@@ -373,4 +373,407 @@ mod tests {
         assert!(!ceiling_attempt.allowed);
         assert!(ceiling_attempt.findings.iter().any(|f| f.rule_id == "ADMIN-MODEL-002-PROMPT-CEILING"));
     }
+
+    // ========================================================================
+    // v1.1.0 Pluggable Durable Persistence Tests (P-1 .. P-4)
+    // ========================================================================
+
+    #[test]
+    fn test_persistence_p1_local_roundtrip_across_restart() {
+        use crate::admin_governance::{AdminGovernanceEngine, ModelRestrictionProfile, ModelTrustTier};
+        use crate::ai_guard::GuardEnforcementMode;
+        use crate::persistence::UnifiedPersistenceManager;
+        use crate::policy::{AgentAccessPolicy, PolicyEngine};
+        use crate::skill_forge::{LearnedSkill, SkillForgeEngine, SkillOrigin, SkillScope, SkillStatus};
+        use std::sync::Arc;
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let db_file = dir.path().join("test_p1.db");
+        let pm = Arc::new(UnifiedPersistenceManager::new(
+            dir.path().join("state"),
+            db_file.to_str().unwrap(),
+        ));
+
+        // 1. Mutate AdminGovernanceEngine, PolicyEngine, and SkillForgeEngine and persist
+        {
+            let mut gov = AdminGovernanceEngine::new_with_persistence(pm.clone());
+            gov.upsert_model_profile(ModelRestrictionProfile {
+                model_pattern: "codestral-22b".to_string(),
+                display_name: "Codestral Sandboxed".to_string(),
+                trust_tier: ModelTrustTier::LocalWorkerSandbox,
+                enabled: true,
+                fallback_model: Some("qwen3.8:27b".to_string()),
+                enforcement_mode: GuardEnforcementMode::HardBlock,
+                strict_cloud_dlp: true,
+                allow_shell_execution: false,
+                allow_file_writes: true,
+                confine_to_playground: true,
+                allowed_path_prefixes: vec!["playground".to_string()],
+                blocked_path_patterns: vec![".secrets".to_string()],
+                max_prompt_chars: 32_000,
+                admin_system_prompt_prefix: None,
+            });
+
+            let mut pol = PolicyEngine::new_with_persistence(pm.clone());
+            pol.set_policy(AgentAccessPolicy {
+                agent_id: "persisted-agent-01".to_string(),
+                read_whitelist: vec!["src".to_string()],
+                write_whitelist: vec!["playground".to_string()],
+                network_whitelist: vec![],
+                blocked_patterns: vec![".secrets".to_string()],
+                enforcing: true,
+                confine_to_playgrounds: true,
+            });
+
+            let mut sf = SkillForgeEngine::new_with_persistence(pm.clone());
+            sf.upsert_skill(LearnedSkill {
+                skill_id: "skill-custom-persist".to_string(),
+                slug: "custom-persist-workflow".to_string(),
+                name: "Custom Persist Workflow".to_string(),
+                description: "Verifies durable persistence across restarts.".to_string(),
+                scope: SkillScope::GlobalWorkspace,
+                status: SkillStatus::Active,
+                origin: SkillOrigin::ManualOrMcp,
+                trigger_keywords: vec!["durable-check".to_string()],
+                file_patterns: vec!["src/persistence.rs".to_string()],
+                steps_markdown: "1. Run `cargo test`".to_string(),
+                cold_discovery_tokens_estimate: 12_000,
+                skill_token_footprint: 110,
+                distillation_tokens_saved: 1_500,
+                times_applied: 3,
+                created_at: "2026-10-25T16:00:00Z".to_string(),
+                updated_at: "2026-10-25T16:00:00Z".to_string(),
+            });
+        }
+
+        // 2. Simulate daemon restart: instantiate fresh engines from the same disk/SQLite path
+        let pm_restarted = Arc::new(UnifiedPersistenceManager::new(
+            dir.path().join("state"),
+            db_file.to_str().unwrap(),
+        ));
+        let gov2 = AdminGovernanceEngine::new_with_persistence(pm_restarted.clone());
+        let resolved = gov2.resolve_profile("codestral-22b");
+        assert_eq!(resolved.display_name, "Codestral Sandboxed");
+        assert!(!resolved.allow_shell_execution);
+        assert!(resolved.confine_to_playground);
+
+        let pol2 = PolicyEngine::new_with_persistence(pm_restarted.clone());
+        let agent_pol = pol2.get_policy("persisted-agent-01").expect("persisted policy");
+        assert!(agent_pol.confine_to_playgrounds);
+
+        let sf2 = SkillForgeEngine::new_with_persistence(pm_restarted);
+        assert!(sf2.skills.contains_key("skill-custom-persist"));
+    }
+
+    #[test]
+    fn test_persistence_p2_sqlite_sha256_corruption_and_self_healing() {
+        use crate::persistence::{PersistenceBackend, UnifiedPersistenceManager};
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let state_dir = dir.path().join("state");
+        let db_file = dir.path().join("test_p2.db");
+        let pm = UnifiedPersistenceManager::new(&state_dir, db_file.to_str().unwrap());
+
+        let expected = serde_json::json!({
+            "rule": "strict-invariant",
+            "version": "v1.1.0"
+        });
+        let _ = pm.save_struct("admin_governance", "healing_test", &expected);
+
+        // Corrupt the local JSON file on disk (simulate disk truncation / bad manual edit)
+        let json_path = state_dir.join("admin_governance").join("healing_test.json");
+        std::fs::write(&json_path, "{CORRUPTED_TRUNCATED_JSON").unwrap();
+
+        // Loading must detect corrupt JSON, recover from SHA-256 verified SQLite, and self-heal the disk file!
+        let recovered: serde_json::Value = pm
+            .load_struct("admin_governance", "healing_test")
+            .expect("must self-heal from SQLite");
+        assert_eq!(recovered["version"], "v1.1.0");
+
+        let healed_disk = std::fs::read_to_string(&json_path).unwrap();
+        assert!(healed_disk.contains("strict-invariant"));
+
+        // Now tamper directly with the SQLite row payload without updating sha256_hash
+        let conn = rusqlite::Connection::open(&db_file).unwrap();
+        conn.execute(
+            "UPDATE persistent_state SET payload_json = '{\"tampered\":true}' WHERE namespace = 'admin_governance' AND state_key = 'healing_test'",
+            [],
+        )
+        .unwrap();
+        let tamper_check = pm.sqlite_kv.load_json("admin_governance", "healing_test");
+        assert!(tamper_check.is_err(), "SHA-256 mismatch in SQLite must be rejected");
+    }
+
+    #[test]
+    fn test_persistence_p3_external_db_sync_roundtrip() {
+        use crate::persistence::{ExternalDbBackend, ExternalDbConfig, PersistenceBackend, UnifiedPersistenceManager};
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let ext_cfg = ExternalDbConfig {
+            enabled: true,
+            db_url: "memory://shared-cluster-db".to_string(),
+            auth_token: None,
+            timeout_ms: 500,
+        };
+        let shared_ext = ExternalDbBackend::new(ext_cfg);
+
+        // Save directly to external backend and sync into local manager
+        shared_ext
+            .save_json(
+                "learned_skills",
+                "synced-skill-01",
+                &serde_json::json!({"slug": "synced-skill-01", "status": "Active"}).to_string(),
+            )
+            .unwrap();
+
+        let pm = UnifiedPersistenceManager::with_external_backend(
+            dir.path().join("node_b_state"),
+            ":memory:",
+            shared_ext,
+        );
+        let synced_count = pm.sync_namespace_from_external("learned_skills").unwrap();
+        assert_eq!(synced_count, 1);
+
+        let loaded: serde_json::Value = pm
+            .load_struct("learned_skills", "synced-skill-01")
+            .expect("loaded from synced external DB");
+        assert_eq!(loaded["slug"], "synced-skill-01");
+    }
+
+    #[test]
+    fn test_persistence_p4_unhappy_dead_external_db_non_blocking_fallback() {
+        use crate::persistence::{ExternalDbBackend, ExternalDbConfig, UnifiedPersistenceManager};
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let dead_cfg = ExternalDbConfig {
+            enabled: true,
+            db_url: "http://127.0.0.1:59999/unreachable-db".to_string(),
+            auth_token: Some("secret".to_string()),
+            timeout_ms: 120,
+        };
+        let dead_ext = ExternalDbBackend::new(dead_cfg);
+        let pm = UnifiedPersistenceManager::with_external_backend(
+            dir.path().join("fallback_state"),
+            ":memory:",
+            dead_ext,
+        );
+
+        // Saving must NOT panic or fail even though the external DB is unreachable
+        let _ = pm.save_struct("policies", "fallback_key", &serde_json::json!({"ok": true}));
+        let loaded: Option<serde_json::Value> = pm.load_struct("policies", "fallback_key");
+        assert!(loaded.is_some());
+
+        let status = pm.status_report();
+        assert_eq!(status["external_db_backend"]["healthy"], false);
+        assert_eq!(status["sqlite_kv_backend"]["connected"], true);
+    }
+
+    // ========================================================================
+    // v1.1.0 Auto-Skill Forge & Token-Savings Benchmark Tests (S-1 .. S-6)
+    // ========================================================================
+
+    #[test]
+    fn test_skill_forge_s1_trajectory_mining_error_recovery_and_guardrail_correction() {
+        use crate::persistence::UnifiedPersistenceManager;
+        use crate::skill_forge::{SkillForgeEngine, SkillOrigin};
+        use std::sync::Arc;
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let pm = Arc::new(UnifiedPersistenceManager::new(dir.path(), ":memory:"));
+        let mut forge = SkillForgeEngine::new_with_persistence(pm);
+        let before_count = forge.skills.len();
+
+        let synthetic_events = vec![
+            // Pattern A: CommandRun failure -> FileWrite fix -> CommandRun success
+            serde_json::json!({
+                "event_id": "ev-fail-1",
+                "node_id": "claude-code:terminal@DEV",
+                "event_type": "CommandRun",
+                "target": "cargo test --workspace (exit code 101)",
+                "security_verdict": "Allowed"
+            }),
+            serde_json::json!({
+                "event_id": "ev-fix-2",
+                "node_id": "claude-code:terminal@DEV",
+                "event_type": "FileWrite",
+                "target": "src/skill_forge.rs",
+                "security_verdict": "Allowed"
+            }),
+            serde_json::json!({
+                "event_id": "ev-pass-3",
+                "node_id": "claude-code:terminal@DEV",
+                "event_type": "CommandRun",
+                "target": "cargo test --workspace",
+                "security_verdict": "Allowed"
+            }),
+            // Pattern B: Guardrail Blocked -> Allowed recovery
+            serde_json::json!({
+                "event_id": "ev-block-4",
+                "node_id": "deepseek-r1:1.5b",
+                "event_type": "FileWrite",
+                "target": "src/main.rs",
+                "security_verdict": "Blocked",
+                "security_reasons": ["[ADMIN-MODEL-005-PLAYGROUND-CONFINEMENT] Model may only write inside playground/"]
+            }),
+            serde_json::json!({
+                "event_id": "ev-recover-5",
+                "node_id": "deepseek-r1:1.5b",
+                "event_type": "FileWrite",
+                "target": "playground/repro_check.rs",
+                "security_verdict": "Allowed"
+            }),
+        ];
+
+        let distilled = forge.mine_trajectories_from_events(&synthetic_events);
+        assert_eq!(distilled.len(), 2, "Should distill both ErrorRecoveryLoop and GuardrailCorrection skills");
+        assert!(distilled.iter().any(|s| s.origin == SkillOrigin::ErrorRecoveryLoop));
+        assert!(distilled.iter().any(|s| s.origin == SkillOrigin::GuardrailCorrection));
+        assert_eq!(forge.skills.len(), before_count + 2);
+    }
+
+    #[test]
+    fn test_skill_forge_s2_hybrid_scoping_global_vs_per_model_isolation() {
+        use crate::persistence::UnifiedPersistenceManager;
+        use crate::skill_forge::SkillForgeEngine;
+        use std::sync::Arc;
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let pm = Arc::new(UnifiedPersistenceManager::new(dir.path(), ":memory:"));
+        let mut forge = SkillForgeEngine::new_with_persistence(pm);
+
+        // 1. `deepseek-r1:1.5b` prompt about writing a file matches its per-model scoped skill (`SkillScope::AgentOrModel("deepseek-*")`)
+        let ds_matches = forge.match_skills_for_request(
+            "worker-node",
+            "deepseek-r1:1.5b",
+            "please write script to playground",
+            Some("src/lib.rs"),
+        );
+        assert!(
+            ds_matches.iter().any(|s| s.slug == "worker-1-5b-playground-sandbox"),
+            "deepseek-r1:1.5b must receive its model-scoped skill"
+        );
+
+        // 2. `claude-3-7-sonnet-latest` with the exact same prompt MUST NOT receive the `deepseek-*` scoped skill!
+        let claude_matches = forge.match_skills_for_request(
+            "claude-code:terminal@DEV",
+            "claude-3-7-sonnet-latest",
+            "please write script to playground",
+            Some("src/lib.rs"),
+        );
+        assert!(
+            !claude_matches.iter().any(|s| s.slug == "worker-1-5b-playground-sandbox"),
+            "Per-model skill for deepseek-* must never leak into claude-3-7-sonnet-latest"
+        );
+    }
+
+    #[test]
+    fn test_skill_forge_s3_disk_materialization_antigravity_and_claude_commands() {
+        use crate::persistence::UnifiedPersistenceManager;
+        use crate::skill_forge::SkillForgeEngine;
+        use std::sync::Arc;
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let pm = Arc::new(UnifiedPersistenceManager::new(dir.path().join("state"), ":memory:"));
+        let forge = SkillForgeEngine::new_with_persistence(pm);
+
+        let exported = forge
+            .export_skill_to_disk("skill-win-unc-cas", dir.path())
+            .expect("export skill to disk");
+        assert_eq!(exported.len(), 2);
+
+        let ag_skill = dir.path().join(".agents/skills/windows-unc-canonicalize-cas/SKILL.md");
+        let claude_cmd = dir.path().join(".claude/commands/windows-unc-canonicalize-cas.md");
+        assert!(ag_skill.exists(), "Antigravity SKILL.md must exist");
+        assert!(claude_cmd.exists(), "Claude Code slash command .md must exist");
+
+        let ag_text = std::fs::read_to_string(&ag_skill).unwrap();
+        assert!(ag_text.starts_with("---\nname: windows-unc-canonicalize-cas\n"));
+    }
+
+    #[test]
+    fn test_skill_forge_s4_unhappy_secret_poisoning_blocked_by_dlp() {
+        use crate::persistence::UnifiedPersistenceManager;
+        use crate::skill_forge::{LearnedSkill, SkillForgeEngine, SkillOrigin, SkillScope, SkillStatus};
+        use std::sync::Arc;
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let pm = Arc::new(UnifiedPersistenceManager::new(dir.path(), ":memory:"));
+        let mut forge = SkillForgeEngine::new_with_persistence(pm);
+
+        let poisoned = LearnedSkill {
+            skill_id: "skill-poison-test".to_string(),
+            slug: "poison-test".to_string(),
+            name: "Poisoned Skill".to_string(),
+            description: "Contains secret sk-ant-api03-99887766554433221100aabbccddeeff".to_string(),
+            scope: SkillScope::GlobalWorkspace,
+            status: SkillStatus::Active,
+            origin: SkillOrigin::ErrorRecoveryLoop,
+            trigger_keywords: vec!["deploy".to_string()],
+            file_patterns: vec![],
+            steps_markdown: "1. Export ANTHROPIC_API_KEY=sk-ant-api03-99887766554433221100aabbccddeeff".to_string(),
+            cold_discovery_tokens_estimate: 10_000,
+            skill_token_footprint: 120,
+            distillation_tokens_saved: 1_500,
+            times_applied: 0,
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+
+        let sanitized = forge.upsert_skill(poisoned);
+        assert!(!sanitized.description.contains("sk-ant-api03-"));
+        assert!(!sanitized.steps_markdown.contains("sk-ant-api03-"));
+        assert!(sanitized.steps_markdown.contains("[REDACTED_API_KEY_BY_AGENTTRACE_GUARD]"));
+    }
+
+    #[test]
+    fn test_skill_forge_s5_unhappy_path_traversal_slug_sanitized() {
+        use crate::skill_forge::sanitize_skill_slug;
+
+        let clean = sanitize_skill_slug("../../etc/passwd/../../evil_skill");
+        assert!(!clean.contains(".."));
+        assert!(!clean.contains('/'));
+        assert!(!clean.contains('\\'));
+        assert_eq!(clean, "etc-passwd-evil-skill");
+    }
+
+    #[test]
+    fn test_skill_forge_s6_token_savings_roi_benchmark_with_version_tag() {
+        use crate::benchmarks::{run_live_benchmarks, BENCHMARK_VERSION_TAG};
+        use crate::persistence::UnifiedPersistenceManager;
+        use crate::skill_forge::SkillForgeEngine;
+        use std::sync::Arc;
+        use tempfile::tempdir;
+
+        let dir = tempdir().expect("tempdir");
+        let pm = Arc::new(UnifiedPersistenceManager::new(dir.path(), ":memory:"));
+        let mut forge = SkillForgeEngine::new_with_persistence(pm);
+
+        // Verify unrelated prompt triggers 0 skills (0 bloat tokens)
+        let unrelated = forge.match_skills_for_request(
+            "claude-code:terminal@DEV",
+            "claude-3-7-sonnet-latest",
+            "What is the time complexity of binary search?",
+            None,
+        );
+        assert!(unrelated.is_empty(), "Unrelated prompt must match 0 skills (zero context bloat)");
+
+        let roi = forge.compute_token_savings_benchmark();
+        assert_eq!(roi.version_tag, BENCHMARK_VERSION_TAG);
+        assert!(roi.token_compression_ratio_pct >= 90.0);
+        assert_eq!(roi.unrelated_prompt_bloat_tokens, 0);
+
+        let suite = run_live_benchmarks();
+        assert_eq!(suite.version_tag, "v1.1.0");
+        for m in &suite.metrics {
+            assert_eq!(m.version_tag, "v1.1.0");
+        }
+    }
 }

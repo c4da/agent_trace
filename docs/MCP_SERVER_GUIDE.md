@@ -1,4 +1,4 @@
-# 🔌 AgentTrace Native Rust MCP Server Guide (35 Tools)
+# 🔌 AgentTrace Native Rust MCP Server Guide (36 Tools)
 
 > **"Here's a tool — let your agent read it, he will thank you later."**
 
@@ -65,11 +65,12 @@ The easiest way to use AgentTrace in Antigravity is via the bundled **AgentTrace
 
 ---
 
-## 🧰 Available MCP Tools (35 Native Tools)
+## 🧰 Available MCP Tools (36 Native Tools)
 
-### 1. Active AI Guard, Pre-Image CAS Undo, Admin Governance, Vault & SIEM (5 Flagship Security Tools)
+### 1. Active AI Guard, Auto-Skill Forge, Pre-Image CAS Undo, Admin Governance, Vault & SIEM (6 Flagship Tools)
 | Tool Name | Parameters | Purpose |
 | :--- | :--- | :--- |
+| **`manage_learned_skills`** | `operation` (`list`/`distill`/`upsert`/`export`/`roi_benchmark`), `skill_id`, `skill` | Auto-Skill Forge & De Facto Learning tool: mines telemetry trajectories into DLP-scrubbed skills (`GlobalWorkspace` + `AgentOrModel`), exports `.agents/skills/<slug>/SKILL.md` and `.claude/commands/<slug>.md`, and returns `v1.1.0` Token-Savings ROI metrics (`~99.2%` compression). |
 | **`protect_or_revert_cas_file`** | `operation` (`protect`/`enforce`/`status`), `path`, `strictly_guarded` | Takes an in-memory SHA-256 pre-image snapshot of a file before a risky multi-file edit (`protect`), inspects/restores corrupted or deleted files in `< 1.5 ms` (`enforce`), or lists all guarded files (`status`). |
 | **`manage_admin_model_governance`** | `operation` (`list`/`upsert_model`/`evaluate`), `model`, `command`, `target_path`, `profile` | Admin Governance Plane tool to inspect global & per-model restrictions (`claude-*`, `gpt-*`, `qwen3.8:27b`, `deepseek-r1:1.5b`), upsert a `ModelRestrictionProfile`, or dry-run per-model enforcement. |
 | **`intercept_ai_guard`** | `action`, `prompt_text`, `command`, `target_path`, `mode` (`HardBlock`/`RedactAndForward`/`AuditOnly`) | Synchronous `< 1.5 ms` pre-flight check scanning prompts and commands for leaked `.env`/API/PEM secrets, prompt injections, destructive commands, and spatial zone violations. |

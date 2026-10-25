@@ -103,6 +103,15 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/admin/governance/model/:pattern", delete(crate::admin_governance::delete_model_profile_handler))
         .route("/api/v1/admin/governance/evaluate", post(crate::admin_governance::evaluate_model_governance_handler))
         .route("/api/v1/client/shield-status", get(crate::admin_governance::get_client_shield_status_handler))
+        // Unified Pluggable Persistence & Auto-Skill Forge Endpoints
+        .route("/api/v1/persistence/status", get(crate::persistence::get_persistence_status_handler))
+        .route("/api/v1/persistence/config", post(crate::persistence::update_persistence_config_handler))
+        .route("/api/v1/persistence/reload", post(reload_all_persistence_handler))
+        .route("/api/v1/skills", get(crate::skill_forge::list_skills_handler).post(crate::skill_forge::upsert_skill_handler))
+        .route("/api/v1/skills/distill", post(crate::skill_forge::distill_skills_from_telemetry_handler).with_state(state.db.clone()))
+        .route("/api/v1/skills/roi-benchmark", get(crate::skill_forge::get_skill_roi_benchmark_handler))
+        .route("/api/v1/skills/:skill_id", delete(crate::skill_forge::delete_skill_handler))
+        .route("/api/v1/skills/:skill_id/export", post(crate::skill_forge::export_skill_handler))
         .route("/api/v1/cas/status", get(crate::cas_guard::cas_status_handler))
         .route("/api/v1/cas/protect", post(crate::cas_guard::cas_protect_handler))
         .route("/api/v1/cas/enforce", post(crate::cas_guard::cas_enforce_handler))
@@ -873,4 +882,25 @@ pub async fn encrypt_secret_handler(
         "encrypted_value": encrypted
     })))
 }
+
+/// Reloads all persistent engines (Admin Governance, Policy Engine, Skill Forge) from durable storage (`POST /api/v1/persistence/reload`).
+pub async fn reload_all_persistence_handler(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    if let Ok(mut gov) = crate::admin_governance::global_admin_governance().write() {
+        gov.reload_from_persistence();
+    }
+    if let Ok(mut sf) = crate::skill_forge::global_skill_forge().write() {
+        sf.reload_from_persistence();
+    }
+    {
+        let mut pol = state.policy.write().await;
+        pol.reload_from_persistence();
+    }
+    Json(serde_json::json!({
+        "status": "reloaded",
+        "persistence": crate::persistence::global_persistence().status_report()
+    }))
+}
+
 

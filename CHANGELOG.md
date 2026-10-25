@@ -2,6 +2,31 @@
 
 All notable changes to **AgentTrace Gateway & AI Guard** (`agent_trace_gw`) are documented in this file.
 
+## [1.1.0] - 2026-10-25 — Auto-Skill Forge, Pluggable Durable Persistence & Versioned ROI Benchmarks
+
+### 🧠 Autonomous Skill Distillation & De Facto Learning ("Auto-Skill Forge" — `src/skill_forge.rs`)
+- **2-Tier Hybrid Skill Architecture (`SkillScope::GlobalWorkspace` + `SkillScope::AgentOrModel`)**:
+  - Automatically mines telemetry trajectories (`ErrorRecoveryLoop`: `Command Fail -> FileWrite Diff -> Command Pass`, and `GuardrailCorrection`: `Blocked -> Compliant Retry`) into structured, reusable `LearnedSkill` recipes.
+  - **Central Workspace Skills (`GlobalWorkspace`)**: Shared across all coding agents (`claude`, Antigravity, Cursor, Copilot CLI) for repo-wide build, migration, and test fixes.
+  - **Per-Agent / Per-Model Scoped Skills (`AgentOrModel(pattern)`)**: Scoped to specific model families (e.g., `deepseek-*` 1.5B worker playground rules) so small-model guardrails never pollute frontier model context windows.
+  - **Mandatory DLP Secret Scrubbing**: Every distilled or upserted skill is scrubbed through `scan_and_redact_secrets` before persistence so accidental API keys or `.env` secrets never enter `SKILL.md`.
+  - **Native Disk Materialization (`POST /api/v1/skills/:id/export`)**: Exports skills directly into `.agents/skills/<slug>/SKILL.md` (Antigravity / Cursor) and `.claude/commands/<slug>.md` (Claude Code slash commands), alongside transparent `< 0.1 ms` in-flight injection on `/v1/messages` and `/v1/chat/completions`.
+  - **36th Native MCP Tool (`manage_learned_skills`)**: Allows agents to `list`, `distill`, `upsert`, `export`, and query `roi_benchmark` over MCP JSON-RPC.
+
+### 💾 Pluggable Durable Persistence (`src/persistence.rs`)
+- **`PersistenceBackend` Trait & 3-Tier `UnifiedPersistenceManager`**:
+  - **Tier 1 (`LocalFileBackend`)**: Zero-config atomic `.json.tmp` $\rightarrow$ `.json` files in `.agent_trace/state/<namespace>/<key>.json` for human/Git inspectability.
+  - **Tier 2 (`SqliteKvBackend`)**: Transactional WAL table `persistent_state` with per-record **SHA-256 integrity verification** and automatic **self-healing** (if a local `.json` file is corrupted or truncated, it automatically recovers and rewrites from SQLite).
+  - **Tier 3 (`ExternalDbBackend`)**: Pluggable remote DB connector (`AGENTTRACE_DB_URL` / `POST /api/v1/persistence/config`) with bounded timeouts and non-blocking local fallback when an external DB is unreachable.
+  - Connected `AdminGovernanceEngine`, `PolicyEngine`, `WorkgroupRegistry`, and `SkillForgeEngine` to `UnifiedPersistenceManager` so all custom model profiles, policies, zones, workgroups, and learned skills survive daemon restarts.
+
+### 📊 Version-Tagged (`v1.1.0`) Sub-5ms & Token-Savings ROI Benchmarks (`src/benchmarks.rs`)
+- Added explicit `version_tag: "v1.1.0"` to every `BenchmarkMetric`, `BenchmarkSuiteReport`, `SkillTokenSavingsReport`, `docs/BENCHMARKS.md`, and `README.md`.
+- Added empirical **Token-Savings & Compression Benchmark (`GET /api/v1/skills/roi-benchmark`)** proving **`~99.2%+` token compression** (`~15,300` cold multi-turn rediscovery tokens reduced to `~62` compact skill tokens per matched task) with **`0` unrelated prompt bloat tokens**.
+- Expanded verification suite to **`130` Rust unit & adversarial tests + `7` E2E tests + `9` live security, persistence & skill scenarios**.
+
+---
+
 ## [1.0.0] - 2026-10-25 — First Official Enterprise Release
 
 ### 👑 Admin Per-Model Governance Plane & Shielded Client Layer (`src/admin_governance.rs`)

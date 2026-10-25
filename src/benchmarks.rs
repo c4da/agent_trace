@@ -12,17 +12,24 @@ use crate::{
     cas_guard::{CasVerdict, PreImageCasGuard},
     db::Database,
     ledger::NodeIdentity,
+    persistence::UnifiedPersistenceManager,
     policy::PolicyEngine,
     schema::{EventType, SecurityVerdict, TraceEvent},
     security_hardening::EncryptedSecretVault,
+    skill_forge::{SkillForgeEngine, SkillTokenSavingsReport},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Instant;
-use tempfile::NamedTempFile;
+use tempfile::{tempdir, NamedTempFile};
 
-/// Single benchmark metric with p50, p95, p99 latencies in milliseconds and microseconds.
+/// Current release version tag attached to every empirical benchmark metric and report.
+pub const BENCHMARK_VERSION_TAG: &str = "v1.1.0";
+
+/// Single benchmark metric with p50, p95, p99 latencies in milliseconds and microseconds, tagged by version.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkMetric {
+    pub version_tag: String,
     pub name: String,
     pub iterations: usize,
     pub p50_ms: f64,
@@ -35,10 +42,11 @@ pub struct BenchmarkMetric {
     pub passed_sla: bool,
 }
 
-/// Complete empirical benchmark report with OS memory footprint and latency percentiles.
+/// Complete empirical benchmark report with OS memory footprint, latency percentiles, and Auto-Skill token ROI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkSuiteReport {
     pub version: String,
+    pub version_tag: String,
     pub timestamp_utc: String,
     pub os_arch: String,
     pub build_profile: String,
@@ -46,6 +54,7 @@ pub struct BenchmarkSuiteReport {
     pub memory_target_mb: f64,
     pub all_slas_passed: bool,
     pub metrics: Vec<BenchmarkMetric>,
+    pub skill_token_savings: SkillTokenSavingsReport,
 }
 
 /// Queries the current process Resident Set Size (Working Set) in Megabytes.
@@ -102,6 +111,7 @@ fn compute_metric(name: &str, mut samples_us: Vec<u64>, target_sla_ms: f64) -> B
     let p99_ms = ((p99_us as f64 / 1000.0) * 1000.0).round() / 1000.0;
 
     BenchmarkMetric {
+        version_tag: BENCHMARK_VERSION_TAG.to_string(),
         name: name.to_string(),
         iterations: n,
         p50_ms,
@@ -229,11 +239,60 @@ pub fn run_live_benchmarks() -> BenchmarkSuiteReport {
         1.0,
     ));
 
+    // 6. Auto-Skill Forge Trigger Match & In-Flight Injection (v1.1.0)
+    let tmp_dir = tempdir().expect("tempdir for skill forge benchmark");
+    let pm = Arc::new(UnifiedPersistenceManager::new(
+        tmp_dir.path().to_path_buf(),
+        ":memory:",
+    ));
+    let mut skill_forge = SkillForgeEngine::new_with_persistence(pm.clone());
+    let mut skill_samples = Vec::with_capacity(100);
+    for _ in 0..100 {
+        let t0 = Instant::now();
+        let matched = skill_forge.match_skills_for_request(
+            "claude-code:terminal@DEV-WS01",
+            "claude-3-7-sonnet-latest",
+            "Please fix canonicalize deleted file in cas_guard",
+            Some("src/cas_guard.rs"),
+        );
+        assert!(!matched.is_empty());
+        let _block = matched[0].to_compact_injection_block();
+        skill_samples.push(t0.elapsed().as_micros() as u64);
+    }
+    metrics.push(compute_metric(
+        "Auto-Skill Forge Trigger Match & In-Flight Injection",
+        skill_samples,
+        1.0,
+    ));
+
+    // 7. Unified Persistence SQLite WAL + SHA-256 Integrity Roundtrip (v1.1.0)
+    let mut persist_samples = Vec::with_capacity(30);
+    for i in 0..30 {
+        let payload = serde_json::json!({
+            "seq": i,
+            "version_tag": BENCHMARK_VERSION_TAG,
+            "namespace": "bench_state"
+        })
+        .to_string();
+        let t0 = Instant::now();
+        crate::persistence::PersistenceBackend::save_json(&pm.sqlite_kv, "bench", "item", &payload).unwrap();
+        let loaded = crate::persistence::PersistenceBackend::load_json(&pm.sqlite_kv, "bench", "item").unwrap();
+        assert!(loaded.is_some());
+        persist_samples.push(t0.elapsed().as_micros() as u64);
+    }
+    metrics.push(compute_metric(
+        "Unified Persistence SQLite + SHA-256 Integrity Roundtrip",
+        persist_samples,
+        5.0,
+    ));
+
+    let skill_token_savings = skill_forge.compute_token_savings_benchmark();
     let rss_mb = measure_process_rss_mb();
     let all_passed = metrics.iter().all(|m| m.passed_sla);
 
     BenchmarkSuiteReport {
         version: env!("CARGO_PKG_VERSION").to_string(),
+        version_tag: BENCHMARK_VERSION_TAG.to_string(),
         timestamp_utc: chrono::Utc::now().to_rfc3339(),
         os_arch: format!("{} / {}", std::env::consts::OS, std::env::consts::ARCH),
         build_profile: if cfg!(debug_assertions) {
@@ -245,6 +304,7 @@ pub fn run_live_benchmarks() -> BenchmarkSuiteReport {
         memory_target_mb: 20.0,
         all_slas_passed: all_passed,
         metrics,
+        skill_token_savings,
     }
 }
 

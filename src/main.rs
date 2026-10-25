@@ -172,7 +172,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ledger_writer: Some(ledger_writer.clone()),
     });
 
-    let policy = Arc::new(RwLock::new(PolicyEngine::new_with_defaults()));
+    let policy = Arc::new(RwLock::new(PolicyEngine::load_or_default()));
+    let _ = agent_trace_gw::admin_governance::global_admin_governance();
+    let _ = agent_trace_gw::skill_forge::global_skill_forge();
 
     let health_watchdog = if !is_worker {
         Some(agent_trace_gw::cluster_health::ClusterHealthWatchdog::spawn(

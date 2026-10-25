@@ -342,6 +342,30 @@ pub async fn handle_anthropic_messages(
     if let Some(ref sys_prefix) = gov_decision.injected_system_prefix {
         effective_prompt = format!("{}\n{}", sys_prefix, effective_prompt);
     }
+
+    // 4b. Auto-Skill Forge: Match and inject relevant learned skills (GlobalWorkspace + AgentOrModel scope)
+    let matched_skills = crate::skill_forge::global_skill_forge()
+        .write()
+        .ok()
+        .map(|mut sf| {
+            sf.match_skills_for_request(
+                &agent_identity.canonical_id,
+                &model_name,
+                &combined_prompt,
+                path_opt.as_deref(),
+            )
+        })
+        .unwrap_or_default();
+
+    let matched_skill_slugs: Vec<String> = matched_skills.iter().map(|s| s.slug.clone()).collect();
+    if !matched_skills.is_empty() {
+        let skill_blocks: Vec<String> = matched_skills
+            .iter()
+            .map(|s| s.to_compact_injection_block())
+            .collect();
+        effective_prompt = format!("{}\n{}", skill_blocks.join("\n"), effective_prompt);
+    }
+
     if guard_res.verdict == SecurityVerdict::Flagged {
         if let Some(msgs) = req_json.get_mut("messages").and_then(|m| m.as_array_mut()) {
             for msg in msgs.iter_mut() {
@@ -447,9 +471,14 @@ pub async fn handle_anthropic_messages(
         } else {
             ""
         };
+        let skill_note = if !matched_skill_slugs.is_empty() {
+            format!(" [Skills Applied: {}]", matched_skill_slugs.join(", "))
+        } else {
+            String::new()
+        };
         assistant_reply = format!(
-            "[AgentTrace Corporate Claude Hub · Routed to {} on {}]{}\nVerified prompt processed safely.",
-            route_decision.selected_model, route_decision.node_id, redact_note
+            "[AgentTrace Shielded Claude Hub · Routed to {} on {}]{}{}\nVerified prompt processed safely.",
+            route_decision.selected_model, route_decision.node_id, redact_note, skill_note
         );
     }
 
@@ -469,6 +498,7 @@ pub async fn handle_anthropic_messages(
             "routed_node": route_decision.node_id,
             "guard_verdict": guard_res.verdict,
             "evaluation_latency_us": guard_res.evaluation_latency_us,
+            "applied_skills": matched_skill_slugs,
             "prompt": effective_prompt,
             "findings": guard_res.findings,
         }),
@@ -497,13 +527,22 @@ pub async fn handle_anthropic_messages(
         SecurityVerdict::Blocked => "Blocked",
     };
 
-    Ok(build_anthropic_response(
+    let mut resp = build_anthropic_response(
         &model_name,
         &assistant_reply,
         is_stream,
         verdict_str,
         &route_decision.node_id,
-    ))
+    );
+    if let Ok(hv) = axum::http::HeaderValue::from_str(&matched_skill_slugs.len().to_string()) {
+        resp.headers_mut().insert("x-agenttrace-skills-applied", hv);
+    }
+    if !matched_skill_slugs.is_empty() {
+        if let Ok(hv) = axum::http::HeaderValue::from_str(&matched_skill_slugs.join(",")) {
+            resp.headers_mut().insert("x-agenttrace-skill-slugs", hv);
+        }
+    }
+    Ok(resp)
 }
 
 /// Handles `POST /v1/messages/count_tokens` so Claude Code CLI token estimation works natively.
