@@ -87,6 +87,7 @@ fn create_test_app(auth_token: Option<String>) -> (axum::Router, Database, tempf
         registry: registry.clone(),
         policy: policy.clone(),
         ledger_writer: Some(ledger_writer),
+        health_watchdog: None,
     };
 
     let agent_state = AgentInterfaceState {

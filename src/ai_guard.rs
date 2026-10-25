@@ -206,6 +206,13 @@ pub fn inspect_shell_command_hard(cmd: &str) -> Vec<GuardFinding> {
         ("nc -e /bin/sh", "GUARD-CMD-007-REV-SHELL", ThreatCategory::CredentialExfiltration, "Netcat reverse shell execution blocked"),
         ("/dev/tcp/", "GUARD-CMD-007-BASH-REV-SHELL", ThreatCategory::CredentialExfiltration, "Bash TCP reverse shell redirection blocked"),
         ("set-mppreference -disablerealtimemonitoring", "GUARD-CMD-008-DEFENDER-DISABLE", ThreatCategory::DestructiveShellCommand, "Attempt to disable Windows Defender real-time protection blocked"),
+        ("eval $(curl", "GUARD-CMD-010-DOWNLOAD-CRADLE", ThreatCategory::DestructiveShellCommand, "Remote shell download cradle (eval $(curl ...)) blocked"),
+        ("eval $(wget", "GUARD-CMD-010-DOWNLOAD-CRADLE", ThreatCategory::DestructiveShellCommand, "Remote shell download cradle (eval $(wget ...)) blocked"),
+        ("-encodedcommand", "GUARD-CMD-011-OBFUSCATED-EXEC", ThreatCategory::DestructiveShellCommand, "Obfuscated PowerShell encoded command execution blocked"),
+        ("format c:", "GUARD-CMD-002-DISK-FORMAT", ThreatCategory::DestructiveShellCommand, "Destructive disk formatting blocked"),
+        ("reg add hklm", "GUARD-CMD-012-REG-PERSIST", ThreatCategory::DestructiveShellCommand, "Privileged Windows registry modification blocked"),
+        ("net user", "GUARD-CMD-013-USER-MANIP", ThreatCategory::DestructiveShellCommand, "Local user account manipulation blocked"),
+        ("| nc ", "GUARD-CMD-007-REV-SHELL", ThreatCategory::CredentialExfiltration, "Shell piping to netcat blocked"),
     ];
 
     for (pattern, rule_id, cat, desc) in destructive_signatures {

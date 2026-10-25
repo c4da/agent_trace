@@ -56,12 +56,30 @@ impl PreImageCasGuard {
         }
     }
 
-    /// Canonicalizes a path for consistent cache lookup.
+    /// Canonicalizes a path for consistent cache lookup, even if the file was deleted.
     fn canonicalize_key(path: &Path) -> PathBuf {
-        if let Ok(c) = std::fs::canonicalize(path) {
+        let raw = if let Ok(c) = std::fs::canonicalize(path) {
             c
+        } else if let Some(parent) = path.parent() {
+            if let Ok(c_parent) = std::fs::canonicalize(parent) {
+                if let Some(fname) = path.file_name() {
+                    c_parent.join(fname)
+                } else {
+                    path.to_path_buf()
+                }
+            } else {
+                path.to_path_buf()
+            }
         } else {
             path.to_path_buf()
+        };
+
+        // Normalize Windows verbatim \\?\ prefix for consistent lookup across existing and deleted states
+        let s = raw.to_string_lossy();
+        if let Some(stripped) = s.strip_prefix(r"\\?\") {
+            PathBuf::from(stripped)
+        } else {
+            raw
         }
     }
 
@@ -128,18 +146,21 @@ impl PreImageCasGuard {
             None => return CasVerdict::Untracked,
         };
 
-        // Read current disk state
-        let current_bytes = match std::fs::read(path) {
-            Ok(b) => b,
+        // Read current disk state or detect rogue deletion
+        let (current_digest, current_bytes, is_deleted) = match std::fs::read(path) {
+            Ok(b) => {
+                let d = hex::encode(digest(&SHA256, &b).as_ref());
+                (d, b, false)
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => ("DELETED".to_string(), Vec::new(), true),
             Err(_) => return CasVerdict::Untracked,
         };
 
-        let current_digest = hex::encode(digest(&SHA256, &current_bytes).as_ref());
-        if current_digest == snapshot.sha256 {
+        if !is_deleted && current_digest == snapshot.sha256 {
             return CasVerdict::Allowed;
         }
 
-        // Mutation detected! Determine if rollback is required
+        // Mutation or deletion detected! Determine if rollback is required
         let must_revert = snapshot.is_strictly_guarded || active_agent_confined;
 
         if must_revert {
@@ -147,7 +168,8 @@ impl PreImageCasGuard {
                 path = %path.display(),
                 offending_hash = %current_digest,
                 restored_hash = %snapshot.sha256,
-                "CAS Guard: Rogue out-of-band file modification detected! Reverting to pre-image..."
+                is_deletion = is_deleted,
+                "CAS Guard: Rogue out-of-band file modification or deletion detected! Reverting to pre-image..."
             );
 
             match std::fs::write(path, &snapshot.bytes) {
@@ -233,5 +255,38 @@ mod tests {
 
         let verdict = guard.inspect_and_enforce(path, true);
         assert_eq!(verdict, CasVerdict::Allowed);
+    }
+
+    #[test]
+    fn test_cas_guard_auto_reverts_rogue_deletion() {
+        let guard = PreImageCasGuard::new();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("critical_config.json");
+
+        std::fs::write(&path, r#"{"invariants": "strict"}"#).unwrap();
+        let original_hash = guard.protect_file(&path, true).unwrap();
+
+        // Simulate rogue agent deleting the protected file
+        std::fs::remove_file(&path).unwrap();
+        assert!(!path.exists(), "File should be deleted before guard enforcement");
+
+        // Inspect and enforce - must restore the deleted file!
+        let verdict = guard.inspect_and_enforce(&path, false);
+        match verdict {
+            CasVerdict::Reverted {
+                offending_sha256,
+                restored_sha256,
+                ..
+            } => {
+                assert_eq!(offending_sha256, "DELETED");
+                assert_eq!(restored_sha256, original_hash);
+            }
+            _ => panic!("Expected CasVerdict::Reverted for deletion, got {:?}", verdict),
+        }
+
+        // Verify file was recreated with original content
+        assert!(path.exists(), "File MUST be recreated by CAS guard!");
+        let restored_content = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(restored_content, r#"{"invariants": "strict"}"#);
     }
 }

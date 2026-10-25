@@ -7,7 +7,7 @@
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.78%2B-orange.svg)](https://www.rust-lang.org/)
 [![Footprint](https://img.shields.io/badge/Memory-12.45%20MB%20RSS%20%7C%201.0ms%20Latency-success.svg)](docs/BENCHMARKS.md)
-[![Tests](https://img.shields.io/badge/Tests-108%20Unit%20%26%20Adversarial%20%2B%207%20E2E%20Passed-brightgreen.svg)](docs/BENCHMARKS.md)
+[![Tests](https://img.shields.io/badge/Tests-115%20Unit%20%26%20Adversarial%20%2B%207%20E2E%20Passed-brightgreen.svg)](docs/BENCHMARKS.md)
 [![AI Guard](https://img.shields.io/badge/AI%20Guard-DLP%20Scrubbing%20%2B%20Instant%20File%20Undo-critical.svg)](src/ai_guard.rs)
 [![LLM Manifest](https://img.shields.io/badge/Agent--Ready-llms.txt-00d2ff.svg)](llms.txt)
 
@@ -72,15 +72,15 @@ Most AI observability stacks are **passive rear-view mirrors**: they log a trace
 *Automatically measured and updated on every commit via [`scripts/update_benchmarks_and_badges.py`](scripts/update_benchmarks_and_badges.py) and [`.githooks/pre-commit`](.githooks/pre-commit). Full hardware report: **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)**.*
 
 <!-- BENCHMARK_START -->
-> **Auto-Verified on Commit `75d37d2` (`2026-10-24 17:38:45 UTC`)** · Process Memory RSS: **`12.37 MB`** · Test Suite: **`108 Rust Unit/Adversarial + 7 E2E Passed`**
+> **Auto-Verified on Commit `35fb31e` (`2026-10-25 09:48:38 UTC`)** · Process Memory RSS: **`12.60 MB`** · Test Suite: **`115 Rust Unit/Adversarial + 7 E2E Passed`**
 
 | Operation | p50 Latency | p95 Latency | Target SLA | Verdict |
 | :--- | :---: | :---: | :---: | :---: |
-| **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.036 ms`** (`1036 µs`) | `3.122 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.083 ms`** (`1083 µs`) | `1.714 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **SHA-256 + Ed25519 Signed Block Commit** | **`0.166 ms`** (`166 µs`) | `0.278 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`2.490 ms`** (`2490 µs`) | `2.724 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.010 ms`** (`10 µs`) | `0.010 ms` | `< 1.0 ms` | ✅ **PASS** |
+| **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.564 ms`** (`1564 µs`) | `3.052 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.734 ms`** (`1734 µs`) | `2.910 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **SHA-256 + Ed25519 Signed Block Commit** | **`0.320 ms`** (`320 µs`) | `0.419 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`4.680 ms`** (`4680 µs`) | `5.398 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.013 ms`** (`13 µs`) | `0.014 ms` | `< 1.0 ms` | ✅ **PASS** |
 <!-- BENCHMARK_END -->
 
 ---

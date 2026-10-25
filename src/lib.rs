@@ -37,3 +37,4 @@ pub mod siem_exporter;
 pub mod claude_bridge;
 pub mod benchmarks;
 pub mod adversarial_tests;
+pub mod unhappy_scenarios_tests;
