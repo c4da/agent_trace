@@ -95,8 +95,14 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/v1/messages", post(crate::claude_bridge::handle_anthropic_messages).with_state(claude_state))
         .route("/v1/messages/count_tokens", post(crate::claude_bridge::handle_anthropic_count_tokens))
         .route("/v1/models", get(handle_models).with_state(state.proxy_cfg.clone()))
-        // Active AI Guard, Pre-Image CAS Guard, SIEM/ELK Export, Vault & Live Benchmarks
+        // Active AI Guard, Admin Per-Model Governance, Shielded Client, Pre-Image CAS Guard, SIEM/ELK Export, Vault & Live Benchmarks
         .route("/api/v1/guard/intercept", post(guard_intercept_handler))
+        .route("/api/v1/admin/governance", get(crate::admin_governance::get_admin_governance_handler))
+        .route("/api/v1/admin/governance/global", post(crate::admin_governance::update_global_governance_handler))
+        .route("/api/v1/admin/governance/model", post(crate::admin_governance::upsert_model_profile_handler))
+        .route("/api/v1/admin/governance/model/:pattern", delete(crate::admin_governance::delete_model_profile_handler))
+        .route("/api/v1/admin/governance/evaluate", post(crate::admin_governance::evaluate_model_governance_handler))
+        .route("/api/v1/client/shield-status", get(crate::admin_governance::get_client_shield_status_handler))
         .route("/api/v1/cas/status", get(crate::cas_guard::cas_status_handler))
         .route("/api/v1/cas/protect", post(crate::cas_guard::cas_protect_handler))
         .route("/api/v1/cas/enforce", post(crate::cas_guard::cas_enforce_handler))

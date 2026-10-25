@@ -189,17 +189,36 @@ pub async fn handle_anthropic_messages(
     // 2. Extract prompt, bash commands, and file paths for synchronous Pre-Execution Hard Guard inspection
     let (combined_prompt, cmd_opt, path_opt) = extract_anthropic_prompt_and_tools(&req_json);
 
-    let mode_header = headers
+    let client_requested_mode = headers
         .get("x-guard-mode")
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("hard");
-    let guard_mode = if mode_header.eq_ignore_ascii_case("redact") {
-        GuardEnforcementMode::RedactAndForward
-    } else if mode_header.eq_ignore_ascii_case("audit") {
-        GuardEnforcementMode::AuditOnly
-    } else {
-        GuardEnforcementMode::HardBlock
+        .map(|mode_header| {
+            if mode_header.eq_ignore_ascii_case("redact") {
+                GuardEnforcementMode::RedactAndForward
+            } else if mode_header.eq_ignore_ascii_case("audit") {
+                GuardEnforcementMode::AuditOnly
+            } else {
+                GuardEnforcementMode::HardBlock
+            }
+        });
+
+    // 2b. Evaluate Admin Global & Per-Model Restrictions (`AdminGovernanceEngine`)
+    let (gov_decision, shield_terminals) = {
+        let gov_guard = crate::admin_governance::global_admin_governance()
+            .read()
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let dec = gov_guard.evaluate_request(
+            &model_name,
+            Some(&combined_prompt),
+            cmd_opt.as_deref(),
+            path_opt.as_deref(),
+            client_requested_mode,
+        );
+        (dec, gov_guard.global.shield_client_terminals)
     };
+
+    let model_name = gov_decision.effective_model.clone();
+    let guard_mode = gov_decision.effective_enforcement_mode;
 
     let guard_req = GuardInterceptRequest {
         agent_id: agent_identity.canonical_id.clone(),
@@ -216,12 +235,20 @@ pub async fn handle_anthropic_messages(
         mode_override: Some(guard_mode),
     };
 
-    let guard_res = {
+    let mut guard_res = {
         let p_guard = state.policy.read().await;
         evaluate_hard_guard(&guard_req, &p_guard, guard_mode)
     };
 
-    // 3. If Hard Guard triggers, block immediately before any external network call!
+    if !gov_decision.allowed {
+        guard_res.hard_blocked = true;
+        guard_res.verdict = SecurityVerdict::Blocked;
+        guard_res.risk_score = guard_res.risk_score.max(85);
+        guard_res.findings.extend(gov_decision.findings.clone());
+        guard_res.reasons.extend(gov_decision.admin_reasons.clone());
+    }
+
+    // 3. If Hard Guard or Admin Per-Model Policy triggers, block immediately before any external network call!
     if guard_res.hard_blocked {
         let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;
         let ev = TraceEvent {
@@ -238,6 +265,9 @@ pub async fn handle_anthropic_messages(
             action_details: serde_json::json!({
                 "client": "claude-code-terminal",
                 "agent_identity": agent_identity,
+                "requested_model": gov_decision.requested_model,
+                "effective_model": model_name,
+                "model_trust_tier": gov_decision.trust_tier,
                 "guard_mode": "HardBlock",
                 "findings": guard_res.findings,
                 "risk_score": guard_res.risk_score,
@@ -273,19 +303,30 @@ pub async fn handle_anthropic_messages(
             return Err(StatusCode::FORBIDDEN);
         }
 
-        let block_explanation = format!(
-            "🛡️ **[AgentTrace Corporate AI Guard — HARD BLOCK]**\n\n\
-             Your outbound Claude Terminal prompt/action was intercepted locally on `{}` in **{} µs** before leaving your workstation.\n\n\
-             - **Agent Identity**: `{}`\n\
-             - **Risk Score**: `{}/100`\n\
-             - **Triggered Rules**:\n  - {}\n\n\
-             *Zero sensitive bytes were transmitted to external cloud providers. This event has been signed into the local SHA-256 ledger and forwarded to corporate SIEM/ELK.*",
-            state.node_id,
-            guard_res.evaluation_latency_us,
-            agent_identity.canonical_id,
-            guard_res.risk_score,
-            guard_res.reasons.join("\n  - ")
-        );
+        let block_explanation = if shield_terminals {
+            gov_decision.shielded_client_message.unwrap_or_else(|| {
+                format!(
+                    "🛡️ [AgentTrace Shielded Terminal] This request was intercepted by your Administrator's security policy for model `{}` ({:?} tier). Zero sensitive data left your workstation, and your terminal session remains active.",
+                    model_name, gov_decision.trust_tier
+                )
+            })
+        } else {
+            format!(
+                "🛡️ **[AgentTrace AI Guard — HARD BLOCK]**\n\n\
+                 Your outbound Claude Terminal prompt/action was intercepted locally on `{}` in **{} µs** before leaving your workstation.\n\n\
+                 - **Agent Identity**: `{}`\n\
+                 - **Model Profile**: `{}` (`{:?}`)\n\
+                 - **Risk Score**: `{}/100`\n\
+                 - **Triggered Rules**:\n  - {}",
+                state.node_id,
+                guard_res.evaluation_latency_us,
+                agent_identity.canonical_id,
+                model_name,
+                gov_decision.trust_tier,
+                guard_res.risk_score,
+                guard_res.reasons.join("\n  - ")
+            )
+        };
 
         return Ok(build_anthropic_response(
             &model_name,
@@ -297,7 +338,10 @@ pub async fn handle_anthropic_messages(
     }
 
     // 4. If RedactAndForward scrubbed a secret, rewrite the prompt in the JSON payload before forwarding!
-    let effective_prompt = guard_res.sanitized_prompt.clone().unwrap_or(combined_prompt.clone());
+    let mut effective_prompt = guard_res.sanitized_prompt.clone().unwrap_or(combined_prompt.clone());
+    if let Some(ref sys_prefix) = gov_decision.injected_system_prefix {
+        effective_prompt = format!("{}\n{}", sys_prefix, effective_prompt);
+    }
     if guard_res.verdict == SecurityVerdict::Flagged {
         if let Some(msgs) = req_json.get_mut("messages").and_then(|m| m.as_array_mut()) {
             for msg in msgs.iter_mut() {

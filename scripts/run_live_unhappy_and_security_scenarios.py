@@ -150,11 +150,52 @@ def run_scenarios():
         print(f" -> Restored deleted file in {e_resp.get('evaluation_latency_us')} µs!")
 
     t_status, t_data = get_json(f"{LEAD_URL}/api/v1/agent/tools")
-    assert t_status == 200 and len(t_data.get("tools", [])) >= 34, "Expected 34 registered MCP/Agent tools"
+    assert t_status == 200 and len(t_data.get("tools", [])) >= 35, "Expected 35 registered MCP/Agent tools"
     print(f" [PASS] Pre-Image CAS restored deleted file & verified {len(t_data['tools'])} native MCP tools!")
 
+    # Scenario 7: Live Admin Per-Model Governance Plane & Shielded Claude Terminal Client
+    print("\n[Scenario 7] Live Admin Per-Model Governance & Shielded Claude Terminal Client...")
+    # 1. Verify Shielded Client view exposes zero internal regexes
+    cs_status, cs_data = get_json(f"{LEAD_URL}/api/v1/client/shield-status")
+    assert cs_status == 200 and cs_data.get("shield_active") is True, f"Shield status failed: {cs_data}"
+
+    # 2. Verify Admin per-model restriction: deepseek-r1:1.5b is blocked from shell execution, while qwen3.8:27b is allowed
+    d_status, d_eval = post_json(
+        f"{LEAD_URL}/api/v1/admin/governance/evaluate",
+        {"model": "deepseek-r1:1.5b", "command": "cargo test", "target_path": "src/main.rs"}
+    )
+    assert d_status == 403 and d_eval.get("allowed") is False, f"deepseek-r1:1.5b should be blocked from shell/src write: {d_eval}"
+
+    q_status, q_eval = post_json(
+        f"{LEAD_URL}/api/v1/admin/governance/evaluate",
+        {"model": "qwen3.8:27b", "command": "cargo test", "target_path": "src/main.rs"}
+    )
+    assert q_status == 200 and q_eval.get("allowed") is True, f"qwen3.8:27b should be allowed: {q_eval}"
+
+    # 3. Verify Claude Terminal Client (`/v1/messages`) is shielded when invoking a restricted model tool
+    claude_msg_status, claude_msg_resp = post_json(
+        f"{LEAD_URL}/v1/messages",
+        {
+            "model": "deepseek-r1:1.5b",
+            "max_tokens": 256,
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "name": "bash", "input": {"command": "cargo test", "file_path": "src/main.rs"}}
+                    ]
+                }
+            ]
+        }
+    )
+    assert claude_msg_status == 200, "Shielded Claude Terminal must receive graceful HTTP 200 Anthropic message"
+    reply_text = claude_msg_resp.get("content", [{}])[0].get("text", "")
+    assert "Shielded Terminal" in reply_text, f"Expected Shielded Terminal notice, got: {reply_text}"
+    print(" -> Shielded Claude Terminal gracefully handled per-model restriction without crashing CLI!")
+    print(" [PASS] Admin Per-Model Governance & Shielded Client Layer verified live!")
+
     print("\n==================================================================")
-    print("  ALL 6 LIVE UNHAPPY & SECURITY SCENARIOS PASSED WITH ZERO ERRORS!")
+    print("  ALL 7 LIVE UNHAPPY & SECURITY SCENARIOS PASSED WITH ZERO ERRORS!")
     print("==================================================================")
 
 if __name__ == "__main__":

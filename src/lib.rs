@@ -33,6 +33,7 @@ pub mod cluster_health;
 pub mod agent_identity;
 pub mod security_hardening;
 pub mod ai_guard;
+pub mod admin_governance;
 pub mod siem_exporter;
 pub mod claude_bridge;
 pub mod benchmarks;

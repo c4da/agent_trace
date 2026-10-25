@@ -84,6 +84,7 @@ async fn dispatch_tool(
         "protect_or_revert_cas_file" => exec_protect_or_revert_cas_file(&req.parameters),
         "encrypt_vault_secret" => exec_encrypt_vault_secret(&req.parameters),
         "export_siem_elk" => exec_export_siem_elk(state, &req.parameters),
+        "manage_admin_model_governance" => exec_manage_admin_model_governance(&req.parameters),
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     }
 }
@@ -720,5 +721,50 @@ fn exec_export_siem_elk(state: &AgentInterfaceState, params: &Value) -> (bool, V
             (true, json!({ "exported_events": typed.len(), "format": fmt, "ecs_version": "8.11.0", "ndjson": ndjson }), None)
         }
         Err(e) => (false, json!({}), Some(format!("Failed to query events for SIEM export: {}", e))),
+    }
+}
+
+/// Admin Governance Plane tool to inspect, upsert, or evaluate per-model restrictions.
+fn exec_manage_admin_model_governance(params: &Value) -> (bool, Value, Option<String>) {
+    let op = params.get("operation").and_then(|v| v.as_str()).unwrap_or("list");
+    match op {
+        "upsert_model" => {
+            let Some(prof_val) = params.get("profile") else {
+                return (false, json!({}), Some("'profile' object is required for operation='upsert_model'".to_string()));
+            };
+            let Ok(profile) = serde_json::from_value::<crate::admin_governance::ModelRestrictionProfile>(prof_val.clone()) else {
+                return (false, json!({}), Some("Invalid ModelRestrictionProfile JSON structure".to_string()));
+            };
+            let Ok(mut gov) = crate::admin_governance::global_admin_governance().write() else {
+                return (false, json!({}), Some("Governance lock poisoned".to_string()));
+            };
+            let saved = gov.upsert_model_profile(profile);
+            (true, serde_json::to_value(saved).unwrap_or(json!({})), None)
+        }
+        "evaluate" => {
+            let model = params.get("model").and_then(|v| v.as_str()).unwrap_or("claude-3-7-sonnet-latest");
+            let cmd = params.get("command").and_then(|v| v.as_str());
+            let path = params.get("target_path").and_then(|v| v.as_str());
+            let prompt = params.get("prompt_text").and_then(|v| v.as_str());
+            let Ok(gov) = crate::admin_governance::global_admin_governance().read() else {
+                return (false, json!({}), Some("Governance lock poisoned".to_string()));
+            };
+            let dec = gov.evaluate_request(model, prompt, cmd, path, None);
+            (true, serde_json::to_value(dec).unwrap_or(json!({})), None)
+        }
+        _ => {
+            let Ok(gov) = crate::admin_governance::global_admin_governance().read() else {
+                return (false, json!({}), Some("Governance lock poisoned".to_string()));
+            };
+            (
+                true,
+                json!({
+                    "global": gov.global,
+                    "model_profiles": gov.model_profiles,
+                    "default_profile": gov.default_profile
+                }),
+                None,
+            )
+        }
     }
 }

@@ -250,4 +250,127 @@ mod tests {
             crate::cas_guard::CasVerdict::Untracked
         );
     }
+
+    #[test]
+    fn test_unhappy_admin_per_model_restrictions_shell_and_playground_confinement() {
+        use crate::admin_governance::AdminGovernanceEngine;
+
+        let gov = AdminGovernanceEngine::new_with_defaults();
+
+        // 1. Small 1.5B worker model (`deepseek-r1:1.5b`) attempting to run a benign shell command -> BLOCKED by per-model policy!
+        let d_shell = gov.evaluate_request("deepseek-r1:1.5b", Some("list files"), Some("cargo test"), None, None);
+        assert!(!d_shell.allowed, "deepseek-r1:1.5b must NOT be allowed to run shell commands");
+        assert!(d_shell.findings.iter().any(|f| f.rule_id == "ADMIN-MODEL-003-SHELL-FORBIDDEN"));
+
+        // 2. `deepseek-r1:1.5b` attempting to write to `src/main.rs` -> BLOCKED by per-model playground confinement!
+        let d_write_src = gov.evaluate_request("deepseek-r1:1.5b", Some("edit main"), None, Some("src/main.rs"), None);
+        assert!(!d_write_src.allowed, "deepseek-r1:1.5b must be confined to playground/");
+        assert!(d_write_src.findings.iter().any(|f| f.rule_id == "ADMIN-MODEL-005-PLAYGROUND-CONFINEMENT"));
+
+        // 3. `deepseek-r1:1.5b` writing inside `playground/experiment.rs` -> ALLOWED!
+        let d_write_pg = gov.evaluate_request("deepseek-r1:1.5b", Some("edit playground"), None, Some("playground/experiment.rs"), None);
+        assert!(d_write_pg.allowed, "deepseek-r1:1.5b should be allowed to write inside playground/");
+
+        // 4. Sovereign Lead model (`qwen3.8:27b`) writing to `src/main.rs` and running `cargo test` -> ALLOWED!
+        let q_lead = gov.evaluate_request("qwen3.8:27b", Some("refactor main"), Some("cargo test"), Some("src/main.rs"), None);
+        assert!(q_lead.allowed, "qwen3.8:27b lead model should be permitted to edit src/main.rs and run cargo test");
+    }
+
+    #[test]
+    fn test_unhappy_client_cannot_weaken_admin_enforcement_mode_or_access_admin_plane() {
+        use crate::admin_governance::{verify_admin_access, AdminGovernanceEngine};
+        use crate::ai_guard::GuardEnforcementMode;
+        use axum::http::{HeaderMap, HeaderValue};
+
+        let gov = AdminGovernanceEngine::new_with_defaults();
+
+        // 1. Client attempting to downgrade `gpt-4o` (HardBlock) to `AuditOnly` -> Ignored by Admin shield!
+        let dec = gov.evaluate_request(
+            "gpt-4o",
+            Some("check code"),
+            None,
+            None,
+            Some(GuardEnforcementMode::AuditOnly),
+        );
+        assert_eq!(
+            dec.effective_enforcement_mode,
+            GuardEnforcementMode::HardBlock,
+            "Client MUST NOT be able to weaken Admin HardBlock mode to AuditOnly"
+        );
+
+        // 2. Client terminal attempting to call Admin Governance endpoints with `x-client-role: client` -> Rejected!
+        let mut client_headers = HeaderMap::new();
+        client_headers.insert("x-client-role", HeaderValue::from_static("client"));
+        assert!(
+            !verify_admin_access(&client_headers, &gov),
+            "Shielded client role must be rejected from Admin Governance Plane"
+        );
+    }
+
+    #[test]
+    fn test_unhappy_admin_disabled_model_transparent_reroute_vs_hard_block() {
+        use crate::admin_governance::{AdminGovernanceEngine, ModelRestrictionProfile, ModelTrustTier};
+        use crate::ai_guard::GuardEnforcementMode;
+
+        let mut gov = AdminGovernanceEngine::new_with_defaults();
+
+        // 1. Admin disables `gpt-4o` with fallback to `qwen3.8:27b` -> Client request transparently reroutes!
+        let mut gpt_profile = gov.resolve_profile("gpt-4o");
+        gpt_profile.model_pattern = "gpt-4o".to_string();
+        gpt_profile.enabled = false;
+        gpt_profile.fallback_model = Some("qwen3.8:27b".to_string());
+        gov.upsert_model_profile(gpt_profile);
+
+        let rerouted = gov.evaluate_request("gpt-4o", Some("Write unit tests"), Some("cargo test"), Some("src/lib.rs"), None);
+        assert!(rerouted.transparently_rerouted);
+        assert_eq!(rerouted.effective_model, "qwen3.8:27b");
+        assert!(rerouted.allowed, "After rerouting to qwen3.8:27b, cargo test & src/lib.rs must be allowed");
+
+        // 2. Admin disables `untrusted-cloud:latest` with NO fallback -> Blocked with shielded client message!
+        gov.upsert_model_profile(ModelRestrictionProfile {
+            model_pattern: "untrusted-cloud:*".to_string(),
+            display_name: "Blocked Cloud Model".to_string(),
+            trust_tier: ModelTrustTier::RestrictedUntrusted,
+            enabled: false,
+            fallback_model: None,
+            enforcement_mode: GuardEnforcementMode::HardBlock,
+            strict_cloud_dlp: true,
+            allow_shell_execution: false,
+            allow_file_writes: false,
+            confine_to_playground: true,
+            allowed_path_prefixes: vec![],
+            blocked_path_patterns: vec![],
+            max_prompt_chars: 1000,
+            admin_system_prompt_prefix: None,
+        });
+
+        let blocked = gov.evaluate_request("untrusted-cloud:latest", Some("hello"), None, None, None);
+        assert!(!blocked.allowed);
+        assert!(blocked.findings.iter().any(|f| f.rule_id == "ADMIN-MODEL-001-DISABLED"));
+        assert!(blocked.shielded_client_message.is_some());
+    }
+
+    #[test]
+    fn test_unhappy_admin_per_model_prompt_ceiling_and_global_vault_lock() {
+        use crate::admin_governance::AdminGovernanceEngine;
+
+        let gov = AdminGovernanceEngine::new_with_defaults();
+
+        // 1. Even Sovereign Lead model (`qwen3.8:27b`) is blocked from touching `.secrets/agenttrace.env`
+        let vault_attempt = gov.evaluate_request(
+            "qwen3.8:27b",
+            Some("read secrets"),
+            None,
+            Some(".secrets/agenttrace.env"),
+            None,
+        );
+        assert!(!vault_attempt.allowed);
+        assert!(vault_attempt.findings.iter().any(|f| f.rule_id == "ADMIN-GLOBAL-VAULT-LOCK"));
+
+        // 2. Prompt exceeding `deepseek-r1:1.5b` 64,000-char limit is blocked
+        let huge_prompt = "A".repeat(70_000);
+        let ceiling_attempt = gov.evaluate_request("deepseek-r1:1.5b", Some(&huge_prompt), None, None, None);
+        assert!(!ceiling_attempt.allowed);
+        assert!(ceiling_attempt.findings.iter().any(|f| f.rule_id == "ADMIN-MODEL-002-PROMPT-CEILING"));
+    }
 }

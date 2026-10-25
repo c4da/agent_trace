@@ -68,10 +68,29 @@ pub async fn handle_chat_completions(
         .or_else(crate::antigravity_watcher::get_latest_session_id)
         .unwrap_or_else(|| "active_session".to_string());
 
-    // 0b. Synchronous Pre-Execution AI Guard Inspection (DLP Secret Leaks + Prompt Injection + Destructive Commands)
+    // 0b. Synchronous Pre-Execution AI Guard + Admin Per-Model Governance Inspection
     let (dlp_findings, scrubbed_prompt) = crate::ai_guard::scan_and_redact_secrets(&last_prompt);
     let pi_findings = crate::ai_guard::scan_prompt_injection(&last_prompt);
     let cmd_findings = crate::ai_guard::inspect_shell_command_hard(&last_prompt);
+
+    let gov_decision = crate::admin_governance::global_admin_governance()
+        .read()
+        .ok()
+        .map(|gov| {
+            gov.evaluate_request(
+                &model_name,
+                Some(&last_prompt),
+                if !cmd_findings.is_empty() { Some(last_prompt.as_str()) } else { None },
+                None,
+                None,
+            )
+        });
+
+    let model_name = gov_decision
+        .as_ref()
+        .map(|d| d.effective_model.clone())
+        .unwrap_or(model_name);
+    let gov_blocked = gov_decision.as_ref().map(|d| !d.allowed).unwrap_or(false);
 
     let enforce_hard_guard = headers
         .get("x-guard-mode")
@@ -79,9 +98,10 @@ pub async fn handle_chat_completions(
         .map(|m| m.eq_ignore_ascii_case("hard"))
         .unwrap_or(false)
         || !pi_findings.is_empty()
-        || !cmd_findings.is_empty();
+        || !cmd_findings.is_empty()
+        || gov_blocked;
 
-    if enforce_hard_guard && (!dlp_findings.is_empty() || !pi_findings.is_empty() || !cmd_findings.is_empty()) {
+    if gov_blocked || (enforce_hard_guard && (!dlp_findings.is_empty() || !pi_findings.is_empty() || !cmd_findings.is_empty())) {
         let agent_ident = crate::agent_identity::AgentIdentity::from_headers_and_session(
             &headers,
             "PC-1",
@@ -91,6 +111,9 @@ pub async fn handle_chat_completions(
         let mut reasons = Vec::new();
         for f in dlp_findings.iter().chain(pi_findings.iter()).chain(cmd_findings.iter()) {
             reasons.push(format!("[{}] {}", f.rule_id, f.description));
+        }
+        if let Some(ref gd) = gov_decision {
+            reasons.extend(gd.admin_reasons.clone());
         }
         let mut blocked_ev = TraceEvent {
             event_id: uuid::Uuid::new_v4().simple().to_string(),

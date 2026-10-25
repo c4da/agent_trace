@@ -686,6 +686,37 @@ pub async fn get_agent_tools() -> Json<Value> {
                         }
                     }
                 }
+            },
+            {
+                "name": "manage_admin_model_governance",
+                "description": "Admin Governance Plane tool to inspect global/per-model restrictions ('list'), upsert model-specific restrictions ('upsert_model'), or evaluate how the Shielded Client layer enforces restrictions on a given model ('evaluate').",
+                "parameters": {
+                    "type": "object",
+                    "required": ["operation"],
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["list", "upsert_model", "evaluate"],
+                            "description": "'list' returns global + per-model profiles; 'upsert_model' updates restrictions for a model pattern; 'evaluate' dry-runs a request against a model profile."
+                        },
+                        "model": {
+                            "type": "string",
+                            "description": "Target model name or pattern (e.g., 'claude-*', 'deepseek-r1:1.5b', 'qwen3.8:27b', 'gpt-*')."
+                        },
+                        "command": {
+                            "type": "string",
+                            "description": "Optional shell command to test during 'evaluate'."
+                        },
+                        "target_path": {
+                            "type": "string",
+                            "description": "Optional file path to test during 'evaluate'."
+                        },
+                        "profile": {
+                            "type": "object",
+                            "description": "Full ModelRestrictionProfile JSON object when operation='upsert_model'."
+                        }
+                    }
+                }
             }
         ]
     });
