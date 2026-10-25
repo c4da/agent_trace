@@ -83,7 +83,7 @@ The current test coverage is insufficient for a system handling sensitive data, 
     1.  Successful keypair generation and storage.
     2.  Sign-and-Verify roundtrip test using Ed25519.
     3.  Negative test: Attempting verification with an invalid signature or a key from a different identity.
-    4.  Testing hash chaining integrity (ensuring the current node hash correctly incorporates the previous node's hash).
+    4.  Testing hash chaining integrity (ensuring the current node hash correctly inenterprises the previous node's hash).
 
 ### 🛡️ `policy.rs` (Access Control Logic)
 *   **Goal:** Verify granular access rules under all conditions.

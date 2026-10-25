@@ -75,6 +75,6 @@ This textbook serves as both an authoritative conceptual reference and an operat
   - Optional Secrets-at-Rest Encryption (`ring::aead::CHACHA20_POLY1305` `ENCv1:` envelopes)
   - Constant-Time Bearer & API-Key Authentication (`constant_time_eq`)
   - Transport Layer Security (TLS) & Inter-Gateway Mutual TLS (mTLS Thumbprint Pinning + HMAC-SHA256 Anti-Replay)
-  - Synchronous Pre-Execution Hard AI Guard (`HardBlock` vs. `RedactAndForward` vs. `AuditOnly`) & Corporate Claude Code Terminal Hub (`/v1/messages`)
+  - Synchronous Pre-Execution Hard AI Guard (`HardBlock` vs. `RedactAndForward` vs. `AuditOnly`), Admin Per-Model Governance (`src/admin_governance.rs`), & Shielded Claude Code Terminal Hub (`/v1/messages`)
   - Enterprise 3rd-Party SIEM & ELK Stack Integration (Elastic Common Schema ECS 8.11 `/_bulk` NDJSON)
 

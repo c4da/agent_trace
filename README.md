@@ -119,15 +119,15 @@ Most AI observability stacks are **passive rear-view mirrors**: they log a trace
 *Automatically measured and updated on every commit via [`scripts/update_benchmarks_and_badges.py`](scripts/update_benchmarks_and_badges.py) and [`.githooks/pre-commit`](.githooks/pre-commit). Full hardware report: **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)**.*
 
 <!-- BENCHMARK_START -->
-> **Auto-Verified on Commit `e181bf0` (`2026-10-25 11:15:43 UTC`)** · Process Memory RSS: **`13.21 MB`** · Test Suite: **`120 Rust Unit/Adversarial + 7 E2E Passed`**
+> **Auto-Verified on Commit `028f6ff` (`2026-10-25 12:51:46 UTC`)** · Process Memory RSS: **`12.63 MB`** · Test Suite: **`120 Rust Unit/Adversarial + 7 E2E Passed`**
 
 | Operation | p50 Latency | p95 Latency | Target SLA | Verdict |
 | :--- | :---: | :---: | :---: | :---: |
-| **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.260 ms`** (`1260 µs`) | `3.791 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.759 ms`** (`1759 µs`) | `3.259 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **SHA-256 + Ed25519 Signed Block Commit** | **`0.424 ms`** (`424 µs`) | `0.709 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`4.931 ms`** (`4931 µs`) | `5.470 ms` | `< 5.0 ms` | ✅ **PASS** |
-| **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.019 ms`** (`19 µs`) | `0.021 ms` | `< 1.0 ms` | ✅ **PASS** |
+| **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.539 ms`** (`1539 µs`) | `4.263 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.779 ms`** (`1779 µs`) | `3.024 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **SHA-256 + Ed25519 Signed Block Commit** | **`0.316 ms`** (`316 µs`) | `0.453 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`4.653 ms`** (`4653 µs`) | `5.340 ms` | `< 5.0 ms` | ✅ **PASS** |
+| **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.018 ms`** (`18 µs`) | `0.019 ms` | `< 1.0 ms` | ✅ **PASS** |
 <!-- BENCHMARK_END -->
 
 ---

@@ -64,7 +64,7 @@ Notice how the loop **always** inspects every byte before checking `diff == 0`!
 
 ## 3. Inter-Gateway mTLS & Anti-Replay HMAC Signing
 
-When connecting multiple AgentTrace Gateways across a corporate network (`AGENTTRACE_MTLS_REQUIRED=true`), [`InterGatewayMtlsConfig`](../../src/security_hardening.rs) combines:
+When connecting multiple AgentTrace Gateways across an enterprise network (`AGENTTRACE_MTLS_REQUIRED=true`), [`InterGatewayMtlsConfig`](../../src/security_hardening.rs) combines:
 - **`HashSet<String>` O(1) Thumbprint Pinning**: Checks the peer's X.509 client certificate SHA-256 fingerprint (`x-client-cert-sha256`).
 - **HMAC-SHA256 + Clock-Skew Window (`ring::hmac`)**:
   ```rust

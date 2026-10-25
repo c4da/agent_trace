@@ -27,7 +27,7 @@ Before diving into implementation, we must establish a rigorous taxonomy of the 
 
 ### 3.1.2 The Modern Edge Fabric: A Synthesis
 
-In a sophisticated LLM-driven architecture, the Edge Fabric often incorporates all these roles:
+In a sophisticated LLM-driven architecture, the Edge Fabric often inenterprises all these roles:
 
 1.  **The Reverse Proxy** handles initial TLS termination and basic rate limiting.
 2.  **The API Gateway** enforces user authentication and translates the high-level client request (e.g., `chat/completions`) into an internal service contract.
