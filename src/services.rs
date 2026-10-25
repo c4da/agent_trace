@@ -335,7 +335,7 @@ pub fn spawn_cas_guard_service(
     db: crate::db::Database,
     identity: Arc<NodeIdentity>,
 ) -> (Arc<PreImageCasGuard>, tokio::task::JoinHandle<()>) {
-    let guard = Arc::new(PreImageCasGuard::new());
+    let guard = Arc::new(crate::cas_guard::global_cas_guard().clone());
     guard.protect_workspace_invariants(root);
 
     let guard_clone = guard.clone();

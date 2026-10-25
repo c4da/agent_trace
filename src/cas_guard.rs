@@ -9,9 +9,15 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::{Arc, OnceLock, RwLock},
 };
 use tracing::{error, info, warn};
+
+/// Global process-wide Pre-Image CAS Guard instance shared across background watcher, HTTP API, and MCP tools.
+pub fn global_cas_guard() -> &'static PreImageCasGuard {
+    static INSTANCE: OnceLock<PreImageCasGuard> = OnceLock::new();
+    INSTANCE.get_or_init(PreImageCasGuard::new)
+}
 
 /// Result of a CAS inspection and enforcement check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,10 +122,14 @@ impl PreImageCasGuard {
             "AGENTS.md",
         ];
 
+        let strict_default = std::env::var("AGENTTRACE_CAS_STRICT")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
         for rel in &critical_files {
             let p = root.join(rel);
             if p.is_file() {
-                if let Err(e) = self.protect_file(&p, true) {
+                if let Err(e) = self.protect_file(&p, strict_default) {
                     warn!("CAS Guard could not snapshot {}: {}", p.display(), e);
                 } else {
                     info!("CAS Guard actively snapshotting {}", p.display());
@@ -131,6 +141,26 @@ impl PreImageCasGuard {
     /// Returns the number of files currently protected by the pre-image cache.
     pub fn protected_count(&self) -> usize {
         self.snapshots.read().unwrap().len()
+    }
+
+    /// Returns all canonical paths currently tracked in the pre-image cache.
+    pub fn tracked_paths(&self) -> Vec<PathBuf> {
+        self.snapshots.read().unwrap().keys().cloned().collect()
+    }
+
+    /// Returns metadata for all protected files in the pre-image cache.
+    pub fn list_protected_files(&self) -> Vec<serde_json::Value> {
+        let map = self.snapshots.read().unwrap();
+        map.iter()
+            .map(|(k, v)| {
+                serde_json::json!({
+                    "path": k.to_string_lossy(),
+                    "sha256": v.sha256,
+                    "size_bytes": v.bytes.len(),
+                    "is_strictly_guarded": v.is_strictly_guarded,
+                })
+            })
+            .collect()
     }
 
     /// Inspects a file modification and enforces strict pre-image rollback if unauthorized.
@@ -207,6 +237,78 @@ impl PreImageCasGuard {
             CasVerdict::Allowed
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CasProtectRequest {
+    pub path: String,
+    #[serde(default = "default_strictly_guarded")]
+    pub strictly_guarded: bool,
+}
+
+fn default_strictly_guarded() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CasEnforceRequest {
+    pub path: String,
+    #[serde(default)]
+    pub active_agent_confined: bool,
+}
+
+/// Returns status and all protected pre-image files (`GET /api/v1/cas/status`).
+pub async fn cas_status_handler() -> axum::Json<serde_json::Value> {
+    let guard = global_cas_guard();
+    let files = guard.list_protected_files();
+    axum::Json(serde_json::json!({
+        "protected_count": files.len(),
+        "files": files,
+    }))
+}
+
+/// Snapshots a file into the in-memory Pre-Image CAS cache (`POST /api/v1/cas/protect`).
+pub async fn cas_protect_handler(
+    axum::Json(req): axum::Json<CasProtectRequest>,
+) -> (axum::http::StatusCode, axum::Json<serde_json::Value>) {
+    let guard = global_cas_guard();
+    let p = Path::new(&req.path);
+    match guard.protect_file(p, req.strictly_guarded) {
+        Ok(sha256) => (
+            axum::http::StatusCode::OK,
+            axum::Json(serde_json::json!({
+                "status": "protected",
+                "path": req.path,
+                "sha256": sha256,
+                "strictly_guarded": req.strictly_guarded,
+            })),
+        ),
+        Err(e) => (
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "path": req.path,
+                "error": format!("Failed to snapshot file: {}", e),
+            })),
+        ),
+    }
+}
+
+/// Inspects a file and immediately reverts unauthorized modifications or deletions (`POST /api/v1/cas/enforce`).
+pub async fn cas_enforce_handler(
+    axum::Json(req): axum::Json<CasEnforceRequest>,
+) -> (axum::http::StatusCode, axum::Json<serde_json::Value>) {
+    let t0 = std::time::Instant::now();
+    let guard = global_cas_guard();
+    let verdict = guard.inspect_and_enforce(Path::new(&req.path), req.active_agent_confined);
+    let latency_us = t0.elapsed().as_micros() as u64;
+    (
+        axum::http::StatusCode::OK,
+        axum::Json(serde_json::json!({
+            "verdict": verdict,
+            "evaluation_latency_us": latency_us,
+        })),
+    )
 }
 
 #[cfg(test)]

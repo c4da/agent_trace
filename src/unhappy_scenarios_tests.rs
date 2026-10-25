@@ -236,4 +236,18 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_unhappy_cas_global_guard_nonexistent_and_tracked_paths() {
+        let guard = crate::cas_guard::PreImageCasGuard::new();
+        let bad_path = std::path::Path::new("C:/non_existent_dir_99999/missing.rs");
+        assert!(
+            guard.protect_file(bad_path, true).is_err(),
+            "Protecting a non-existent file must return Err"
+        );
+        assert_eq!(
+            guard.inspect_and_enforce(bad_path, true),
+            crate::cas_guard::CasVerdict::Untracked
+        );
+    }
 }

@@ -125,8 +125,36 @@ def run_scenarios():
     assert any("Worker" in nid or "PC-2" in nid for nid in online_ids), "PC-2 worker must be registered and Online!"
     print(" [PASS] Autonomous cluster health watchdog verified PC-2 Worker Node as ONLINE!")
 
+    # Scenario 6: Live Pre-Image CAS File Snapshot, Rogue Deletion Recovery & 34 MCP Tools
+    print("\n[Scenario 6] Live Pre-Image CAS Snapshot, Rogue Deletion Recovery & 34 MCP Tools...")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_file = os.path.join(tmpdir, "critical_schema.sql")
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write("CREATE TABLE production_users (id INT PRIMARY KEY);")
+
+        # 1. Snapshot via HTTP CAS Protect API
+        p_status, p_resp = post_json(f"{LEAD_URL}/api/v1/cas/protect", {"path": test_file, "strictly_guarded": True})
+        assert p_status == 200 and p_resp.get("status") == "protected", f"CAS protect failed: {p_resp}"
+
+        # 2. Simulate rogue deletion of the protected file
+        os.remove(test_file)
+        assert not os.path.exists(test_file), "File should be deleted before CAS enforcement"
+
+        # 3. Trigger CAS enforce API -> must restore deleted file in <2ms!
+        e_status, e_resp = post_json(f"{LEAD_URL}/api/v1/cas/enforce", {"path": test_file})
+        assert e_status == 200, f"CAS enforce failed: {e_resp}"
+        assert "Reverted" in e_resp.get("verdict", {}), f"Expected Reverted verdict, got {e_resp}"
+        assert os.path.exists(test_file), "CAS Guard MUST recreate deleted file on disk!"
+        with open(test_file, "r", encoding="utf-8") as f:
+            assert f.read() == "CREATE TABLE production_users (id INT PRIMARY KEY);"
+        print(f" -> Restored deleted file in {e_resp.get('evaluation_latency_us')} µs!")
+
+    t_status, t_data = get_json(f"{LEAD_URL}/api/v1/agent/tools")
+    assert t_status == 200 and len(t_data.get("tools", [])) >= 34, "Expected 34 registered MCP/Agent tools"
+    print(f" [PASS] Pre-Image CAS restored deleted file & verified {len(t_data['tools'])} native MCP tools!")
+
     print("\n==================================================================")
-    print("  ALL 5 LIVE UNHAPPY & SECURITY SCENARIOS PASSED WITH ZERO ERRORS!")
+    print("  ALL 6 LIVE UNHAPPY & SECURITY SCENARIOS PASSED WITH ZERO ERRORS!")
     print("==================================================================")
 
 if __name__ == "__main__":

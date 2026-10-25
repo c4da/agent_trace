@@ -80,6 +80,10 @@ async fn dispatch_tool(
         "list_containment_zones" => exec_list_containment_zones(state).await,
         "upsert_containment_zone" => exec_upsert_containment_zone(state, &req.parameters).await,
         "confine_agent_to_playground" => exec_confine_agent_to_playground(state, &req.parameters).await,
+        "intercept_ai_guard" => exec_intercept_ai_guard(state, &req.agent_id, &req.parameters).await,
+        "protect_or_revert_cas_file" => exec_protect_or_revert_cas_file(&req.parameters),
+        "encrypt_vault_secret" => exec_encrypt_vault_secret(&req.parameters),
+        "export_siem_elk" => exec_export_siem_elk(state, &req.parameters),
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     }
 }
@@ -624,3 +628,97 @@ async fn exec_confine_agent_to_playground(
     (true, serde_json::to_value(updated).unwrap_or(json!({})), None)
 }
 
+
+/// Runs synchronous Pre-Execution Hard AI Guard inspection via MCP/Agent interface.
+async fn exec_intercept_ai_guard(
+    state: &AgentInterfaceState,
+    agent_id: &str,
+    params: &Value,
+) -> (bool, Value, Option<String>) {
+    let action = params.get("action").and_then(|v| v.as_str()).unwrap_or("LlmInference").to_string();
+    let target_path = params.get("target_path").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let command = params.get("command").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let prompt_text = params.get("prompt_text").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let mode_override = match params.get("mode").and_then(|v| v.as_str()).unwrap_or("HardBlock") {
+        "RedactAndForward" => Some(crate::ai_guard::GuardEnforcementMode::RedactAndForward),
+        "AuditOnly" => Some(crate::ai_guard::GuardEnforcementMode::AuditOnly),
+        _ => Some(crate::ai_guard::GuardEnforcementMode::HardBlock),
+    };
+
+    let req = crate::ai_guard::GuardInterceptRequest {
+        agent_id: agent_id.to_string(),
+        action,
+        target_path,
+        command,
+        prompt_text,
+        mode_override,
+    };
+
+    let res = {
+        let p_guard = state.policy.read().await;
+        crate::ai_guard::evaluate_hard_guard(&req, &p_guard, crate::ai_guard::GuardEnforcementMode::HardBlock)
+    };
+    (true, serde_json::to_value(res).unwrap_or(json!({})), None)
+}
+
+/// Snapshots, enforces/reverts, or lists files in the Pre-Image CAS Guard.
+fn exec_protect_or_revert_cas_file(params: &Value) -> (bool, Value, Option<String>) {
+    let op = params.get("operation").and_then(|v| v.as_str()).unwrap_or("list");
+    let guard = crate::cas_guard::global_cas_guard();
+
+    match op {
+        "protect" => {
+            let Some(path_str) = params.get("path").and_then(|v| v.as_str()) else {
+                return (false, json!({}), Some("'path' is required for operation='protect'".to_string()));
+            };
+            let strictly = params.get("strictly_guarded").and_then(|v| v.as_bool()).unwrap_or(true);
+            match guard.protect_file(std::path::Path::new(path_str), strictly) {
+                Ok(sha256) => (true, json!({ "status": "protected", "path": path_str, "sha256": sha256, "strictly_guarded": strictly }), None),
+                Err(e) => (false, json!({}), Some(format!("Failed to snapshot '{}': {}", path_str, e))),
+            }
+        }
+        "enforce" => {
+            let Some(path_str) = params.get("path").and_then(|v| v.as_str()) else {
+                return (false, json!({}), Some("'path' is required for operation='enforce'".to_string()));
+            };
+            let t0 = std::time::Instant::now();
+            let verdict = guard.inspect_and_enforce(std::path::Path::new(path_str), false);
+            let elapsed_us = t0.elapsed().as_micros() as u64;
+            (true, json!({ "verdict": verdict, "evaluation_latency_us": elapsed_us }), None)
+        }
+        _ => {
+            let files = guard.list_protected_files();
+            (true, json!({ "protected_count": files.len(), "files": files }), None)
+        }
+    }
+}
+
+/// Encrypts a plaintext secret using the ChaCha20-Poly1305 AEAD Vault.
+fn exec_encrypt_vault_secret(params: &Value) -> (bool, Value, Option<String>) {
+    let Some(plaintext) = params.get("plaintext").and_then(|v| v.as_str()) else {
+        return (false, json!({}), Some("'plaintext' parameter is required".to_string()));
+    };
+    let vault = crate::security_hardening::EncryptedSecretVault::load_default();
+    match vault.encrypt(plaintext) {
+        Ok(enc) => (true, json!({ "cipher": "ChaCha20-Poly1305 (AEAD)", "encrypted_value": enc }), None),
+        Err(e) => (false, json!({}), Some(e)),
+    }
+}
+
+/// Exports recent telemetry in Elastic Common Schema (ECS 8.11.0) NDJSON.
+fn exec_export_siem_elk(state: &AgentInterfaceState, params: &Value) -> (bool, Value, Option<String>) {
+    let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(25).clamp(1, 500) as usize;
+    let fmt = params.get("format").and_then(|v| v.as_str()).unwrap_or("bulk");
+    match state.db.get_recent_events(limit) {
+        Ok(raw_events) => {
+            let typed: Vec<TraceEvent> = raw_events.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect();
+            let ndjson = if fmt == "stream" {
+                crate::siem_exporter::to_ecs_ndjson_stream(&typed)
+            } else {
+                crate::siem_exporter::to_elasticsearch_bulk_ndjson(&typed, "agenttrace-security-events")
+            };
+            (true, json!({ "exported_events": typed.len(), "format": fmt, "ecs_version": "8.11.0", "ndjson": ndjson }), None)
+        }
+        Err(e) => (false, json!({}), Some(format!("Failed to query events for SIEM export: {}", e))),
+    }
+}

@@ -95,8 +95,11 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/v1/messages", post(crate::claude_bridge::handle_anthropic_messages).with_state(claude_state))
         .route("/v1/messages/count_tokens", post(crate::claude_bridge::handle_anthropic_count_tokens))
         .route("/v1/models", get(handle_models).with_state(state.proxy_cfg.clone()))
-        // Active AI Guard, SIEM/ELK Export, Vault & Live Benchmarks
+        // Active AI Guard, Pre-Image CAS Guard, SIEM/ELK Export, Vault & Live Benchmarks
         .route("/api/v1/guard/intercept", post(guard_intercept_handler))
+        .route("/api/v1/cas/status", get(crate::cas_guard::cas_status_handler))
+        .route("/api/v1/cas/protect", post(crate::cas_guard::cas_protect_handler))
+        .route("/api/v1/cas/enforce", post(crate::cas_guard::cas_enforce_handler))
         .route("/api/v1/export/elk", get(export_elk_handler))
         .route("/api/v1/benchmarks", get(get_benchmarks_handler))
         .route("/api/v1/vault/encrypt", post(encrypt_secret_handler))

@@ -54,6 +54,10 @@ mod tests {
         assert!(tool_names.contains(&"upsert_containment_zone".to_string()));
         assert!(tool_names.contains(&"confine_agent_to_playground".to_string()));
         assert!(tool_names.contains(&"check_cluster_health".to_string()));
+        assert!(tool_names.contains(&"intercept_ai_guard".to_string()));
+        assert!(tool_names.contains(&"protect_or_revert_cas_file".to_string()));
+        assert!(tool_names.contains(&"encrypt_vault_secret".to_string()));
+        assert!(tool_names.contains(&"export_siem_elk".to_string()));
 
         for t in tools {
             assert!(t["description"].is_string());

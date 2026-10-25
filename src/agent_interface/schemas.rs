@@ -599,6 +599,93 @@ pub async fn get_agent_tools() -> Json<Value> {
                         }
                     }
                 }
+            },
+            {
+                "name": "intercept_ai_guard",
+                "description": "Runs the synchronous Pre-Execution Hard AI Guard (<1.5ms) on any proposed prompt, shell command, or file path to detect DLP secret leaks (Anthropic/OpenAI/AWS/GCP/GitHub/PEM keys), destructive OS commands, prompt injections, and spatial zone violations before execution.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["action"],
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["LlmInference", "Execute", "Write", "Read"],
+                            "description": "Type of action to inspect."
+                        },
+                        "prompt_text": {
+                            "type": "string",
+                            "description": "Optional outbound prompt text to scan/scrub for leaked credentials or prompt injection."
+                        },
+                        "command": {
+                            "type": "string",
+                            "description": "Optional shell command to inspect against destructive/exfiltration rules."
+                        },
+                        "target_path": {
+                            "type": "string",
+                            "description": "Optional filesystem path to verify against Safe Zones and Playgrounds."
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["HardBlock", "RedactAndForward", "AuditOnly"],
+                            "description": "Enforcement mode (default: 'HardBlock')."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "protect_or_revert_cas_file",
+                "description": "Manages the in-memory SHA-256 Pre-Image Content-Addressable Storage (CAS) Guard: snapshot a file before risky refactoring ('protect'), verify/auto-revert unauthorized modifications or deletions in <1ms ('enforce'), or list all protected pre-image files ('list').",
+                "parameters": {
+                    "type": "object",
+                    "required": ["operation"],
+                    "properties": {
+                        "operation": {
+                            "type": "string",
+                            "enum": ["protect", "enforce", "list"],
+                            "description": "'protect' snapshots a file in memory, 'enforce' checks and auto-reverts tampering/deletion, 'list' returns all protected snapshots."
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "File path to snapshot or verify (required for 'protect' and 'enforce')."
+                        },
+                        "strictly_guarded": {
+                            "type": "boolean",
+                            "description": "Whether any out-of-band modification or deletion should be automatically reverted. Default true."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "encrypt_vault_secret",
+                "description": "Encrypts a plaintext secret using the Gateway's ChaCha20-Poly1305 AEAD Vault into an authenticated 'ENCv1:<nonce>:<ciphertext>' envelope for safe storage in .secrets/agenttrace.env.",
+                "parameters": {
+                    "type": "object",
+                    "required": ["plaintext"],
+                    "properties": {
+                        "plaintext": {
+                            "type": "string",
+                            "description": "Plaintext API key or token to encrypt."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "export_siem_elk",
+                "description": "Exports cryptographically signed telemetry and AI Guard security events formatted in Elastic Common Schema (ECS 8.11.0) NDJSON for Elasticsearch /_bulk or Filebeat/Splunk ingestion.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of recent events to export (default 25, max 500)."
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["bulk", "stream"],
+                            "description": "'bulk' for Elasticsearch /_bulk NDJSON, or 'stream' for raw ECS NDJSON lines."
+                        }
+                    }
+                }
             }
         ]
     });
