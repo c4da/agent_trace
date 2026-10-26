@@ -56,8 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let default_node_id = if is_worker { format!("Worker-{}", hostname) } else { "PC-1".to_string() };
     let node_id = std::env::var("NODE_ID").unwrap_or(default_node_id);
 
-    // 1. Load security configuration & secrets
+    // 1. Load security configuration, secrets & zero-memory OS-Kernel Self-Hardening
     let security_cfg = Arc::new(ClusterSecurityConfig::load());
+    let kernel_warden_status = agent_trace_gw::os_hardening::global_warden_guard().status_report();
 
     // 2. Load or generate persistent Ed25519 cryptographic identity
     let identity = Arc::new(NodeIdentity::load_or_generate(&security_cfg.key_path)?);
@@ -68,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(" Role:        {}", if is_worker { "Worker / Edge Node" } else { "Lead Node" });
     println!(" Node ID:     {}", node_id);
     println!(" Public Key:  {}...", &identity.public_key_hex()[..16]);
+    println!(" OS Warden:   {:?} (+{} B RAM)", kernel_warden_status.mode, kernel_warden_status.memory_overhead_bytes);
     println!(" Database:    {}", db_path);
     println!(" Upstream:    {}", upstream_url);
     if let Some(ref l) = lead_url {

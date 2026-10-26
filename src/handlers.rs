@@ -140,6 +140,8 @@ pub fn create_router(state: AppState, agent_state: AgentInterfaceState) -> Route
         .route("/api/v1/zones", get(list_zones_handler).post(upsert_zone_handler))
         .route("/api/v1/zones/:zone_id", delete(delete_zone_handler))
         .route("/api/v1/zones/confine", post(confine_playground_handler))
+        // Zero-Memory OS-Kernel Warden Self-Hardening Endpoint
+        .route("/api/v1/security/kernel-lockdown", get(get_kernel_lockdown_status_handler).post(update_kernel_lockdown_handler))
         // Problem Workgroups & Attached Markdown (.md) Rules Endpoints
         .route("/api/v1/workgroups", get(crate::workgroups::list_workgroups_handler).post(crate::workgroups::upsert_workgroup_handler))
         .route("/api/v1/workgroups/yaml", post(crate::workgroups::apply_workgroup_yaml_handler))
@@ -900,6 +902,37 @@ pub async fn reload_all_persistence_handler(
     Json(serde_json::json!({
         "status": "reloaded",
         "persistence": crate::persistence::global_persistence().status_report()
+    }))
+}
+
+/// Returns the live OS-Kernel Warden Self-Hardening status (`GET /api/v1/security/kernel-lockdown`).
+pub async fn get_kernel_lockdown_status_handler() -> Json<crate::os_hardening::KernelMitigationStatus> {
+    Json(crate::os_hardening::global_warden_guard().status_report())
+}
+
+/// Evaluates or updates the OS-Kernel Warden Self-Hardening mode (`POST /api/v1/security/kernel-lockdown`).
+pub async fn update_kernel_lockdown_handler(
+    Json(req): Json<crate::os_hardening::KernelLockdownRequest>,
+) -> Json<serde_json::Value> {
+    let guard = crate::os_hardening::global_warden_guard();
+    let status = if let Some(new_mode) = req.set_mode {
+        guard.apply_kernel_mitigations(new_mode)
+    } else {
+        guard.status_report()
+    };
+    let write_check = req
+        .test_self_write_path
+        .as_ref()
+        .map(|p| guard.verify_gateway_self_write(std::path::Path::new(p)));
+    let spawn_check = req
+        .test_child_spawn_exe
+        .as_ref()
+        .map(|exe| guard.verify_gateway_child_spawn(exe));
+
+    Json(serde_json::json!({
+        "kernel_status": status,
+        "self_write_evaluation": write_check,
+        "child_spawn_evaluation": spawn_check
     }))
 }
 

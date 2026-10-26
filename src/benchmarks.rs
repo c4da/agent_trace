@@ -286,6 +286,23 @@ pub fn run_live_benchmarks() -> BenchmarkSuiteReport {
         5.0,
     ));
 
+    // 8. Zero-Memory OS-Kernel Warden Self-Guard & Write-Boundary Check (v1.1.0)
+    let warden = crate::os_hardening::global_warden_guard();
+    let mut warden_samples = Vec::with_capacity(100);
+    for _ in 0..100 {
+        let t0 = Instant::now();
+        let w1 = warden.verify_gateway_self_write(std::path::Path::new(".agent_trace/state/admin/gov.json"));
+        let w2 = warden.verify_gateway_self_write(std::path::Path::new(".secrets/agenttrace.env"));
+        assert!(w1.allowed);
+        assert!(!w2.allowed);
+        warden_samples.push(t0.elapsed().as_micros() as u64);
+    }
+    metrics.push(compute_metric(
+        "OS-Kernel Warden Self-Guard & Write-Boundary Check (0 KB RAM)",
+        warden_samples,
+        1.0,
+    ));
+
     let skill_token_savings = skill_forge.compute_token_savings_benchmark();
     let rss_mb = measure_process_rss_mb();
     let all_passed = metrics.iter().all(|m| m.passed_sla);

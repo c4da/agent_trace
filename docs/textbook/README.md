@@ -77,4 +77,10 @@ This textbook serves as both an authoritative conceptual reference and an operat
   - Transport Layer Security (TLS) & Inter-Gateway Mutual TLS (mTLS Thumbprint Pinning + HMAC-SHA256 Anti-Replay)
   - Synchronous Pre-Execution Hard AI Guard (`HardBlock` vs. `RedactAndForward` vs. `AuditOnly`), Admin Per-Model Governance (`src/admin_governance.rs`), & Shielded Claude Code Terminal Hub (`/v1/messages`)
   - Enterprise 3rd-Party SIEM & ELK Stack Integration (Elastic Common Schema ECS 8.11 `/_bulk` NDJSON)
+- [Chapter 11: Warden vs. Prisoner Architecture — Zero-Memory OS-Kernel Self-Hardening (`src/os_hardening.rs`), Pluggable 3-Tier Persistence (`src/persistence.rs`), & Auto-Skill Forge (`src/skill_forge.rs`)](chapter_11_os_kernel_hardening_persistence_and_skill_forge.md)
+  - The Warden vs. Prisoner Principle: Why Sandboxing the Gateway in a VM/Docker Container Erases the `16 MB` Footprint & Breaks `< 2 ms` Host File Undo
+  - Zero-Memory OS-Kernel Process Mitigations (`0 Bytes` RAM): Windows NT `EPROCESS` Bitflags (`ProcessDynamicCodePolicy` ACG, `ProcessChildProcessPolicy` `NoChildProcessCreation`, `ProcessImageLoadPolicy` `PreferSystem32Images`/`NoRemoteImages`, `DisableExtensionPoints`) & Linux `prctl` (`PR_SET_NO_NEW_PRIVS`, `PR_SET_DUMPABLE=0`)
+  - Confused-Deputy Self-Write Firewall (`WardenSelfGuard::verify_gateway_self_write`)
+  - Pluggable 3-Tier Durable Persistence (`LocalFileBackend`, `SqliteKvBackend` SHA-256 Self-Healing, `ExternalDbBackend`)
+  - Autonomous Skill Distillation ("Auto-Skill Forge" & `99.20%` Token-Savings ROI)
 

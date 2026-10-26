@@ -84,6 +84,10 @@ impl PersistenceBackend for LocalFileBackend {
 
     fn save_json(&self, namespace: &str, key: &str, payload_json: &str) -> Result<(), String> {
         let target = self.record_path(namespace, key);
+        let warden_check = crate::os_hardening::global_warden_guard().verify_gateway_self_write(&target);
+        if !warden_check.allowed {
+            return Err(format!("WardenSelfGuard blocked write: {}", warden_check.reason));
+        }
         let tmp = target.with_extension("json.tmp");
         fs::write(&tmp, payload_json).map_err(|e| format!("LocalFile write tmp failed: {}", e))?;
         fs::rename(&tmp, &target).or_else(|_| {

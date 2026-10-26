@@ -584,16 +584,24 @@ impl SkillForgeEngine {
 
         // 1. Antigravity `.agents/skills/<safe_slug>/SKILL.md`
         let agy_dir = workspace_root.join(".agents").join("skills").join(&safe_slug);
-        fs::create_dir_all(&agy_dir).map_err(|e| format!("Failed to create {:?}: {}", agy_dir, e))?;
         let agy_path = agy_dir.join("SKILL.md");
+        let check_agy = crate::os_hardening::global_warden_guard().verify_gateway_self_write(&agy_path);
+        if !check_agy.allowed {
+            return Err(format!("WardenSelfGuard blocked skill export: {}", check_agy.reason));
+        }
+        fs::create_dir_all(&agy_dir).map_err(|e| format!("Failed to create {:?}: {}", agy_dir, e))?;
         fs::write(&agy_path, skill.to_antigravity_skill_md())
             .map_err(|e| format!("Failed to write {:?}: {}", agy_path, e))?;
 
         // 2. Claude Code `.claude/commands/<safe_slug>.md`
         let claude_dir = workspace_root.join(".claude").join("commands");
+        let claude_path = claude_dir.join(format!("{}.md", safe_slug));
+        let check_claude = crate::os_hardening::global_warden_guard().verify_gateway_self_write(&claude_path);
+        if !check_claude.allowed {
+            return Err(format!("WardenSelfGuard blocked command export: {}", check_claude.reason));
+        }
         fs::create_dir_all(&claude_dir)
             .map_err(|e| format!("Failed to create {:?}: {}", claude_dir, e))?;
-        let claude_path = claude_dir.join(format!("{}.md", safe_slug));
         fs::write(&claude_path, skill.to_claude_command_md())
             .map_err(|e| format!("Failed to write {:?}: {}", claude_path, e))?;
 

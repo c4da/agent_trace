@@ -80,3 +80,8 @@ By the end of this book, you won't just know syntax—you will understand how to
   - Writing a Constant-Time Comparator (`constant_time_eq`) to Prevent Timing Side-Channels
   - Inter-Gateway mTLS Thumbprint Pinning & `ring::hmac::HMAC_SHA256` Anti-Replay Windows
   - Zero-Dependency Elastic Common Schema (ECS 8.11) `/_bulk` NDJSON Formatting for ELK (`siem_exporter.rs`)
+- [Chapter 11: Practical Systems Rust — Zero-Cost OS Kernel FFI (`SetProcessMitigationPolicy`), Pluggable Persistence Traits & Sliding-Window Trajectory Mining](chapter_11_os_kernel_ffi_persistence_and_skill_forge.md)
+  - Calling the Windows NT Kernel (`kernel32.dll`) Directly from Rust with Zero External Crates (`#[link(name = "kernel32")] extern "system"`, `#[repr(C)]`, and Safe Wrapper Boundaries)
+  - Compile-Time vs. Runtime Test Awareness (`#[cfg(target_os = "...")]` and `cfg!(test)`)
+  - Designing Thread-Safe Pluggable Storage Traits (`PersistenceBackend: Send + Sync`) and Generic Self-Healing with `DeserializeOwned`
+  - Zero-Allocation Event Trajectory Mining with `slice::windows(3)` (`src/skill_forge.rs`)
