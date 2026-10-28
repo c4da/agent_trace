@@ -142,18 +142,18 @@ Most AI observability stacks are **passive rear-view mirrors**: they log a trace
 *Automatically measured and updated on every commit via [`scripts/update_benchmarks_and_badges.py`](scripts/update_benchmarks_and_badges.py) and [`.githooks/pre-commit`](.githooks/pre-commit). Full hardware report: **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)**.*
 
 <!-- BENCHMARK_START -->
-> **Auto-Verified on Version `v1.1.0` · Commit `b6c0289` (`2026-10-26 22:54:20 UTC`)** · Process Memory RSS: **`15.79 MB`** · Test Suite: **`133 Rust Unit/Adversarial + 7 E2E Passed`**
+> **Auto-Verified on Version `v1.1.0` · Commit `d19d3ec` (`2026-10-28 23:30:58 UTC`)** · Process Memory RSS: **`16.98 MB`** · Test Suite: **`133 Rust Unit/Adversarial + 7 E2E Passed`**
 
 | Version Tag | Operation | p50 Latency | p95 Latency | Target SLA | Verdict |
 | :---: | :--- | :---: | :---: | :---: | :---: |
-| `v1.1.0` | **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.476 ms`** (`1476 µs`) | `4.928 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.032 ms`** (`1032 µs`) | `1.825 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **SHA-256 + Ed25519 Signed Block Commit** | **`0.167 ms`** (`167 µs`) | `0.254 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`2.616 ms`** (`2616 µs`) | `2.810 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.010 ms`** (`10 µs`) | `0.011 ms` | `< 1.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Auto-Skill Forge Trigger Match & In-Flight Injection** | **`0.009 ms`** (`9 µs`) | `0.040 ms` | `< 1.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Unified Persistence SQLite + SHA-256 Integrity Roundtrip** | **`0.021 ms`** (`21 µs`) | `0.036 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **OS-Kernel Warden Self-Guard & Write-Boundary Check (0 KB RAM)** | **`0.002 ms`** (`2 µs`) | `0.002 ms` | `< 1.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.214 ms`** (`1214 µs`) | `4.417 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.903 ms`** (`1903 µs`) | `5.501 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **SHA-256 + Ed25519 Signed Block Commit** | **`0.178 ms`** (`178 µs`) | `0.240 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`2.745 ms`** (`2745 µs`) | `3.258 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.010 ms`** (`10 µs`) | `0.012 ms` | `< 1.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Auto-Skill Forge Trigger Match & In-Flight Injection** | **`0.010 ms`** (`10 µs`) | `0.018 ms` | `< 1.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Unified Persistence SQLite + SHA-256 Integrity Roundtrip** | **`0.023 ms`** (`23 µs`) | `0.035 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **OS-Kernel Warden Self-Guard & Write-Boundary Check (0 KB RAM)** | **`0.002 ms`** (`2 µs`) | `0.003 ms` | `< 1.0 ms` | ✅ **PASS** |
 
 #### 🧠 Auto-Skill Forge & De Facto Learning Token-Savings Benchmark (`v1.1.0`)
 
@@ -297,12 +297,10 @@ curl -sSL http://<LEAD_IP>:8080/install | python3 - --worker --lead-url http://<
 
 ---
 
-## 📖 Textbooks, Step-by-Step Guides & Operator Documentation
+## 📖 Step-by-Step Guides & Operator Documentation
 
-| Guide / Textbook | Documentation Link | Quick Action / Endpoint |
+| Guide / Manual | Documentation Link | Quick Action / Endpoint |
 | :--- | :--- | :--- |
-| **📕 Distributed Systems & AI Security Textbook (Ch. 1–10)** | 📚 **[Systems Textbook](docs/textbook/README.md)** · **[Ch. 10: TLS, mTLS, ELK & AEAD Vault](docs/textbook/chapter_10_enterprise_ai_guard_tls_mtls_elk_vault.md)** | Full 10-chapter engineering textbook |
-| **🦀 Practical Rust Engineering Textbook (Ch. 1–10)** | 📚 **[Rust Textbook](docs/rust_textbook/README.md)** · **[Ch. 10: Rust ChaCha20, mTLS & SIEM](docs/rust_textbook/chapter_10_enterprise_security_aead_mtls_siem.md)** | Learn Rust from 0 to systems security |
 | **LLM / AI Agent Repository Manifest** | 📄 **[`llms.txt` (Agent Ingestion Spec)](llms.txt)** | Structured context file for AI coding agents |
 | **Empirical Benchmarks & SLA Evidence (`v1.1.0`)** | 📄 **[Benchmarks & Token ROI Report](docs/BENCHMARKS.md)** | `python scripts/update_benchmarks_and_badges.py` · `GET /api/v1/benchmarks` |
 | **Antigravity Plugin & Native Rust MCP (`36` Tools)** | 📄 **[Plugin & Native MCP Setup](docs/MCP_SERVER_GUIDE.md)** | `plugins/agent-trace` · `.\target\debug\agent_trace_mcp.exe` |

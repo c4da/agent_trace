@@ -42,3 +42,10 @@ docs/QWEN_NODE_LOGS_FIX_SPEC.md
 docs/MARKETING_FLYER.md
 docs/MARKETING_FLYER_PART2.md
 docs/UI_COUNCIL_REDESIGN_PROPOSALS.md
+docs/STRUX_CAD_GEOMETRY_MATHEMATICS.md
+
+# Private Textbooks & Specialized Documents
+docs/textbook/
+docs/rust_textbook/
+delegate_textbook_writer.py
+delegate_rust_textbook_writer.py
