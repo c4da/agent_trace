@@ -84,7 +84,7 @@ pub struct IdleWorkerConfig {
     pub tasks: Vec<IdleTaskType>,
     /// Optional user prompt defining a custom continuous goal.
     pub custom_objective: String,
-    /// Local cluster model used for generation tasks (default: "qwen3.5:9b").
+    /// Local cluster model used for generation tasks (default: "gemma4:latest").
     pub target_model: String,
     /// Automatically stage proposed docstrings and findings for user review.
     pub auto_stage_proposals: bool,
@@ -104,7 +104,7 @@ impl Default for IdleWorkerConfig {
                 IdleTaskType::UnitTests,
             ],
             custom_objective: "Audit recent code changes, enforce Single Responsibility Principle, and draft concise use-case guides.".to_string(),
-            target_model: "qwen3.5:9b".to_string(),
+            target_model: "gemma4:latest".to_string(),
             auto_stage_proposals: true,
         }
     }

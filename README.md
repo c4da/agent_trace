@@ -142,18 +142,18 @@ Most AI observability stacks are **passive rear-view mirrors**: they log a trace
 *Automatically measured and updated on every commit via [`scripts/update_benchmarks_and_badges.py`](scripts/update_benchmarks_and_badges.py) and [`.githooks/pre-commit`](.githooks/pre-commit). Full hardware report: **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)**.*
 
 <!-- BENCHMARK_START -->
-> **Auto-Verified on Version `v1.1.0` · Commit `d19d3ec` (`2026-10-28 23:30:58 UTC`)** · Process Memory RSS: **`16.98 MB`** · Test Suite: **`133 Rust Unit/Adversarial + 7 E2E Passed`**
+> **Auto-Verified on Version `v1.1.0` · Commit `210e12d` (`2026-10-29 23:45:38 UTC`)** · Process Memory RSS: **`15.99 MB`** · Test Suite: **`133 Rust Unit/Adversarial + 7 E2E Passed`**
 
 | Version Tag | Operation | p50 Latency | p95 Latency | Target SLA | Verdict |
 | :---: | :--- | :---: | :---: | :---: | :---: |
-| `v1.1.0` | **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.214 ms`** (`1214 µs`) | `4.417 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.903 ms`** (`1903 µs`) | `5.501 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **SHA-256 + Ed25519 Signed Block Commit** | **`0.178 ms`** (`178 µs`) | `0.240 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`2.745 ms`** (`2745 µs`) | `3.258 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.010 ms`** (`10 µs`) | `0.012 ms` | `< 1.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Auto-Skill Forge Trigger Match & In-Flight Injection** | **`0.010 ms`** (`10 µs`) | `0.018 ms` | `< 1.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **Unified Persistence SQLite + SHA-256 Integrity Roundtrip** | **`0.023 ms`** (`23 µs`) | `0.035 ms` | `< 5.0 ms` | ✅ **PASS** |
-| `v1.1.0` | **OS-Kernel Warden Self-Guard & Write-Boundary Check (0 KB RAM)** | **`0.002 ms`** (`2 µs`) | `0.003 ms` | `< 1.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | **`1.287 ms`** (`1287 µs`) | `4.565 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Pre-Image CAS Guard Rogue Write Auto-Revert** | **`1.007 ms`** (`1007 µs`) | `1.566 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **SHA-256 + Ed25519 Signed Block Commit** | **`0.184 ms`** (`184 µs`) | `0.302 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | **`2.651 ms`** (`2651 µs`) | `3.223 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | **`0.010 ms`** (`10 µs`) | `0.011 ms` | `< 1.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Auto-Skill Forge Trigger Match & In-Flight Injection** | **`0.009 ms`** (`9 µs`) | `0.009 ms` | `< 1.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **Unified Persistence SQLite + SHA-256 Integrity Roundtrip** | **`0.022 ms`** (`22 µs`) | `0.034 ms` | `< 5.0 ms` | ✅ **PASS** |
+| `v1.1.0` | **OS-Kernel Warden Self-Guard & Write-Boundary Check (0 KB RAM)** | **`0.002 ms`** (`2 µs`) | `0.002 ms` | `< 1.0 ms` | ✅ **PASS** |
 
 #### 🧠 Auto-Skill Forge & De Facto Learning Token-Savings Benchmark (`v1.1.0`)
 

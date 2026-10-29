@@ -9,11 +9,11 @@ use std::collections::HashMap;
 pub fn available_agents_catalog() -> Vec<AvailableAgentInfo> {
     vec![
         AvailableAgentInfo {
-            agent_id: "qwen3.5:9b".to_string(),
-            display_name: "Qwen 3.5 (9B Fast Code)".to_string(),
+            agent_id: "gemma4:latest".to_string(),
+            display_name: "Gemma 4 (Local Fast Code)".to_string(),
             node_id: "PC-1".to_string(),
             badge_color: "#58a6ff".to_string(),
-            specialty: "Fast Rust/Python coding, unit tests, boilerplate & telemetry".to_string(),
+            specialty: "Fast Rust/Python coding, unit tests, boilerplate & docs".to_string(),
             default_role: WorkgroupRole::PrimaryBuilder,
         },
         AvailableAgentInfo {
@@ -89,18 +89,18 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
                 parent_agent_id: None,
             },
             WorkgroupMember {
-                agent_id: "qwen3.5:9b".to_string(),
-                display_name: "Qwen 3.5 (9B Code)".to_string(),
-                node_id: "PC-1".to_string(),
-                role: WorkgroupRole::PrimaryBuilder,
+                agent_id: "deepseek-r1:1.5b".to_string(),
+                display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
+                node_id: "PC-2".to_string(),
+                role: WorkgroupRole::SanityVerifier,
                 parent_agent_id: Some("gemini-pro".to_string()),
             },
             WorkgroupMember {
                 agent_id: "qwen3.8:27b".to_string(),
                 display_name: "Qwen 3.8 (27B Heavy)".to_string(),
                 node_id: "PC-1".to_string(),
-                role: WorkgroupRole::SanityVerifier,
-                parent_agent_id: Some("qwen3.5:9b".to_string()),
+                role: WorkgroupRole::PrimaryBuilder,
+                parent_agent_id: Some("gemini-pro".to_string()),
             },
         ],
         markdown_rules: vec![
@@ -138,8 +138,8 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
         execution_strategy: "pipeline".to_string(),
         members: vec![
             WorkgroupMember {
-                agent_id: "qwen3.5:9b".to_string(),
-                display_name: "Qwen 3.5 (9B Technical Assessor)".to_string(),
+                agent_id: "qwen3.8:27b".to_string(),
+                display_name: "Qwen 3.8 (27B Technical Assessor)".to_string(),
                 node_id: "PC-1".to_string(),
                 role: WorkgroupRole::LeadArchitect,
                 parent_agent_id: None,
@@ -149,7 +149,7 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
                 display_name: "DeepSeek-R1 (1.5B CUDA Synthesizer)".to_string(),
                 node_id: "PC-2".to_string(),
                 role: WorkgroupRole::PrimaryBuilder,
-                parent_agent_id: Some("qwen3.5:9b".to_string()),
+                parent_agent_id: Some("qwen3.8:27b".to_string()),
             },
             WorkgroupMember {
                 agent_id: "copilot-cli".to_string(),
@@ -203,8 +203,8 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
                 parent_agent_id: None,
             },
             WorkgroupMember {
-                agent_id: "qwen3.5:9b".to_string(),
-                display_name: "Qwen 3.5 (9B Code)".to_string(),
+                agent_id: "qwen3.8:27b".to_string(),
+                display_name: "Qwen 3.8 (27B Code)".to_string(),
                 node_id: "PC-1".to_string(),
                 role: WorkgroupRole::PrimaryBuilder,
                 parent_agent_id: None,
@@ -259,8 +259,8 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
                 parent_agent_id: None,
             },
             WorkgroupMember {
-                agent_id: "qwen3.5:9b".to_string(),
-                display_name: "Qwen 3.5 (9B Fast Code)".to_string(),
+                agent_id: "qwen3.8:27b".to_string(),
+                display_name: "Qwen 3.8 (27B Fast Code)".to_string(),
                 node_id: "PC-1".to_string(),
                 role: WorkgroupRole::PrimaryBuilder,
                 parent_agent_id: Some("deepseek-r1:1.5b".to_string()),
@@ -306,8 +306,8 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
         execution_strategy: "pipeline".to_string(),
         members: vec![
             WorkgroupMember {
-                agent_id: "qwen3.5:9b".to_string(),
-                display_name: "Qwen 3.5 (9B Code & Debug)".to_string(),
+                agent_id: "qwen3.8:27b".to_string(),
+                display_name: "Qwen 3.8 (27B Code & Debug)".to_string(),
                 node_id: "PC-1".to_string(),
                 role: WorkgroupRole::LeadArchitect,
                 parent_agent_id: None,
@@ -317,14 +317,14 @@ pub fn default_workgroups() -> HashMap<String, ProblemWorkgroup> {
                 display_name: "DeepSeek-R1 (1.5B CUDA)".to_string(),
                 node_id: "PC-2".to_string(),
                 role: WorkgroupRole::SanityVerifier,
-                parent_agent_id: Some("qwen3.5:9b".to_string()),
+                parent_agent_id: Some("qwen3.8:27b".to_string()),
             },
             WorkgroupMember {
                 agent_id: "copilot-cli".to_string(),
                 display_name: "GitHub Copilot CLI".to_string(),
                 node_id: "PC-1-Copilot".to_string(),
                 role: WorkgroupRole::ToolExecutor,
-                parent_agent_id: Some("qwen3.5:9b".to_string()),
+                parent_agent_id: Some("qwen3.8:27b".to_string()),
             },
         ],
         markdown_rules: vec![

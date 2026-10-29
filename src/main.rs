@@ -145,9 +145,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let registry = Arc::new(RwLock::new(ClusterModelRegistry::new()));
     {
         let mut reg = registry.write().await;
-        reg.register_single_model("PC-1", &upstream_url, "qwen3.5:9b", Some(vec![agent_trace_gw::registry::ModelCapability::FastCodeGeneration, agent_trace_gw::registry::ModelCapability::GeneralExecution]));
-        reg.register_single_model("PC-1", &upstream_url, "qwen3.8:27b", Some(vec![agent_trace_gw::registry::ModelCapability::ComplexReasoning]));
-        reg.register_single_model("PC-2", "http://192.168.1.102:8642", "hermes-agent", Some(vec![agent_trace_gw::registry::ModelCapability::SanityVerification]));
+        reg.register_single_model("PC-1", &upstream_url, "gemma4:latest", Some(vec![agent_trace_gw::registry::ModelCapability::FastCodeGeneration, agent_trace_gw::registry::ModelCapability::GeneralExecution]));
+        reg.register_single_model("PC-1", &upstream_url, "qwen3.8:27b", Some(vec![agent_trace_gw::registry::ModelCapability::ComplexReasoning, agent_trace_gw::registry::ModelCapability::FastCodeGeneration]));
+        reg.register_single_model("PC-2", "http://192.168.1.102:8642", "hermes-agent", Some(vec![agent_trace_gw::registry::ModelCapability::SanityVerification, agent_trace_gw::registry::ModelCapability::ComplexReasoning]));
     }
     let override_store = Arc::new(RwLock::new(RouteOverrideStore::new()));
     let delegation_engine = Arc::new(AgentDelegationEngine::new(

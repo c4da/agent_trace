@@ -60,16 +60,10 @@ impl ProblemWorkgroup {
                 "hermes-agent".to_string(),
                 "http://192.168.1.102:8642".to_string(),
             )
-        } else if id_lower.contains("27b") {
+        } else if id_lower.contains("27b") || id_lower.contains("qwen") {
             (
                 "PC-1".to_string(),
                 "qwen3.8:27b".to_string(),
-                default_upstream.to_string(),
-            )
-        } else if id_lower.contains("qwen") {
-            (
-                "PC-1".to_string(),
-                "qwen3.5:9b".to_string(),
                 default_upstream.to_string(),
             )
         } else if id_lower.contains("gemma") {
@@ -85,16 +79,16 @@ impl ProblemWorkgroup {
                 "cli://copilot".to_string(),
             )
         } else if id_lower.contains("gemini") || id_lower.contains("antigravity") {
-            // Architectural synthesis backed by lead node reasoning engine
+            // Architectural synthesis backed by lead node reasoning engine (Qwen 3.8 27B)
             (
                 "PC-1".to_string(),
-                "qwen3.5:9b".to_string(),
+                "qwen3.8:27b".to_string(),
                 default_upstream.to_string(),
             )
         } else {
             (
                 member.node_id.clone(),
-                "qwen3.5:9b".to_string(),
+                "gemma4:latest".to_string(),
                 default_upstream.to_string(),
             )
         }

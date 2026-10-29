@@ -256,7 +256,7 @@ impl AgentDelegationEngine {
             }
         } else {
             AgentDelegationDecision {
-                selected_model: "qwen3.5:9b".to_string(),
+                selected_model: "gemma4:latest".to_string(),
                 target_upstream: self.default_upstream.clone(),
                 node_id: "PC-1".to_string(),
                 decision_source: DecisionSource::DynamicCapability,

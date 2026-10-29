@@ -196,12 +196,10 @@ async fn execute_stage_call(
                 final_node = "PC-1".to_string();
                 final_upstream = cfg.upstream_url.trim_end_matches('/').to_string();
                 // Pick a fast guaranteed local model on PC-1
-                final_model = if preferred_model.contains("deepseek") {
-                    "deepseek-r1:1.5b".to_string()
-                } else if preferred_model.contains("27b") {
-                    "qwen3.5:9b".to_string()
+                final_model = if preferred_model.contains("27b") {
+                    "qwen3.8:27b".to_string()
                 } else {
-                    "qwen3.5:9b".to_string()
+                    "gemma4:latest".to_string()
                 };
 
                 let fb_url = format!("{}/v1/chat/completions", final_upstream);
@@ -448,7 +446,7 @@ pub async fn handle_hub_dispatch(
                 "http://192.168.1.102:8642".to_string(),
             )
         } else {
-            let m = req.requested_model.clone().unwrap_or_else(|| "qwen3.5:9b".to_string());
+            let m = req.requested_model.clone().unwrap_or_else(|| "gemma4:latest".to_string());
             let up = if m.to_lowercase().contains("copilot") {
                 "cli://copilot".to_string()
             } else {
@@ -664,7 +662,7 @@ pub async fn handle_hub_dispatch(
         let qwen_model = if classified_intent == RoutingIntent::ComplexReasoning {
             "qwen3.8:27b"
         } else {
-            "qwen3.5:9b"
+            "gemma4:latest"
         };
         let dec_qwen = cfg
             .delegation_engine
@@ -837,9 +835,9 @@ pub async fn handle_cluster_availability(
             busy_count += 1;
         } else if node_id == "PC-1" || node_id == "PC-2" {
             let default_model = if node_id == "PC-2" {
-                "deepseek-r1:1.5b"
+                "hermes-agent"
             } else {
-                "qwen3.5:9b"
+                "gemma4:latest"
             };
             idle_nodes.push((node_id.clone(), default_model.to_string()));
         }
@@ -853,8 +851,6 @@ pub async fn handle_cluster_availability(
             let mut models = vec![
                 "copilot-cli".to_string(),
                 "qwen3.8:27b".to_string(),
-                "qwen3.5:9b".to_string(),
-                "qwen3:8b".to_string(),
                 "gemma4:latest".to_string(),
             ];
             if !crate::copilot::is_copilot_installed() {

@@ -130,7 +130,7 @@ fn test_workgroup_yaml_roundtrip() {
     assert_eq!(parsed.members.len(), 3);
     assert_eq!(parsed.members[0].agent_id, "gemini-pro");
     assert_eq!(parsed.members[0].parent_agent_id, None);
-    assert_eq!(parsed.members[1].agent_id, "qwen3.5:9b");
+    assert_eq!(parsed.members[1].agent_id, "deepseek-r1:1.5b");
     assert_eq!(
         parsed.members[1].parent_agent_id.as_deref(),
         Some("gemini-pro")
