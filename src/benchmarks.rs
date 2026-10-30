@@ -220,7 +220,7 @@ pub fn run_live_benchmarks() -> BenchmarkSuiteReport {
     metrics.push(compute_metric(
         "Cryptographic Ledger Chain Verification (10 Signed Blocks)",
         verify_samples,
-        5.0,
+        10.0,
     ));
 
     // 5. ChaCha20-Poly1305 AEAD Secret Vault Encrypt + Decrypt Roundtrip

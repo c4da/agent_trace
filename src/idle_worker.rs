@@ -470,17 +470,20 @@ pub fn global_idle_worker() -> Arc<RwLock<IdleWorkerState>> {
 /// Preemption hook called across watchers and handlers whenever user activity occurs.
 pub fn record_user_activity() {
     let worker = global_idle_worker();
-    let acquired = if let Ok(mut guard) = worker.try_write() {
+    if let Ok(mut guard) = worker.try_write() {
         guard.record_user_activity();
-        true
-    } else {
-        false
-    };
+        return;
+    }
 
-    if !acquired {
-        let worker_clone = worker.clone();
-        tokio::spawn(async move {
+    let worker_clone = worker.clone();
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.spawn(async move {
             let mut guard = worker_clone.write().await;
+            guard.record_user_activity();
+        });
+    } else {
+        std::thread::spawn(move || {
+            let mut guard = worker_clone.blocking_write();
             guard.record_user_activity();
         });
     }

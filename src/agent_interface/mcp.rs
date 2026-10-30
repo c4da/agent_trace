@@ -59,12 +59,29 @@ fn respond_mcp_init(id: Value) -> Response {
 /// Lists all registered tools in MCP format.
 async fn respond_mcp_tools(id: Value) -> Response {
     let tools_json = get_agent_tools().await.0;
-    let tools_arr = tools_json.get("tools").cloned().unwrap_or(json!([]));
+    let raw_tools = tools_json.get("tools").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    
+    // In MCP 2024-11-05 spec, tools require 'inputSchema' rather than OpenAI's 'parameters'
+    let mcp_tools: Vec<Value> = raw_tools
+        .into_iter()
+        .map(|mut t| {
+            if let Some(params) = t.get("parameters").cloned() {
+                t["inputSchema"] = params;
+            } else if t.get("inputSchema").is_none() {
+                t["inputSchema"] = json!({
+                    "type": "object",
+                    "properties": {}
+                });
+            }
+            t
+        })
+        .collect();
+
     let resp = json!({
         "jsonrpc": "2.0",
         "id": id,
         "result": {
-            "tools": tools_arr
+            "tools": mcp_tools
         }
     });
     Json(resp).into_response()
@@ -90,7 +107,22 @@ async fn call_mcp_tool(
     match handle_agent_action(State(state), headers, Json(action_req)).await {
         Ok(Json(res)) => {
             let text_content = if res.success {
-                serde_json::to_string_pretty(&res.result).unwrap_or_default()
+                // If this is a cluster dispatch or workgroup response, present clean Markdown
+                // to the calling agent rather than echoing a giant raw JSON payload with input code
+                if let Some(primary) = res.result.get("primary_response").and_then(|v| v.as_str()) {
+                    let mut out = String::new();
+                    out.push_str("# 🚀 AgentTrace Cluster Review & Execution Result\n\n");
+                    out.push_str(primary);
+                    if let Some(verif) = res.result.get("verification_notes").and_then(|v| v.as_str()) {
+                        if !verif.trim().is_empty() {
+                            out.push_str("\n\n---\n## 🛡️ Stage 2: Invariant Verification & Critic Notes\n\n");
+                            out.push_str(verif);
+                        }
+                    }
+                    out
+                } else {
+                    serde_json::to_string_pretty(&res.result).unwrap_or_default()
+                }
             } else if let Some(ref err_msg) = res.error {
                 err_msg.clone()
             } else {

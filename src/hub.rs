@@ -154,7 +154,7 @@ async fn execute_stage_call(
         let primary_timeout = if preferred_model.contains("27b") || preferred_model.contains("32b") {
             Duration::from_secs(240)
         } else if preferred_upstream.contains("192.168.1.102") || preferred_upstream.contains(":8642") {
-            Duration::from_secs(45)
+            Duration::from_secs(120)
         } else {
             Duration::from_secs(90)
         };
