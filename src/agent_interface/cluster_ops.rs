@@ -255,10 +255,10 @@ async fn check_single_worker_health(target_ip: &str, lead_url: &str) -> Value {
     } else if hermes_open || ollama_open {
         let engine = if hermes_open { "Hermes Agent (:8642)" } else { "Ollama (:11434)" };
         (
-            "GATEWAY_MISSING",
-            "Inference Engine Online, Gateway Missing",
-            format!("{} is reachable, but the AgentTrace Edge Gateway (:8080) is not yet active on this node.", engine),
-            format!("Run the bootstrap command on the target machine: irm {}/bootstrap.ps1 | iex", lead_url.trim_end_matches('/')),
+            "ONLINE",
+            "Inference Engine Online (Direct)",
+            format!("{} is reachable and active for cluster prompt execution.", engine),
+            format!("Node is operational for prompts. To add decentralized telemetry signing: irm {}/bootstrap.ps1 | iex", lead_url.trim_end_matches('/')),
         )
     } else {
         (

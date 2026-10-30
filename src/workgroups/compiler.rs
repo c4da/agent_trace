@@ -60,13 +60,18 @@ impl ProblemWorkgroup {
                 "hermes-agent".to_string(),
                 "http://192.168.1.102:8642".to_string(),
             )
-        } else if id_lower.contains("27b") || id_lower.contains("qwen") {
+        } else if id_lower.contains("27b") {
             (
                 "PC-1".to_string(),
                 "qwen3.8:27b".to_string(),
                 default_upstream.to_string(),
             )
-        } else if id_lower.contains("gemma") {
+        } else if id_lower.contains("gemini")
+            || id_lower.contains("antigravity")
+            || id_lower.contains("qwen")
+            || id_lower.contains("gemma")
+        {
+            // Fast, zero-OOM local execution on PC-1 (Gemma 4)
             (
                 "PC-1".to_string(),
                 "gemma4:latest".to_string(),
@@ -77,13 +82,6 @@ impl ProblemWorkgroup {
                 "PC-1".to_string(),
                 "copilot-cli".to_string(),
                 "cli://copilot".to_string(),
-            )
-        } else if id_lower.contains("gemini") || id_lower.contains("antigravity") {
-            // Architectural synthesis backed by lead node reasoning engine (Qwen 3.8 27B)
-            (
-                "PC-1".to_string(),
-                "qwen3.8:27b".to_string(),
-                default_upstream.to_string(),
             )
         } else {
             (

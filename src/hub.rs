@@ -195,12 +195,8 @@ async fn execute_stage_call(
                 fallback_used = true;
                 final_node = "PC-1".to_string();
                 final_upstream = cfg.upstream_url.trim_end_matches('/').to_string();
-                // Pick a fast guaranteed local model on PC-1
-                final_model = if preferred_model.contains("27b") {
-                    "qwen3.8:27b".to_string()
-                } else {
-                    "gemma4:latest".to_string()
-                };
+                // Pick a fast guaranteed local model on PC-1 that fits in memory and never OOMs
+                final_model = "gemma4:latest".to_string();
 
                 let fb_url = format!("{}/v1/chat/completions", final_upstream);
                 let fb_body = serde_json::json!({
