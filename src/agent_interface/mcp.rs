@@ -89,6 +89,14 @@ async fn call_mcp_tool(
 
     match handle_agent_action(State(state), headers, Json(action_req)).await {
         Ok(Json(res)) => {
+            let text_content = if res.success {
+                serde_json::to_string_pretty(&res.result).unwrap_or_default()
+            } else if let Some(ref err_msg) = res.error {
+                err_msg.clone()
+            } else {
+                serde_json::to_string_pretty(&res.result).unwrap_or_default()
+            };
+
             let resp = json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -96,7 +104,7 @@ async fn call_mcp_tool(
                     "content": [
                         {
                             "type": "text",
-                            "text": serde_json::to_string_pretty(&res.result).unwrap_or_default()
+                            "text": text_content
                         }
                     ],
                     "isError": !res.success
@@ -104,7 +112,17 @@ async fn call_mcp_tool(
             });
             Json(resp).into_response()
         }
-        Err(status) => status.into_response(),
+        Err(status) => {
+            let resp = json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": {
+                    "code": -32603,
+                    "message": format!("Agent action failed with HTTP status {}", status)
+                }
+            });
+            Json(resp).into_response()
+        }
     }
 }
 

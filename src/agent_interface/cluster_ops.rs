@@ -489,9 +489,15 @@ pub async fn exec_dispatch_cluster_prompt(
     });
 
     let client = reqwest::Client::new();
-    let url = format!("{}/api/v1/hub/dispatch", state.upstream_url.trim_end_matches('/'));
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let url = format!("http://127.0.0.1:{}/api/v1/hub/dispatch", port);
 
-    match client.post(&url).json(&payload).send().await {
+    let mut req_builder = client.post(&url).json(&payload);
+    if let Some(ref tok) = state.security.auth_token {
+        req_builder = req_builder.header("X-AgentTrace-Token", tok);
+    }
+
+    match req_builder.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
                 match resp.json::<Value>().await {
