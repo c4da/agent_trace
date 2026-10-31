@@ -81,11 +81,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Forward MCP request to Gateway HTTP endpoint
         let target_endpoint = format!("{}/api/v1/mcp", gw_url);
-        match client.post(&target_endpoint)
+        let mut req_builder = client.post(&target_endpoint)
             .header("Content-Type", "application/json")
-            .json(&rpc_req)
-            .send()
-            .await
+            .json(&rpc_req);
+        // Forward the gateway token when AGENTTRACE_REQUIRE_AUTH is enabled on the gateway
+        if let Some(tok) = env::var("AGENTTRACE_TOKEN").ok().filter(|t| !t.trim().is_empty()) {
+            req_builder = req_builder.header("X-AgentTrace-Token", tok);
+        }
+        match req_builder.send().await
         {
             Ok(resp) => {
                 if resp.status().is_success() {
