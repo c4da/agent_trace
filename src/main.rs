@@ -22,6 +22,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = std::env::args().collect();
     let is_worker_arg = args.iter().any(|a| a == "--worker");
+    let allow_insecure_lan_arg = args.iter().any(|a| a == "--insecure-lan" || a == "--lan");
+    let enable_remote_deploy_arg = args.iter().any(|a| a == "--enable-remote-deploy");
+
+    let allow_insecure_lan = allow_insecure_lan_arg || std::env::var("AGENTTRACE_ALLOW_INSECURE_LAN")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    let enable_remote_deploy = enable_remote_deploy_arg || std::env::var("AGENTTRACE_ENABLE_REMOTE_DEPLOY")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
     let mut cli_lead_url = None;
     for i in 0..args.len() {
         if args[i] == "--lead" && i + 1 < args.len() {
@@ -50,6 +61,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let upstream_url = std::env::var("UPSTREAM_URL").unwrap_or_else(|_| default_upstream.to_string());
     let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080);
 
+    let default_bind = if allow_insecure_lan { "0.0.0.0" } else { "127.0.0.1" };
+    let bind_host = std::env::var("BIND_HOST").unwrap_or_else(|_| default_bind.to_string());
+
     let hostname = std::env::var("COMPUTERNAME")
         .or_else(|_| std::env::var("HOSTNAME"))
         .unwrap_or_else(|_| "LEAD-NODE".to_string());
@@ -75,7 +89,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(ref l) = lead_url {
         println!(" Lead Target: {}", l);
     }
-    println!(" Listening:   http://0.0.0.0:{}", port);
+    println!(" Listening:   http://{}:{}", bind_host, port);
+    println!(" Remote Deploy: {}", if enable_remote_deploy { "ENABLED" } else { "DISABLED (Safe default)" });
+    if allow_insecure_lan {
+        println!("------------------------------------------------------------");
+        println!(" [!] INSECURE LAN ACTIVE: Bound to 0.0.0.0 (subnet accessible).");
+        println!("     Ensure local Wi-Fi is trusted or configure AGENTTRACE_TOKEN.");
+        println!("------------------------------------------------------------");
+    }
     if !is_worker {
         println!(" Dashboard:   http://localhost:{}/dashboard", port);
     }
@@ -201,6 +222,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         policy: policy.clone(),
         ledger_writer: Some(ledger_writer),
         health_watchdog,
+        enable_remote_deploy,
     };
 
     let agent_state = AgentInterfaceState {
@@ -226,7 +248,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build modular HTTP app
     let app = create_router(state, agent_state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr: SocketAddr = format!("{}:{}", bind_host, port)
+        .parse()
+        .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], port)));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 

@@ -1,0 +1,22 @@
+{
+  "name": "agent-runtime-firewall",
+  "version": "1.0.0",
+  "description": "Pre-flight safety checks, destructive command interception, DLP secret redaction, and instant Pre-Image CAS file rollback for AI coding agents.",
+  "author": "c4da",
+  "license": "MIT OR Apache-2.0",
+  "repository": "https://github.com/c4da/agent_trace",
+  "marketplace": {
+    "platform": "agensi.io",
+    "tier": "free",
+    "categories": ["security", "developer-tools", "firewall"]
+  },
+  "compatibility": {
+    "agents": ["claude-code", "cursor", "github-copilot-cli", "antigravity", "hermes"],
+    "interfaces": ["mcp", "cli", "http"],
+    "runtime": "agent_trace_gw >= 1.1.0"
+  },
+  "provenance": {
+    "skill_file": "SKILL.md",
+    "sha256": "1e95d3f464ce28c7989c696b2d104091b9ffb9ace1cdba182be8102dad015917"
+  }
+}

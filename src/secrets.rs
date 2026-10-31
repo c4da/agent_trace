@@ -7,6 +7,7 @@ use axum::http::HeaderMap;
 
 #[derive(Clone, Debug)]
 pub struct ClusterSecurityConfig {
+    pub require_auth: bool,
     pub auth_token: Option<String>,
     pub upstream_allowlist: HashSet<String>,
     pub worker_hermes_key: Option<String>,
@@ -78,6 +79,7 @@ impl ClusterSecurityConfig {
             .unwrap_or_else(|_| PathBuf::from(".secrets/node_key.pk8"));
 
         Self {
+            require_auth,
             auth_token,
             upstream_allowlist: allowlist,
             worker_hermes_key,
@@ -86,11 +88,16 @@ impl ClusterSecurityConfig {
     }
 
     /// Verifies incoming request authentication against the configured AGENTTRACE_TOKEN using constant-time comparison.
-    /// If no AGENTTRACE_TOKEN is set, authentication is optional (permissive home-lab mode).
+    /// Fails closed if AGENTTRACE_REQUIRE_AUTH is set but AGENTTRACE_TOKEN is missing or empty.
+    /// If require_auth is false and no AGENTTRACE_TOKEN is set, permits requests (permissive local mode).
     pub fn is_authorized(&self, headers: &HeaderMap) -> bool {
+        if !self.require_auth && self.auth_token.is_none() {
+            return true; // Explicitly unauthenticated local mode
+        }
+
         let expected = match &self.auth_token {
-            Some(tok) if !tok.is_empty() => tok,
-            _ => return true, // Permissive mode when no token is configured
+            Some(tok) if !tok.trim().is_empty() => tok.trim(),
+            _ => return false, // FAIL-CLOSED: auth required but token is missing or empty!
         };
 
         for hdr_name in ["x-agenttrace-token", "x-api-key"] {
@@ -146,6 +153,7 @@ mod tests {
     #[test]
     fn test_permissive_auth_when_token_is_none() {
         let cfg = ClusterSecurityConfig {
+            require_auth: false,
             auth_token: None,
             upstream_allowlist: HashSet::new(),
             worker_hermes_key: None,
@@ -156,8 +164,26 @@ mod tests {
     }
 
     #[test]
+    fn test_fail_closed_when_require_auth_true_without_token() {
+        let cfg = ClusterSecurityConfig {
+            require_auth: true,
+            auth_token: None,
+            upstream_allowlist: HashSet::new(),
+            worker_hermes_key: None,
+            key_path: PathBuf::from(".secrets/node_key.pk8"),
+        };
+        let headers = HeaderMap::new();
+        assert!(!cfg.is_authorized(&headers), "Must fail closed if require_auth is true but token is missing");
+
+        let mut empty_token_cfg = cfg.clone();
+        empty_token_cfg.auth_token = Some("   ".to_string());
+        assert!(!empty_token_cfg.is_authorized(&headers), "Must fail closed if token is whitespace/empty");
+    }
+
+    #[test]
     fn test_bearer_authorization_success_and_failure() {
         let cfg = ClusterSecurityConfig {
+            require_auth: true,
             auth_token: Some("secret-token-123".to_string()),
             upstream_allowlist: HashSet::new(),
             worker_hermes_key: None,
@@ -182,6 +208,7 @@ mod tests {
     #[test]
     fn test_custom_header_token_success() {
         let cfg = ClusterSecurityConfig {
+            require_auth: true,
             auth_token: Some("my-agent-key".to_string()),
             upstream_allowlist: HashSet::new(),
             worker_hermes_key: None,
@@ -200,6 +227,7 @@ mod tests {
         allowlist.insert("http://192.168.1.102:8642".to_string());
 
         let cfg = ClusterSecurityConfig {
+            require_auth: false,
             auth_token: None,
             upstream_allowlist: allowlist,
             worker_hermes_key: None,

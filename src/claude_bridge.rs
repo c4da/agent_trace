@@ -19,7 +19,7 @@ use axum::{
     body::Body,
     extract::State,
     http::{HeaderMap, StatusCode},
-    response::Response,
+    response::{IntoResponse, Response},
     Json,
 };
 use std::sync::Arc;
@@ -466,20 +466,18 @@ pub async fn handle_anthropic_messages(
     }
 
     if assistant_reply.is_empty() {
-        let redact_note = if guard_res.verdict == SecurityVerdict::Flagged {
-            " (Note: Sensitive credentials were automatically redacted in-flight by AgentTrace DLP Guard)"
-        } else {
-            ""
-        };
-        let skill_note = if !matched_skill_slugs.is_empty() {
-            format!(" [Skills Applied: {}]", matched_skill_slugs.join(", "))
-        } else {
-            String::new()
-        };
-        assistant_reply = format!(
-            "[AgentTrace Shielded Claude Hub · Routed to {} on {}]{}{}\nVerified prompt processed safely.",
-            route_decision.selected_model, route_decision.node_id, redact_note, skill_note
-        );
+        // FAIL CLOSED / BAD GATEWAY: Never disguise upstream model failure as a successful completion!
+        let err_body = serde_json::json!({
+            "type": "error",
+            "error": {
+                "type": "api_error",
+                "message": format!(
+                    "AgentTrace Gateway: Upstream model execution failed or timed out on {} ({})",
+                    route_decision.node_id, route_decision.selected_model
+                )
+            }
+        });
+        return Ok((StatusCode::BAD_GATEWAY, Json(err_body)).into_response());
     }
 
     let duration_ms = t0.elapsed().as_secs_f64() * 1000.0;

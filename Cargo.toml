@@ -4,7 +4,7 @@ version = "1.1.0"
 edition = "2021"
 authors = ["AgentTrace Contributors"]
 license = "MIT OR Apache-2.0"
-description = "Enterprise AI Runtime Guard, Cryptographic Telemetry Ledger & Native Rust MCP Server for AI Coding Agent Clusters"
+description = "Local Rust Runtime Firewall, Pre-Image CAS Rollback Guard & Cryptographic Audit Ledger for AI Coding Agents"
 
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }

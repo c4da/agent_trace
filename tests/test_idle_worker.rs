@@ -34,6 +34,7 @@ fn create_test_app() -> (axum::Router, Database, tempfile::TempDir) {
     allowlist.insert("http://127.0.0.1:11434".to_string());
 
     let security_cfg = Arc::new(ClusterSecurityConfig {
+        require_auth: false,
         auth_token: None,
         upstream_allowlist: allowlist,
         worker_hermes_key: None,
@@ -84,6 +85,8 @@ fn create_test_app() -> (axum::Router, Database, tempfile::TempDir) {
         registry: registry.clone(),
         policy: policy.clone(),
         ledger_writer: Some(ledger_writer),
+        health_watchdog: None,
+        enable_remote_deploy: false,
     };
 
     let agent_state = AgentInterfaceState {

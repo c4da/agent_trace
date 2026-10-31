@@ -38,6 +38,7 @@ fn create_test_app(auth_token: Option<String>) -> (axum::Router, Database, tempf
     allowlist.insert("http://192.168.1.102:8642".to_string());
 
     let security_cfg = Arc::new(ClusterSecurityConfig {
+        require_auth: false,
         auth_token,
         upstream_allowlist: allowlist,
         worker_hermes_key: None,
@@ -88,6 +89,7 @@ fn create_test_app(auth_token: Option<String>) -> (axum::Router, Database, tempf
         policy: policy.clone(),
         ledger_writer: Some(ledger_writer),
         health_watchdog: None,
+        enable_remote_deploy: false,
     };
 
     let agent_state = AgentInterfaceState {
@@ -931,3 +933,92 @@ async fn test_http_workgroups_and_markdown_rules_lifecycle() {
     assert_eq!(res.status(), StatusCode::OK);
 }
 
+
+
+#[tokio::test]
+async fn test_http_remote_deploy_safe_defaults_and_inter_gateway_hmac() {
+    let (app, _db, _dir) = create_test_app(None);
+
+    // 1. Remote deploy endpoint MUST return 403 Forbidden when disabled by default
+    let deploy_payload = json!({
+        "target_ip": "192.168.1.200",
+        "port": 8642
+    });
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/cluster/deploy-worker")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&deploy_payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    // 2. Inbound event with forged x-gateway-hmac MUST be rejected with 401 Unauthorized
+    let event_payload = json!({
+        "event_id": "forged-ev-1",
+        "node_id": "PC-2",
+        "session_id": "test-session",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "event_type": "FileWrite",
+        "target": "src/config.json",
+        "action_details": { "bytes": 128 },
+        "diff": null,
+        "provenance_sources": [],
+        "security_verdict": "Allowed",
+        "security_reasons": [],
+        "duration_ms": 10.0,
+        "prev_hash": "",
+        "event_hash": "",
+        "signature": null,
+        "public_key": null
+    });
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/events")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("x-gateway-node-id", "PC-2")
+                .header("x-gateway-timestamp", chrono::Utc::now().timestamp().to_string())
+                .header("x-gateway-hmac", "deadbeef00112233445566778899aabbccddeeff")
+                .body(Body::from(serde_json::to_vec(&event_payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    // 3. Inbound heartbeat with forged x-gateway-hmac MUST be rejected with 401 Unauthorized
+    let heartbeat_payload = json!({
+        "node_id": "PC-2",
+        "hostname": "NODE-02",
+        "ip_address": "192.168.1.102",
+        "role": "Worker Edge Gateway",
+        "status": "ACTIVE",
+        "last_seen": chrono::Utc::now().to_rfc3339()
+    });
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/heartbeat")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("x-gateway-node-id", "PC-2")
+                .header("x-gateway-timestamp", chrono::Utc::now().timestamp().to_string())
+                .header("x-gateway-hmac", "deadbeef00112233445566778899aabbccddeeff")
+                .body(Body::from(serde_json::to_vec(&heartbeat_payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}

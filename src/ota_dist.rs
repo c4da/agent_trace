@@ -518,9 +518,30 @@ pub async fn deploy_worker(
     State(state): State<crate::handlers::AppState>,
     Json(payload): Json<DeployWorkerRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // 1. Fail closed if remote deployment is not explicitly enabled
+    if !state.enable_remote_deploy {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Remote worker deployment is disabled by default for security. Start AgentTrace with --enable-remote-deploy or set AGENTTRACE_ENABLE_REMOTE_DEPLOY=true to activate this endpoint.".to_string(),
+        ));
+    }
+
+    // 2. Enforce central authentication
+    if !state.security.is_authorized(&headers) {
+        return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
+    }
+
+    // 3. Validate and sanitize target_ip to prevent SSRF and injection
     let target_ip = payload.target_ip.trim();
     if target_ip.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "target_ip cannot be empty".to_string()));
+    }
+    if target_ip.parse::<std::net::IpAddr>().is_err()
+        && (!target_ip.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+            || target_ip.starts_with('-')
+            || target_ip.starts_with('.'))
+    {
+        return Err((StatusCode::BAD_REQUEST, "Invalid target_ip: must be a valid IP address or hostname".to_string()));
     }
 
     let port = payload.port.unwrap_or(8642);

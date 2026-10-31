@@ -179,9 +179,19 @@ pub fn spawn_worker_forwarder(
                 models: if discovered_models.is_empty() { None } else { Some(discovered_models) },
             };
 
+            let now_epoch = chrono::Utc::now().timestamp();
+            let body_bytes = serde_json::to_vec(&heartbeat).unwrap_or_default();
+            let mtls_cfg = crate::security_hardening::InterGatewayMtlsConfig::from_env();
+
             let mut req = client.post(&hb_url)
                 .header("content-type", "application/json")
-                .json(&heartbeat);
+                .header("x-gateway-node-id", &node_id)
+                .header("x-gateway-timestamp", now_epoch.to_string())
+                .body(body_bytes.clone());
+
+            if let Some(hmac_sig) = mtls_cfg.sign_inter_gateway_request(&node_id, now_epoch, &body_bytes) {
+                req = req.header("x-gateway-hmac", hmac_sig);
+            }
             if let Some(ref tok) = security.auth_token {
                 req = req.header("x-agenttrace-token", tok);
             }

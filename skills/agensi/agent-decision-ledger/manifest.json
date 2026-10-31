@@ -1,0 +1,22 @@
+{
+  "name": "agent-decision-ledger",
+  "version": "1.0.0",
+  "description": "Cryptographic milestone chronicle and living Studio Project Book audit trail for autonomous agent actions.",
+  "author": "c4da",
+  "license": "MIT OR Apache-2.0",
+  "repository": "https://github.com/c4da/agent_trace",
+  "marketplace": {
+    "platform": "agensi.io",
+    "tier": "free",
+    "categories": ["auditing", "governance", "cryptography"]
+  },
+  "compatibility": {
+    "agents": ["claude-code", "cursor", "github-copilot-cli", "antigravity", "hermes"],
+    "interfaces": ["mcp", "cli", "http"],
+    "runtime": "agent_trace_gw >= 1.1.0"
+  },
+  "provenance": {
+    "skill_file": "SKILL.md",
+    "sha256": "a705c33da47924f90680ebce9065afb6986f6fc96c08f7a596c8f56bd4aa4230"
+  }
+}

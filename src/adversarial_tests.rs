@@ -56,6 +56,7 @@ mod tests {
         allowlist.insert("http://192.168.1.102:8642".to_string());
 
         let cfg = ClusterSecurityConfig {
+            require_auth: true,
             auth_token: Some("corp-token".to_string()),
             upstream_allowlist: allowlist,
             worker_hermes_key: None,

@@ -51,6 +51,7 @@ pub struct AppState {
     pub policy: Arc<RwLock<PolicyEngine>>,
     pub ledger_writer: Option<crate::ledger_writer::LedgerWriter>,
     pub health_watchdog: Option<Arc<crate::cluster_health::ClusterHealthWatchdog>>,
+    pub enable_remote_deploy: bool,
 }
 
 /// Constructs the complete Axum Router for the AgentTrace Gateway.
@@ -300,6 +301,17 @@ pub async fn ingest_event(
 ) -> Result<StatusCode, StatusCode> {
     if !state.security.is_authorized(&headers) {
         return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Inter-Gateway cryptographic HMAC / mTLS verification when forwarded from peer nodes
+    let mtls_cfg = crate::security_hardening::InterGatewayMtlsConfig::from_env();
+    if mtls_cfg.mtls_enforced || headers.contains_key("x-gateway-hmac") || headers.contains_key("x-gateway-node-id") {
+        let now_epoch = chrono::Utc::now().timestamp();
+        let body_bytes = serde_json::to_vec(&event).unwrap_or_default();
+        if let Err(e) = mtls_cfg.verify_peer_gateway(&headers, &body_bytes, now_epoch) {
+            eprintln!("[-] Inter-gateway event HMAC verification failed: {}", e);
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     }
 
     // 1. Evaluate Agent Sandbox / Whitelist Policy & Hard AI Guard
@@ -589,6 +601,17 @@ pub async fn register_heartbeat(
 ) -> Result<StatusCode, StatusCode> {
     if !state.security.is_authorized(&headers) {
         return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Inter-Gateway cryptographic HMAC / mTLS verification when forwarded from peer nodes
+    let mtls_cfg = crate::security_hardening::InterGatewayMtlsConfig::from_env();
+    if mtls_cfg.mtls_enforced || headers.contains_key("x-gateway-hmac") || headers.contains_key("x-gateway-node-id") {
+        let now_epoch = chrono::Utc::now().timestamp();
+        let body_bytes = serde_json::to_vec(&node).unwrap_or_default();
+        if let Err(e) = mtls_cfg.verify_peer_gateway(&headers, &body_bytes, now_epoch) {
+            eprintln!("[-] Inter-gateway heartbeat HMAC verification failed: {}", e);
+            return Err(StatusCode::UNAUTHORIZED);
+        }
     }
     state.db.upsert_node(&node).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
