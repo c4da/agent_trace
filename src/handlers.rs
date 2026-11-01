@@ -270,28 +270,59 @@ pub async fn serve_dist_binary() -> Result<Response, StatusCode> {
         .unwrap())
 }
 
-pub async fn serve_dashboard() -> Html<&'static str> {
-    Html(DASHBOARD_HTML)
+async fn read_template_file(rel_path: &str) -> Option<String> {
+    if let Ok(content) = tokio::fs::read_to_string(rel_path).await {
+        return Some(content);
+    }
+    let default_root = "C:\\cada\\projects\\agent_trace_gw";
+    let project_root = std::env::var("AGENTTRACE_ROOT").unwrap_or_else(|_| default_root.to_string());
+    let path = std::path::Path::new(&project_root).join(rel_path);
+    if let Ok(content) = tokio::fs::read_to_string(path).await {
+        return Some(content);
+    }
+    None
 }
 
-pub async fn serve_policies() -> Html<&'static str> {
-    Html(POLICIES_HTML)
+pub async fn serve_dashboard() -> Html<String> {
+    if let Some(content) = read_template_file("src/dashboard.html").await {
+        return Html(content);
+    }
+    Html(DASHBOARD_HTML.to_string())
 }
 
-pub async fn serve_workgroups() -> Html<&'static str> {
-    Html(WORKGROUPS_HTML)
+pub async fn serve_policies() -> Html<String> {
+    if let Some(content) = read_template_file("src/policies.html").await {
+        return Html(content);
+    }
+    Html(POLICIES_HTML.to_string())
 }
 
-pub async fn serve_console() -> Html<&'static str> {
-    Html(CONSOLE_HTML)
+pub async fn serve_workgroups() -> Html<String> {
+    if let Some(content) = read_template_file("src/workgroups.html").await {
+        return Html(content);
+    }
+    Html(WORKGROUPS_HTML.to_string())
 }
 
-pub async fn serve_graph() -> Html<&'static str> {
-    Html(GRAPH_HTML)
+pub async fn serve_console() -> Html<String> {
+    if let Some(content) = read_template_file("src/console.html").await {
+        return Html(content);
+    }
+    Html(CONSOLE_HTML.to_string())
 }
 
-pub async fn serve_flyer() -> Html<&'static str> {
-    Html(FLYER_HTML)
+pub async fn serve_graph() -> Html<String> {
+    if let Some(content) = read_template_file("src/graph.html").await {
+        return Html(content);
+    }
+    Html(GRAPH_HTML.to_string())
+}
+
+pub async fn serve_flyer() -> Html<String> {
+    if let Some(content) = read_template_file("docs/flyer.html").await {
+        return Html(content);
+    }
+    Html(FLYER_HTML.to_string())
 }
 
 pub async fn ingest_event(

@@ -416,6 +416,113 @@ claude
 # { "mcpServers": { "agent-trace": { "command": "target/debug/agent_trace_mcp.exe" } } }
         </div>
 
+
+        <!-- Section 05: Multi-Agent Coordination & Workflow Threats (Beta) -->
+        <div class="section-header">
+            <span>05 //</span> Multi-Agent Coordination &amp; Workflow Threats (Optional Beta Modules)
+        </div>
+        <p style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 16px;">
+            Secondary operational threats handled by specialized sub-modules (disabled by default to preserve a minimal core surface).
+        </p>
+        <table class="bench-table">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Threat &amp; Operational Risk</th>
+                    <th style="width: 22%;">Optional Beta Module</th>
+                    <th style="width: 28%;">How AgentTrace Intercepts It</th>
+                    <th style="width: 25%;">How to Activate &amp; Test</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Role Confusion &amp; Rule Drift</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Agent guesses formatting, UI palettes, or invariants on its own.</span></td>
+                    <td><span class="pill pill-amber">Workgroups &amp; Rules</span><br><code style="font-size:0.78rem;">src/workgroups/</code></td>
+                    <td>Compiles specialized squads with strictly attached Markdown rules (<code>rules.md</code>) injected on keywords.</td>
+                    <td><strong>UI</strong>: <a href="http://127.0.0.1:8080/workgroups" target="_blank" style="color:var(--primary);">/workgroups</a><br><strong>API</strong>: <code>POST /api/v1/workgroups</code><br><strong>MCP</strong>: <code>attach_workgroup_rule</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Blind Context Loss in Handoffs</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Subagent starts blind, repeating solved errors or asking duplicate questions.</span></td>
+                    <td><span class="pill pill-amber">Agent Handoff Engine</span><br><code style="font-size:0.78rem;">src/agent_interface/</code></td>
+                    <td>Packages verified decisions, prior failures, and hashes into cryptographic Telemetry Handoff Bundles.</td>
+                    <td><strong>MCP</strong>: <code>get_telemetry_handoff</code><br><strong>API</strong>: <code>GET /api/v1/agent/handoff</code><br><strong>CLI</strong>: <code>agenttrace.py handoff</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Model Mismatch &amp; Misrouting</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Complex math routed to a 1.5B model, or trivial boilerplate burning cloud cash.</span></td>
+                    <td><span class="pill pill-amber">Dynamic Delegation</span><br><code style="font-size:0.78rem;">src/delegation_engine.rs</code></td>
+                    <td>Auto-routes intent by model capability tags (<code>ComplexReasoning</code> &rarr; Qwen 27B, <code>FastCode</code> &rarr; Gemma 4).</td>
+                    <td><strong>MCP</strong>: <code>set_route_override</code><br><strong>API</strong>: <code>POST /api/v1/delegate/override</code><br><strong>Proxy</strong>: <code>/v1/chat/completions</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Session Memory &amp; Knowledge Void</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Architectural milestones vanish into terminal scrollback.</span></td>
+                    <td><span class="pill pill-amber">Living "Project Book"</span><br><code style="font-size:0.78rem;">src/projects.rs</code></td>
+                    <td>Chronicles high-impact decisions, invariants, and file diffs into an immutable Project Book for humans &amp; agents.</td>
+                    <td><strong>UI</strong>: <a href="http://127.0.0.1:8080/client" target="_blank" style="color:var(--primary);">/client</a> (or <code>/app</code>)<br><strong>MCP</strong>: <code>record_project_decision</code><br><strong>API</strong>: <code>POST /api/v1/projects</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Agent Amnesia &amp; Retry Loops</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Hitting the same OS syntax trap across restarts, wasting 15k tokens.</span></td>
+                    <td><span class="pill pill-amber">Auto-Skill Forge</span><br><code style="font-size:0.78rem;">src/skill_forge.rs</code></td>
+                    <td>Mines <code>failure &rarr; resolution</code> trajectories into compact ~120-token skills injected in 9 &micro;s with DLP sanitization.</td>
+                    <td><strong>MCP</strong>: <code>manage_learned_skills</code><br><strong>Distill</strong>: <code>POST /api/v1/skills/distill</code><br><strong>Benchmark</strong>: <code>/api/v1/skills/roi-benchmark</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Section 06: Autonomous Automation, Environment & System Threats (Beta) -->
+        <div class="section-header">
+            <span>06 //</span> Autonomous Automation, Environment &amp; System Threats (Optional Beta Modules)
+        </div>
+        <p style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 16px;">
+            Infrastructure resilience, host security, background execution, and enterprise compliance modules.
+        </p>
+        <table class="bench-table">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Threat &amp; System Risk</th>
+                    <th style="width: 22%;">Optional Beta Module</th>
+                    <th style="width: 28%;">How AgentTrace Intercepts It</th>
+                    <th style="width: 25%;">How to Activate &amp; Test</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Uncoordinated Background Mutation</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Background tasks mutating files while developer is actively typing.</span></td>
+                    <td><span class="pill pill-amber">Preemptive Idle Worker</span><br><code style="font-size:0.78rem;">src/idle_worker.rs</code></td>
+                    <td>Instantaneously preempts background tasks (0 ms) on user activity; gates writes behind human-reviewed proposals.</td>
+                    <td><strong>Config</strong>: <code>POST /api/v1/idle_worker/config</code><br><strong>Activity Probe</strong>: <code>/idle_worker/user_activity</code><br><strong>Status</strong>: <code>GET /api/v1/idle_worker/status</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Process Jailbreaks &amp; Child Spawns</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Prompt injection attempting to spawn unauthorized child binaries or alter hooks.</span></td>
+                    <td><span class="pill pill-amber">OS-Kernel Warden</span><br><code style="font-size:0.78rem;">src/os_hardening.rs</code></td>
+                    <td>Zero-memory Win32 process mitigations blocking unauthorized child process creation, DLL injection, and unwhitelisted writes.</td>
+                    <td><strong>Status</strong>: <code>/api/v1/security/kernel-lockdown</code><br><strong>Lockdown</strong>: <code>POST /security/kernel-lockdown</code> with <code>{"set_mode":"StrictMitigations"}</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Sleeping Node Blackholes</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Remote worker PC entering Windows Sleep mid-inference, hanging callers.</span></td>
+                    <td><span class="pill pill-amber">Cluster Sleep Watchdog</span><br><code style="font-size:0.78rem;">src/cluster_health.rs</code></td>
+                    <td>Probes node health every 10s. If a worker sleeps or drops offline, flags <code>HEALTH_DOWN</code> and fails over cleanly.</td>
+                    <td><strong>MCP</strong>: <code>check_cluster_health</code><br><strong>Health API</strong>: <code>GET /api/v1/cluster/health</code><br><strong>Probe</strong>: <code>POST /api/v1/cluster/health/probe</code></td>
+                </tr>
+                <tr>
+                    <td><strong>State Corruption &amp; Database Outage</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Power cut truncating JSON, or external PostgreSQL going down.</span></td>
+                    <td><span class="pill pill-amber">3-Tier Self-Healing Persistence</span><br><code style="font-size:0.78rem;">src/persistence.rs</code></td>
+                    <td>Mirrors state in SQLite WAL with SHA-256 self-healing (auto-heals in 22 &micro;s) and degrades gracefully if external DB fails.</td>
+                    <td><strong>Status</strong>: <code>/api/v1/persistence/status</code><br><strong>External DB</strong>: Set <code>AGENTTRACE_DB_URL</code><br><strong>Test Self-Heal</strong>: <code>POST /persistence/reload</code></td>
+                </tr>
+                <tr>
+                    <td><strong>SOC Blind Spots &amp; Shadow AI</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Local agent activity completely invisible to enterprise security teams.</span></td>
+                    <td><span class="pill pill-amber">SIEM / ECS 8.11 Stream</span><br><code style="font-size:0.78rem;">src/siem_exporter.rs</code></td>
+                    <td>Translates all tool actions, security verdicts, and diffs into Elastic Common Schema (<code>ECS 8.11</code>) NDJSON for Splunk/ELK.</td>
+                    <td><strong>MCP</strong>: <code>export_siem_elk</code><br><strong>Stream API</strong>: <code>GET /api/v1/export/elk?format=bulk</code><br><strong>Auto-Ship</strong>: Set <code>AGENTTRACE_SIEM_URL</code></td>
+                </tr>
+                <tr>
+                    <td><strong>LAN Configuration Overhead</strong><br><span style="font-size:0.8rem; color:#94a3b8;">Manual IP editing and port forwarding to link local machines.</span></td>
+                    <td><span class="pill pill-amber">UDP Subnet Discovery</span><br><code style="font-size:0.78rem;">services::listen_for_lead_beacon</code></td>
+                    <td>Emits UDP discovery beacons on <code>:8089</code> allowing edge workers to discover and auto-join the lead node in 4s.</td>
+                    <td><strong>Auto-Join</strong>: <code>cargo run -- --worker</code><br><strong>Deploy Worker API</strong>: <code>POST /cluster/deploy-worker</code> *(requires <code>--enable-remote-deploy</code>)*</td>
+                </tr>
+            </tbody>
+        </table>
+
         <!-- Call to Action -->
         <div class="cta-banner">
             <h3 class="cta-title">Build with Autonomous Agents. Never Lose Code.</h3>
