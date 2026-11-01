@@ -277,6 +277,156 @@
         .btn-primary:hover { background: #7dd3fc; box-shadow: 0 0 20px rgba(56, 189, 248, 0.5); }
         .btn-outline { background: transparent; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.2); }
         .btn-outline:hover { border-color: var(--primary); background: rgba(56, 189, 248, 0.08); }
+    
+        /* MCP Highlight Section */
+        .mcp-highlight-box {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.09) 0%, rgba(56, 189, 248, 0.09) 100%);
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            box-shadow: 0 0 35px rgba(168, 85, 247, 0.12);
+            border-radius: 14px;
+            padding: 24px;
+            margin: 28px 0;
+            position: relative;
+        }
+
+        .mcp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 16px;
+        }
+
+        .mcp-title-group {
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .mcp-badge {
+            display: inline-block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #c084fc;
+            background: rgba(168, 85, 247, 0.2);
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-bottom: 8px;
+        }
+
+        .mcp-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin: 4px 0 6px;
+        }
+
+        .mcp-desc {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .mcp-ide-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .ide-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: #e2e8f0;
+        }
+
+        .mcp-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .mcp-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .mcp-card h5 {
+            font-size: 0.95rem;
+            color: #f1f5f9;
+            margin: 0 0 10px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mcp-tool-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.82rem;
+        }
+
+        .mcp-tool-list li {
+            padding: 4px 0;
+            color: var(--text-muted);
+            line-height: 1.4;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
+        }
+
+        .mcp-tool-list li:last-child {
+            border-bottom: none;
+        }
+
+        .mcp-tool-list code {
+            color: var(--primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .mcp-config-box {
+            background: #060911;
+            border: 1px solid rgba(168, 85, 247, 0.25);
+            border-radius: 8px;
+            padding: 14px 18px;
+        }
+
+        .mcp-config-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.80rem;
+            color: #94a3b8;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .mcp-config-box pre {
+            margin: 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            color: #a5f3fc;
+            overflow-x: auto;
+        }
+
     </style>
 </head>
 <body>
@@ -347,6 +497,79 @@
                 <div class="pillar-num">04</div>
                 <h4>🔌 Native Rust MCP Server &amp; Skills</h4>
                 <p>Zero-dependency <code>stdio</code> binary (<code>agent_trace_mcp.exe</code>) equipping Claude Code, Cursor, Copilot CLI, and Antigravity with <strong>36 native tools</strong> for pre-flight guard checks, CAS rollback, and ledger verification.</p>
+            </div>
+        </div>
+
+        <!-- Feature Highlight: Model Context Protocol (MCP) -->
+        <div class="mcp-highlight-box">
+            <div class="mcp-header">
+                <div class="mcp-title-group">
+                    <span class="mcp-badge">&#x1F50C; Model Context Protocol (MCP) Feature Highlight</span>
+                    <h3 class="mcp-title">First-Class Native Rust MCP Server (36 Tools)</h3>
+                    <p class="mcp-desc">
+                        Connect <strong>Claude Code, Cursor, Windsurf, Claude Desktop, and Antigravity</strong> directly to the AgentTrace runtime boundary with <strong>zero Node.js or Python dependencies</strong> and sub-millisecond execution over pure compiled <code>stdio</code>.
+                    </p>
+                </div>
+                <div class="mcp-ide-badges">
+                    <span class="ide-tag">&#x2714; Claude Code</span>
+                    <span class="ide-tag">&#x2714; Cursor IDE</span>
+                    <span class="ide-tag">&#x2714; Claude Desktop</span>
+                    <span class="ide-tag">&#x2714; Antigravity</span>
+                    <span class="ide-tag">&#x2714; Windsurf</span>
+                </div>
+            </div>
+
+            <div class="mcp-grid">
+                <div class="mcp-card">
+                    <h5>&#x1F6E1;&#xFE0F; Runtime Security &amp; CAS Rollback</h5>
+                    <ul class="mcp-tool-list">
+                        <li><code>intercept_ai_guard</code> &mdash; Synchronous pre-flight command &amp; syntax audit</li>
+                        <li><code>protect_or_revert_cas_file</code> &mdash; Snapshot &amp; instant 1.1ms file rollback</li>
+                        <li><code>evaluate_access_policy</code> &mdash; Real-time path &amp; action boundary check</li>
+                        <li><code>confine_agent_to_playground</code> &mdash; Confine rogue agents into safe sandboxes</li>
+                    </ul>
+                </div>
+                <div class="mcp-card">
+                    <h5>&#x26D3;&#xFE0F; Cryptographic Ledger &amp; Proofs</h5>
+                    <ul class="mcp-tool-list">
+                        <li><code>verify_ledger</code> &mdash; Headless verification of SHA-256 hash chain</li>
+                        <li><code>record_project_decision</code> &mdash; Commit architectural milestones to ledger</li>
+                        <li><code>query_telemetry</code> &mdash; Forensic search across agent actions &amp; diffs</li>
+                        <li><code>get_security_alerts</code> &mdash; Inspect and acknowledge security violations</li>
+                    </ul>
+                </div>
+                <div class="mcp-card">
+                    <h5>&#x26A1; Cluster &amp; Zero-Token Offloading</h5>
+                    <ul class="mcp-tool-list">
+                        <li><code>check_cluster_health</code> &mdash; Probe LAN node status and VRAM loads</li>
+                        <li><code>dispatch_cluster_prompt</code> &mdash; Offload reasoning tasks to local Qwen / Gemma</li>
+                        <li><code>set_route_override</code> &mdash; Intercept and steer model assignments dynamically</li>
+                        <li><code>deploy_cluster_worker</code> &mdash; Zero-walk remote worker bootstrapping</li>
+                    </ul>
+                </div>
+                <div class="mcp-card">
+                    <h5>&#x1F9E0; Skills &amp; Multi-Agent Workgroups</h5>
+                    <ul class="mcp-tool-list">
+                        <li><code>manage_learned_skills</code> &mdash; Search, activate, and benchmark distilled skills</li>
+                        <li><code>get_telemetry_handoff</code> &mdash; Lossless context bundle for subagent delegation</li>
+                        <li><code>attach_workgroup_rule</code> &mdash; Bind strict invariants to agent squads</li>
+                        <li><code>export_siem_elk</code> &mdash; Export ECS 8.11 telemetry to Splunk / Elastic</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mcp-config-box">
+                <div class="mcp-config-title">
+                    <span>1-Click IDE Configuration (claude_desktop_config.json or .cursor/mcp.json)</span>
+                    <span style="color:var(--accent-green);">&#x26A1; 0.5 ms stdio JSON-RPC</span>
+                </div>
+                <pre><code>{
+  "mcpServers": {
+    "agent-trace": {
+      "command": "target/debug/agent_trace_mcp.exe"
+    }
+  }
+}</code></pre>
             </div>
         </div>
 
