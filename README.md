@@ -9,7 +9,7 @@
 [![Footprint](https://img.shields.io/badge/Memory-16.24%20MB%20RSS%20%7C%201.1ms%20Latency-success.svg)](docs/BENCHMARKS.md)
 [![Tests](https://img.shields.io/badge/Tests-155%2B%20Tests%20Passing%20(All%20Targets)-brightgreen.svg)](docs/BENCHMARKS.md)
 [![AI Guard](https://img.shields.io/badge/AI%20Guard-DLP%20Scrubbing%20%2B%20Instant%20CAS%20Undo-critical.svg)](src/ai_guard.rs)
-[![Agensi](https://img.shields.io/badge/Marketplace-Agensi.io%20Skills-purple.svg)](skills/agensi/)
+[![Agensi Skills](https://img.shields.io/badge/Marketplace-Agensi.io%20Skills%20Repo-purple.svg)](https://github.com/agensi-io/agensi-skills)
 
 ---
 
