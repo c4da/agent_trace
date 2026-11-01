@@ -6,10 +6,10 @@
 | :--- | :--- |
 | **Benchmark Version Tag** | **`v1.1.0`** |
 | **Release Version** | `v1.1.0` |
-| **Git Commit** | `aa8fff9` |
-| **Timestamp (UTC)** | `2026-10-31 23:58:03 UTC` |
+| **Git Commit** | `546a348` |
+| **Timestamp (UTC)** | `2026-11-01 00:14:09 UTC` |
 | **Platform / Arch** | `windows / x86_64` |
-| **Process Memory Footprint (RSS)** | **`15.41 MB`** *(Target SLA: `< 20.00 MB` — **PASS**)* |
+| **Process Memory Footprint (RSS)** | **`15.76 MB`** *(Target SLA: `< 20.00 MB` — **PASS**)* |
 | **Automated Test Suite** | **`134 Rust Unit & Adversarial Tests + 7 E2E Tests Passed (0 Failed)`** |
 
 ---
@@ -18,14 +18,14 @@
 
 | Version Tag | Subsystem Operation | Iterations | p50 Latency | p95 Latency | p99 Latency | Target SLA | Status |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| `v1.1.0` | **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | `100` | **`1.914 ms`** (`1914 µs`) | `20.302 ms` | `46.826 ms` | `< 5.0 ms` | **✅ PASS** |
-| `v1.1.0` | **Pre-Image CAS Guard Rogue Write Auto-Revert** | `50` | **`1.850 ms`** (`1850 µs`) | `9.911 ms` | `56.218 ms` | `< 5.0 ms` | **✅ PASS** |
-| `v1.1.0` | **SHA-256 + Ed25519 Signed Block Commit** | `10` | **`0.339 ms`** (`339 µs`) | `0.481 ms` | `0.481 ms` | `< 5.0 ms` | **✅ PASS** |
-| `v1.1.0` | **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | `30` | **`4.751 ms`** (`4751 µs`) | `5.030 ms` | `5.150 ms` | `< 10.0 ms` | **✅ PASS** |
-| `v1.1.0` | **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | `100` | **`0.012 ms`** (`12 µs`) | `0.013 ms` | `0.047 ms` | `< 1.0 ms` | **✅ PASS** |
-| `v1.1.0` | **Auto-Skill Forge Trigger Match & In-Flight Injection** | `100` | **`0.012 ms`** (`12 µs`) | `0.043 ms` | `0.078 ms` | `< 1.0 ms` | **✅ PASS** |
-| `v1.1.0` | **Unified Persistence SQLite + SHA-256 Integrity Roundtrip** | `30` | **`0.028 ms`** (`28 µs`) | `0.049 ms` | `0.112 ms` | `< 5.0 ms` | **✅ PASS** |
-| `v1.1.0` | **OS-Kernel Warden Self-Guard & Write-Boundary Check (0 KB RAM)** | `100` | **`0.003 ms`** (`3 µs`) | `0.004 ms` | `0.027 ms` | `< 1.0 ms` | **✅ PASS** |
+| `v1.1.0` | **Hard AI Guard Pre-Execution Interception (DLP + Command + Zone)** | `100` | **`1.256 ms`** (`1256 µs`) | `3.932 ms` | `5.992 ms` | `< 5.0 ms` | **✅ PASS** |
+| `v1.1.0` | **Pre-Image CAS Guard Rogue Write Auto-Revert** | `50` | **`1.533 ms`** (`1533 µs`) | `6.071 ms` | `12.705 ms` | `< 5.0 ms` | **✅ PASS** |
+| `v1.1.0` | **SHA-256 + Ed25519 Signed Block Commit** | `10` | **`0.173 ms`** (`173 µs`) | `0.316 ms` | `0.316 ms` | `< 5.0 ms` | **✅ PASS** |
+| `v1.1.0` | **Cryptographic Ledger Chain Verification (10 Signed Blocks)** | `30` | **`2.658 ms`** (`2658 µs`) | `2.905 ms` | `5.294 ms` | `< 10.0 ms` | **✅ PASS** |
+| `v1.1.0` | **ChaCha20-Poly1305 AEAD Secret Vault Roundtrip** | `100` | **`0.010 ms`** (`10 µs`) | `0.012 ms` | `0.132 ms` | `< 1.0 ms` | **✅ PASS** |
+| `v1.1.0` | **Auto-Skill Forge Trigger Match & In-Flight Injection** | `100` | **`0.009 ms`** (`9 µs`) | `0.010 ms` | `0.035 ms` | `< 1.0 ms` | **✅ PASS** |
+| `v1.1.0` | **Unified Persistence SQLite + SHA-256 Integrity Roundtrip** | `30` | **`0.022 ms`** (`22 µs`) | `0.036 ms` | `0.127 ms` | `< 5.0 ms` | **✅ PASS** |
+| `v1.1.0` | **OS-Kernel Warden Self-Guard & Write-Boundary Check (0 KB RAM)** | `100` | **`0.002 ms`** (`2 µs`) | `0.003 ms` | `0.014 ms` | `< 1.0 ms` | **✅ PASS** |
 
 ---
 

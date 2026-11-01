@@ -20,7 +20,7 @@ Autonomous AI coding agents (Claude Code, Cursor, Copilot CLI, Antigravity) are 
 1. **Destructive Shell Execution**: A hallucinated or confused command (`rm -rf /`, `git push --force`, `chmod -R 777`, `DROP TABLE`, `eval $(curl ...)`) can wipe or break your environment.
 2. **Upstream Credential Leaks**: Pasted logs, stack traces, or `.env` files leak raw API keys (`sk-ant-*`, `sk-proj-*`, `AKIA*`, `AIzaSy*`, `ghp_*`, PEM certificates) directly to external model providers.
 3. **Catastrophic Refactoring Corruption**: When an agent attempts a multi-file refactor and breaks syntax or deletes critical source files, standard `git checkout` can discard uncommitted work.
-4. **Zero Tamper-Evident Auditability**: Standard terminal history offers no cryptographic guarantee of what the agent did, why it did it, or what parameters were passed.
+4. **Unbounded Path Escapes & Blast Radius**: Without strict boundary enforcement, agents can wander outside the repository, modifying sibling projects, altering .git/hooks, or reading sensitive user directories (~/.ssh, ~/.aws, system folders).
 
 **AgentTrace sits between the agent and your system as a transparent, high-performance runtime guard.** It runs as a lightweight native binary (`~16 MB` RSS, sub-2ms latency) that catches threats before execution and guarantees forensic recovery.
 
@@ -41,11 +41,11 @@ Autonomous AI coding agents (Claude Code, Cursor, Copilot CLI, Antigravity) are 
 - Every tool touchpoint, command execution, and file modification is signed with an Ed25519 node key and committed to a local SHA-256 hash-chain.
 - Any unauthorized post-facto modification to past database records breaks the cryptographic hash link and triggers an immediate verification alert.
 
-### 4. High-Density Operator Console (`GET /console`)
+### 5. High-Density Operator Console (`GET /console`)
 - Built following the **"Work-First"** operator standard (Ghostty / k9s / htop aesthetics).
 - Visualizes 30–50 live telemetry records at a glance with keyboard shortcuts (`j`/`k` navigation, `P` screen freeze, `/` grep filter, `M` sandbox evaluator).
 
-### 5. Native MCP Server for Coding Agents
+### 6. Native MCP Server for Coding Agents
 - Native `agent_trace_mcp.exe` communicates over standard `stdio` JSON-RPC 2.0 with Claude Code, Cursor, Copilot CLI, and Antigravity.
 - Adheres strictly to the MCP specification with full `inputSchema` parameter schemas.
 

@@ -298,22 +298,26 @@
             <strong>The Missing Security Layer:</strong> Coding agents (Claude Code, Cursor, Copilot CLI, Antigravity) are given raw terminal execution and filesystem privileges. AgentTrace runs as a fast, 16 MB compiled Rust runtime on <code>127.0.0.1:8080</code> that intercepts threats in <strong>1.1 ms</strong>, prevents credential leaks, restores deleted/corrupted files instantly, and provides cryptographic Ed25519 / SHA-256 proof of every agent action.
         </div>
 
-        <!-- The 3 Fatal Threats -->
+        <!-- The 4 Fatal Threats -->
         <div class="section-header">
-            <span>01 //</span> The 3 Fatal Threats Solved at the Runtime Boundary
+            <span>01 //</span> The 4 Fatal Threats Solved at the Runtime Boundary
         </div>
-        <div class="grid-3">
+        <div class="grid-2">
             <div class="problem-card">
-                <h4>💥 Destructive Commands</h4>
+                <h4>💥 1. Destructive Commands</h4>
                 <p>Hallucinated or confused commands like <code>rm -rf /</code>, <code>git push --force</code>, <code>chmod -R 777</code>, or pipeline script cradles are caught and blocked before execution.</p>
             </div>
             <div class="problem-card">
-                <h4>🔑 Leaked Secrets &amp; Keys</h4>
+                <h4>🔑 2. Leaked Secrets &amp; Keys</h4>
                 <p>Environment variables, AWS keys, and OpenAI/Anthropic tokens pasted into logs are scrubbed by DLP regex filters before ever leaving your machine.</p>
             </div>
             <div class="problem-card">
-                <h4>🌪️ Silent File Corruption</h4>
+                <h4>🌪️ 3. Silent File Corruption</h4>
                 <p>When an agent damages syntax across multiple files or deletes a source module, Content-Addressable Storage (CAS) rolls files back in 1.1 ms without wiping git state.</p>
+            </div>
+            <div class="problem-card">
+                <h4>🗺️ 4. Rogue Path Escapes &amp; Sprawl</h4>
+                <p>An agent wandering outside the project root to touch sibling repos, <code>.git/hooks</code>, or sensitive directories (<code>~/.ssh</code>, <code>~/.aws</code>) is strictly confined by spatial allow/denylist safe zones.</p>
             </div>
         </div>
 
