@@ -69,6 +69,7 @@
         .pill-green { background: rgba(52, 211, 153, 0.15); color: var(--accent-green); border: 1px solid rgba(52, 211, 153, 0.4); }
         .pill-amber { background: rgba(251, 191, 36, 0.15); color: var(--accent-amber); border: 1px solid rgba(251, 191, 36, 0.4); }
         .pill-red { background: rgba(248, 113, 113, 0.15); color: var(--accent-red); border: 1px solid rgba(248, 113, 113, 0.4); }
+        .pill-purple { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
 
         .hero-title {
             font-size: 2.8rem;
@@ -287,6 +288,7 @@
             <span class="pill pill-green">16 MB Rust Daemon</span>
             <span class="pill pill-amber">Fail-Closed Security</span>
             <span class="pill pill-red">Pre-Image CAS Rollback (&lt; 1.2ms)</span>
+            <span class="pill pill-purple">Native Rust MCP (36 Tools)</span>
             <span class="pill pill-blue">Agensi.io Skills Ready</span>
         </div>
 
@@ -343,8 +345,8 @@
             </div>
             <div class="pillar-card">
                 <div class="pillar-num">04</div>
-                <h4>📦 Agensi.io Compatible Skills</h4>
-                <p>Curated <code>SKILL.md</code> packages in <code>skills/agensi/</code> provide pre-flight checks, local model offload, and milestone recording across 20+ agent environments.</p>
+                <h4>🔌 Native Rust MCP Server &amp; Skills</h4>
+                <p>Zero-dependency <code>stdio</code> binary (<code>agent_trace_mcp.exe</code>) equipping Claude Code, Cursor, Copilot CLI, and Antigravity with <strong>36 native tools</strong> for pre-flight guard checks, CAS rollback, and ledger verification.</p>
             </div>
         </div>
 
@@ -365,6 +367,11 @@
                     <td><strong>Runtime Memory RSS</strong></td>
                     <td class="highlight-val">16.24 MB (Native Rust)</td>
                     <td>500 MB – 2 GB (Heavy Python/Docker Stacks)</td>
+                </tr>
+                <tr>
+                    <td><strong>Agent Interface &amp; Tools</strong></td>
+                    <td class="highlight-val">Native Rust MCP (36 stdio JSON-RPC Tools)</td>
+                    <td>Zero native tools (uninspected terminal scripts)</td>
                 </tr>
                 <tr>
                     <td><strong>Pre-flight Gate Latency</strong></td>
@@ -400,9 +407,13 @@ cargo test --all-targets
 # 2. Run the gateway on localhost:
 cargo run --bin agent_trace_gw
 
-# 3. Route Claude Code CLI through the runtime firewall:
+# 3. Route Claude Code CLI directly through runtime firewall:
 export ANTHROPIC_BASE_URL=http://127.0.0.1:8080
 claude
+
+# 4. Or connect via Native Rust MCP Server (Claude Code, Cursor, Antigravity):
+# Add to claude_desktop_config.json or .cursor/mcp.json:
+# { "mcpServers": { "agent-trace": { "command": "target/debug/agent_trace_mcp.exe" } } }
         </div>
 
         <!-- Call to Action -->
