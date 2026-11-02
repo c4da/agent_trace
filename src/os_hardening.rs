@@ -32,6 +32,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
+#[cfg(target_os = "windows")]
 use tracing::{info, warn};
 
 /// Operating mode for the OS-Kernel Warden Self-Hardening engine.

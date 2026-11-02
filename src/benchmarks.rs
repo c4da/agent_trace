@@ -59,10 +59,9 @@ pub struct BenchmarkSuiteReport {
 
 /// Queries the current process Resident Set Size (Working Set) in Megabytes.
 pub fn measure_process_rss_mb() -> f64 {
-    let pid = std::process::id();
-
     #[cfg(target_os = "windows")]
     {
+        let pid = std::process::id();
         if let Ok(output) = std::process::Command::new("tasklist")
             .args(["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
             .output()
