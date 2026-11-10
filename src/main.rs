@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind_host = std::env::var("BIND_HOST").unwrap_or_else(|_| if allow_lan { "0.0.0.0" } else { "127.0.0.1" }.to_string());
     let addr: SocketAddr = format!("{}:{}", bind_host, port).parse()?;
     let loopback_only = addr.ip().is_loopback();
-    let workers = services::parse_worker_upstreams(&std::env::var("WORKER_UPSTREAMS").unwrap_or_default());
+    let workers = services::parse_worker_upstreams(&agent_trace_gw::secrets::setting("WORKER_UPSTREAMS").unwrap_or_default());
 
     let security = Arc::new(ClusterSecurityConfig::load());
     if !loopback_only && security.auth_token.is_none() {

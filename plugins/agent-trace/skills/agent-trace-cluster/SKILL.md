@@ -9,8 +9,9 @@ Use this skill when inspecting cluster nodes, checking which model a prompt woul
 
 ## Endpoints
 
-- **Lead Node (PC-1)**: AgentTrace Gateway `http://localhost:8080`; Ollama `http://127.0.0.1:11434` (`qwen3.8:27b`, `qwen3:14b`).
-- **Worker Node (PC-2)**: Hermes / Ollama CUDA `http://192.168.1.102:8642` (`deepseek-r1:1.5b`), registered through `WORKER_UPSTREAMS` and `UPSTREAM_ALLOWLIST` on the gateway.
+- **Lead Node (PC-1)**: AgentTrace Gateway `http://localhost:8080`; Ollama `http://127.0.0.1:11434`.
+- **Worker Node (PC-2)**: Hermes `http://192.168.1.102:8642`, started manually, so it may be offline. It is registered through `WORKER_UPSTREAMS` and `UPSTREAM_ALLOWLIST` in `.secrets/agenttrace.env`.
+- **Models are discovered, not fixed**: call `inspect_cluster` or `GET /v1/models` (each model is tagged with its `node_id`) before choosing one. Use `auto` if unsure.
 
 ## MCP tools
 

@@ -24,7 +24,7 @@ Point any OpenAI-compatible client at the gateway:
 ```sh
 curl http://127.0.0.1:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3:14b","messages":[{"role":"user","content":"hello"}]}'
+  -d '{"model":"auto","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 Or set the client's base URL to `http://127.0.0.1:8080/v1`. If `AGENTTRACE_TOKEN` is set, use it as the client's API key.
@@ -54,7 +54,7 @@ Tools: `record_project_decision`, `dispatch_cluster_prompt`, `verify_ledger`, `q
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `UPSTREAM_URL` | `http://127.0.0.1:11434` | Default upstream (Ollama) |
-| `WORKER_UPSTREAMS` | none | Extra upstreams, `NAME=url,...` e.g. `PC-2=http://192.168.1.102:8642,GPU=http://10.0.0.5:11434`. Each must also be in `UPSTREAM_ALLOWLIST` |
+| `WORKER_UPSTREAMS` | none | Extra upstreams, `NAME=url,...` e.g. `PC-2=http://192.168.1.102:8642,GPU=http://10.0.0.5:11434`. Each must also be in `UPSTREAM_ALLOWLIST`. Can be set in `.secrets/agenttrace.env`. Workers are polled every 15 s and drop out after 60 s offline |
 | `UPSTREAM_ALLOWLIST` | local Ollama | Comma-separated upstream origins the proxy may call (SSRF guard) |
 | `WORKER_HERMES_KEY` | none | Bearer token sent to the worker upstream |
 | `AGENTTRACE_TOKEN` | none | Shared secret required on all non-static routes |

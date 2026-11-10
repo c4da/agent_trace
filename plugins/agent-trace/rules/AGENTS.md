@@ -25,7 +25,7 @@ When the **AgentTrace** plugin is active, all agent operations, cluster interact
 
 ## 3. Autonomous Local Agent Ecosystem & Token Economy Directive
 - **Save External API Tokens**: Delegate boilerplate generation, unit test drafting, docstring creation, and sanity audits to local cluster nodes:
-  - **PC-1 Lead Node (`192.168.1.101` / `localhost:8080`)**: `qwen3.8:27b` (Heavy Reasoning), `qwen3:14b` (Fast Code).
-  - **PC-2 Worker Node (`192.168.1.102:8642`)**: `deepseek-r1:1.5b` (Ultra-Fast CUDA Reasoning & Chain-of-Thought Verification).
+  - Discover what is online first: MCP `inspect_cluster`, or `GET http://localhost:8080/v1/models` (each model is tagged with its `node_id`). Don't assume model names.
+  - Workers that are started manually (such as PC-2) may be offline. Fall back to `LOCAL` models, or use `auto`.
 - **Cryptographic Provenance**: Every major milestone, architectural decision, and rule verification must be logged to the SHA-256 ledger using `record_project_decision` or through the AgentTrace Gateway.
 - **Secrets**: Never paste credentials into prompts; the gateway redacts known patterns, but treat that as a backstop.

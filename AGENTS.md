@@ -10,24 +10,17 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 - **Role**: System architecture, multi-file planning, system invariant enforcement, user communication.
 - **Model**: Frontier / Cloud Gemini reasoning engine.
 
-### B. PC-1 Lead Node (LEAD-NODE · 192.168.1.101)
-- **Endpoints**:
-  - AgentTrace Gateway: `http://localhost:8080` / `http://192.168.1.101:8080`
-  - Ollama Engine: `http://127.0.0.1:11434` / `http://127.0.0.1:11434/v1`
-  - Hermes CLI: `%LOCALAPPDATA%\hermes\bin\hermes.cmd`
-- **Models & Delegation Roles**:
-  - `qwen3.8:27b` (Heavy Local Reasoning Partner):
-    - Complex architectural refactoring, structural code analysis, deep math/physics problem solving.
-  - `qwen3:14b` (Fast Local Code Partner):
-    - Rust & Python unit tests (`cargo test`), boilerplate generation, docstrings, telemetry parsers, log analyzers.
+### B. Nodes & Models — discover them, don't assume them
+Models and nodes change, so none are listed here. Before delegating, look up what is online right now:
+- **MCP**: call `inspect_cluster` (nodes, health, models) or `get_delegation_config` (routing roles).
+- **HTTP**: `GET http://localhost:8080/v1/models` — every model, tagged with the `node_id` serving it (`LOCAL` = this PC's Ollama).
 
-### C. PC-2 Worker Node (NODE-02 · 192.168.1.102)
-- **Endpoints**:
-  - Hermes Agent / Ollama: `http://192.168.1.102:8642` / `http://192.168.1.102:8642/v1`
-  - Auth Token: stored in `.secrets/agenttrace.env` as `WORKER_HERMES_KEY`; register the worker via `WORKER_UPSTREAMS` and `UPSTREAM_ALLOWLIST`
-- **Models & Delegation Roles**:
-  - `deepseek-r1:1.5b` (Ultra-Fast GPU Reasoning & Sanity Verification):
-    - NVIDIA CUDA acceleration, rapid chain-of-thought verification, syntax checks, regex validation, fast assertion audits at zero token cost.
+How discovery works: every 15 s the gateway reads the local Ollama list and each worker's `/v1/models`. Workers that stop answering drop out after 60 s. Pick models by size and role from that live list, and use `auto` if unsure.
+
+### C. Known machines
+- **PC-1 (lead, 192.168.1.101)**: runs the gateway (`http://localhost:8080`) and Ollama (`http://127.0.0.1:11434`).
+- **PC-2 (worker, 192.168.1.102)**: Hermes agent on `http://192.168.1.102:8642`. **Started manually**, so it is often offline: check that it appears in `/v1/models` before dispatching to it, and fall back to local models if it is missing.
+- Workers are registered in `.secrets/agenttrace.env`: `WORKER_UPSTREAMS` (`NAME=url,...`), `UPSTREAM_ALLOWLIST`, and `WORKER_HERMES_KEY` (bearer token sent to workers).
 
 ---
 
@@ -50,7 +43,7 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 
 1. **Agent Tool, Not Human Tool**: Humans type prompts directly in their editor, terminal, or IDE. Agents interact natively with AgentTrace via the standalone Rust MCP binary (`agent_trace_mcp.exe`).
 2. **Autonomous Project Chronicle**: Whenever the agent refactors code, solves architectural problems, or audits security invariants, the agent MUST call `record_project_decision` to log the rationale, tags, and lessons learned. The decision is stored in the signed ledger and shown in the console event stream.
-3. **Zero External API Cost**: Secondary boilerplate, unit tests (`cargo test`), telemetry parsing, and documentation must be delegated to PC-1 (`qwen3.8:27b`, `qwen3.5:9b`) and PC-2 (`hermes-agent` / `deepseek-r1:1.5b`) via `dispatch_cluster_prompt`.
+3. **Zero External API Cost**: Secondary boilerplate, unit tests (`cargo test`), telemetry parsing, and documentation must be delegated to cluster models via `dispatch_cluster_prompt`, choosing from the live model list (section 1B).
 4. **Security Model**: The gateway binds loopback by default; when `AGENTTRACE_TOKEN` is set, send it as `Authorization: Bearer` or `x-agenttrace-token`. Secrets in prompts are redacted before forwarding or logging.
 5. **Cryptographic Provenance**: Events reported to the gateway are logged to maintain an unbroken SHA-256 hash chain and Ed25519 node signatures.
 

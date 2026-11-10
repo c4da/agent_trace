@@ -18,34 +18,47 @@ pub struct ClusterSecurityConfig {
     pub key_path: PathBuf,
 }
 
-impl ClusterSecurityConfig {
-    pub fn load() -> Self {
-        let secrets_path = std::env::var("AGENTTRACE_SECRETS")
-            .unwrap_or_else(|_| ".secrets/agenttrace.env".to_string());
-        
+/// Reads one setting: the process environment wins, then `.secrets/agenttrace.env`
+/// (or the file named by `AGENTTRACE_SECRETS`). Empty values count as unset.
+pub fn setting(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| load_file_vars().remove(name).filter(|s| !s.trim().is_empty()))
+}
+
+fn load_file_vars() -> std::collections::HashMap<String, String> {
+    let secrets_path = std::env::var("AGENTTRACE_SECRETS")
+        .unwrap_or_else(|_| ".secrets/agenttrace.env".to_string());
+
+    let mut file_vars = std::collections::HashMap::new();
+    if let Ok(content) = fs::read_to_string(&secrets_path) {
         let vault = crate::security_hardening::EncryptedSecretVault::load_default();
-        let mut file_vars = std::collections::HashMap::new();
-        if let Ok(content) = fs::read_to_string(&secrets_path) {
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() || trimmed.starts_with('#') || !trimmed.contains('=') {
-                    continue;
-                }
-                let mut parts = trimmed.splitn(2, '=');
-                if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-                    let key = k.trim().to_string();
-                    let raw_val = v.trim().trim_matches('"').trim_matches('\'').to_string();
-                    // Secrets are stored in plaintext by default; only decrypt if user explicitly encrypted with ENCv1:
-                    let val = if crate::security_hardening::EncryptedSecretVault::is_encrypted(&raw_val) {
-                        vault.decrypt_or_passthrough(&raw_val).unwrap_or(raw_val)
-                    } else {
-                        raw_val
-                    };
-                    file_vars.insert(key, val);
-                }
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') || !trimmed.contains('=') {
+                continue;
+            }
+            let mut parts = trimmed.splitn(2, '=');
+            if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
+                let key = k.trim().to_string();
+                let raw_val = v.trim().trim_matches('"').trim_matches('\'').to_string();
+                // Secrets are stored in plaintext by default; only decrypt if user explicitly encrypted with ENCv1:
+                let val = if crate::security_hardening::EncryptedSecretVault::is_encrypted(&raw_val) {
+                    vault.decrypt_or_passthrough(&raw_val).unwrap_or(raw_val)
+                } else {
+                    raw_val
+                };
+                file_vars.insert(key, val);
             }
         }
+    }
+    file_vars
+}
 
+impl ClusterSecurityConfig {
+    pub fn load() -> Self {
+        let file_vars = load_file_vars();
         let get_var = |name: &str| -> Option<String> {
             std::env::var(name)
                 .ok()
