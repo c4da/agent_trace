@@ -24,7 +24,7 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 ### C. PC-2 Worker Node (NODE-02 · 192.168.1.102)
 - **Endpoints**:
   - Hermes Agent / Ollama: `http://192.168.1.102:8642` / `http://192.168.1.102:8642/v1`
-  - Auth Token: stored in `.secrets/agenttrace.env` as `WORKER_HERMES_KEY`
+  - Auth Token: stored in `.secrets/agenttrace.env` as `WORKER_HERMES_KEY`; register the worker via `WORKER_UPSTREAMS` and `UPSTREAM_ALLOWLIST`
 - **Models & Delegation Roles**:
   - `deepseek-r1:1.5b` (Ultra-Fast GPU Reasoning & Sanity Verification):
     - NVIDIA CUDA acceleration, rapid chain-of-thought verification, syntax checks, regex validation, fast assertion audits at zero token cost.
@@ -33,7 +33,6 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 
 ## 2. AgentTrace Gateway Endpoints & MCP Interface
 - **Native Rust MCP Server**: `.\target\debug\agent_trace_mcp.exe` (Stdio JSON-RPC 2.0 bridge)
-- **Studio UI & Project Book**: `http://localhost:8080/client` (Self-populating Architectural Chronicle)
 - **Terminal Console UI**: `http://localhost:8080/console` (High-density Web TUI)
 - **Visual Dashboard UI**: `http://localhost:8080/dashboard`
 - **Proxy Endpoint**: `http://localhost:8080/v1/chat/completions` (smart auto-routes by model name!)
@@ -41,6 +40,7 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 - **Ledger Verification**: `http://localhost:8080/api/v1/ledger/verify`
 - **Telemetry Ingest**: `http://localhost:8080/api/v1/events`
 - **MCP HTTP Endpoint**: `http://localhost:8080/api/v1/mcp`
+- **Savings (tokens served locally)**: `http://localhost:8080/api/v1/savings`
 - **Real-Time Stream**: `http://localhost:8080/api/v1/stream` (SSE)
 
 ---
@@ -49,19 +49,19 @@ Welcome to **AgentTrace Gateway**, the high-performance, cryptographic Rust reve
 > *"Here's a tool — let your agent read it, he will thank you later."*
 
 1. **Agent Tool, Not Human Tool**: Humans type prompts directly in their editor, terminal, or IDE. Agents interact natively with AgentTrace via the standalone Rust MCP binary (`agent_trace_mcp.exe`).
-2. **Autonomous Project Chronicle**: Whenever the agent refactors code, solves architectural problems, or audits security invariants, the agent MUST call `record_project_decision` to log the rationale, tags, and lessons learned. This populates the Studio UI (`/client`) as a structured, educational **Project Book** for human review.
+2. **Autonomous Project Chronicle**: Whenever the agent refactors code, solves architectural problems, or audits security invariants, the agent MUST call `record_project_decision` to log the rationale, tags, and lessons learned. The decision is stored in the signed ledger and shown in the console event stream.
 3. **Zero External API Cost**: Secondary boilerplate, unit tests (`cargo test`), telemetry parsing, and documentation must be delegated to PC-1 (`qwen3.8:27b`, `qwen3.5:9b`) and PC-2 (`hermes-agent` / `deepseek-r1:1.5b`) via `dispatch_cluster_prompt`.
-4. **Dynamic Governance Grounding**: Agents must fetch active Markdown rules via `get_workgroup_rules` before authoring code or modifying UI components.
-5. **Cryptographic Provenance**: Every file edit, diff, and command execution is logged to maintain an unbroken SHA-256 hash chain and Ed25519 node signatures.
+4. **Security Model**: The gateway binds loopback by default; when `AGENTTRACE_TOKEN` is set, send it as `Authorization: Bearer` or `x-agenttrace-token`. Secrets in prompts are redacted before forwarding or logging.
+5. **Cryptographic Provenance**: Events reported to the gateway are logged to maintain an unbroken SHA-256 hash chain and Ed25519 node signatures.
 
 ---
 
 ## 4. UI Design Philosophy & Implementation Standard ("Work-First" Blueprint)
-Whenever designing, building, or refactoring any UI (Web TUI, Desktop GUI, or Dashboard), strictly follow these 6 principles:
+Whenever designing, building, or refactoring any UI (Web TUI or Dashboard), strictly follow these 6 principles:
 1. **Anti-SaaS-Fluff & High Information Density**: Reject oversized marketing cards and wasted whitespace. Prioritize compact monospace grids, terminal/CRT aesthetics (Ghostty, k9s, htop), and 30–50 visible records at a glance.
 2. **Scenario-First Architecture (Scenarios Sell The App)**: Build the layout and filters directly around the top 3–5 concrete questions, fears, and real-world incidents the user faces.
 3. **Live Interactive Demonstrations**: Include a `[⚡ Live Scenario Demos]` toolbar allowing users to trigger and test-drive real-world scenarios with instant visual proofs (diffs, alerts, explainer cards).
-4. **Manual-First Ergonomics (Human-in-the-Loop Forensics)**: Users want to inspect, test, and verify things manually before trusting automation. Always provide: compound grep filtering, stream pause/freeze (`P`), step-by-step navigation (`j`/`k`), an interactive "What If?" policy sandbox form (`M`), manual event flagging/pinning (`F`), and raw JSON/CSV export.
-5. **Keyboard-First Navigation**: Every primary action must have a single-key binding (`j`/`k`, `/`, `:`, `V`, `P`, `D`, `B`, `F`, `M`, `?`).
+4. **Manual-First Ergonomics (Human-in-the-Loop Forensics)**: Users want to inspect, test, and verify things manually before trusting automation. Always provide: compound grep filtering, stream pause/freeze (`P`), step-by-step navigation (`j`/`k`), manual event flagging/pinning (`F`), and raw JSON/CSV export.
+5. **Keyboard-First Navigation**: Every primary action must have a single-key binding (`j`/`k`, `/`, `:`, `V`, `P`, `D`, `B`, `F`, `?`).
 6. **Dual-Mode & Zero Bloat**: Preserve visual overviews (`/dashboard`) alongside the operator console (`/console`) with a 1-click toggle, using fast, zero-dependency code.
 

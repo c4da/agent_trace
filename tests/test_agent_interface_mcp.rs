@@ -10,6 +10,7 @@ async fn test_agent_tools_schema_conformance() {
     assert_eq!(data["protocol"], "AgentTrace-Agent-Interface");
 
     let tools = data["tools"].as_array().expect("Tools must be an array");
+    assert_eq!(tools.len(), 17);
     assert!(!tools.is_empty(), "Must expose at least one tool");
 
     let tool_names: Vec<&str> = tools
@@ -21,7 +22,7 @@ async fn test_agent_tools_schema_conformance() {
     assert!(tool_names.contains(&"query_telemetry"), "query_telemetry must be exposed");
     assert!(tool_names.contains(&"inspect_cluster"), "inspect_cluster must be exposed");
     assert!(tool_names.contains(&"set_route_override"), "set_route_override must be exposed");
-    assert!(tool_names.contains(&"get_access_policies"), "get_access_policies must be exposed");
+    assert!(tool_names.contains(&"record_project_decision"), "record_project_decision must be exposed");
 
     for tool in tools {
         assert!(tool.get("description").is_some(), "Every tool must have a description");

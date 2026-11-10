@@ -1,181 +1,69 @@
 use agent_trace_gw::{
     agent_interface::AgentInterfaceState,
-    antigravity_watcher,
-    copilot_watcher,
     db::Database,
     delegation_engine::{AgentDelegationEngine, RouteOverrideStore},
+    dlp::DlpMode,
     handlers::{create_router, AppState},
     ledger::NodeIdentity,
-    policy::PolicyEngine,
     proxy::ProxyConfig,
     registry::ClusterModelRegistry,
-    schema::NodeHeartbeat,
     secrets::ClusterSecurityConfig,
     services,
 };
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::{broadcast, RwLock};
 
+fn env_flag(name: &str) -> bool {
+    std::env::var(name).map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = std::env::args().collect();
-    let is_worker_arg = args.iter().any(|a| a == "--worker");
-    let allow_insecure_lan_arg = args.iter().any(|a| a == "--insecure-lan" || a == "--lan");
-    let enable_remote_deploy_arg = args.iter().any(|a| a == "--enable-remote-deploy");
+    let allow_lan = args.iter().any(|a| a == "--insecure-lan" || a == "--lan") || env_flag("AGENTTRACE_ALLOW_INSECURE_LAN");
 
-    let allow_insecure_lan = allow_insecure_lan_arg || std::env::var("AGENTTRACE_ALLOW_INSECURE_LAN")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-
-    let enable_remote_deploy = enable_remote_deploy_arg || std::env::var("AGENTTRACE_ENABLE_REMOTE_DEPLOY")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-
-    let mut cli_lead_url = None;
-    for i in 0..args.len() {
-        if args[i] == "--lead" && i + 1 < args.len() {
-            cli_lead_url = Some(args[i + 1].clone());
-        }
-    }
-
-    let role = std::env::var("ROLE")
-        .unwrap_or_else(|_| if is_worker_arg { "worker".to_string() } else { "lead".to_string() });
-    let is_worker = role.to_lowercase() == "worker";
-
-    let mut lead_url = cli_lead_url.or_else(|| std::env::var("LEAD_URL").ok());
-    if is_worker && lead_url.is_none() {
-        println!("==> Scanning for Lead Node discovery beacon on UDP :8089 (4s timeout)...");
-        if let Some(discovered_lead) = services::listen_for_lead_beacon(Duration::from_secs(4)).await {
-            println!("==> Auto-discovered Lead Node at {}", discovered_lead);
-            lead_url = Some(discovered_lead);
-        }
-    }
-
-    let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| {
-        if is_worker { "worker_telemetry.db".to_string() } else { "cluster_telemetry.db".to_string() }
-    });
-
-    let default_upstream = if is_worker { "http://127.0.0.1:8642" } else { "http://127.0.0.1:11434" };
-    let upstream_url = std::env::var("UPSTREAM_URL").unwrap_or_else(|_| default_upstream.to_string());
+    let db_path = std::env::var("DB_PATH").unwrap_or_else(|_| "cluster_telemetry.db".to_string());
+    let upstream_url = std::env::var("UPSTREAM_URL").unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
     let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8080);
+    let bind_host = std::env::var("BIND_HOST").unwrap_or_else(|_| if allow_lan { "0.0.0.0" } else { "127.0.0.1" }.to_string());
+    let addr: SocketAddr = format!("{}:{}", bind_host, port).parse()?;
+    let loopback_only = addr.ip().is_loopback();
+    let workers = services::parse_worker_upstreams(&std::env::var("WORKER_UPSTREAMS").unwrap_or_default());
 
-    let default_bind = if allow_insecure_lan { "0.0.0.0" } else { "127.0.0.1" };
-    let bind_host = std::env::var("BIND_HOST").unwrap_or_else(|_| default_bind.to_string());
-
-    let hostname = std::env::var("COMPUTERNAME")
-        .or_else(|_| std::env::var("HOSTNAME"))
-        .unwrap_or_else(|_| "LEAD-NODE".to_string());
-    let default_node_id = if is_worker { format!("Worker-{}", hostname) } else { "PC-1".to_string() };
-    let node_id = std::env::var("NODE_ID").unwrap_or(default_node_id);
-
-    // 1. Load security configuration, secrets & zero-memory OS-Kernel Self-Hardening
-    let security_cfg = Arc::new(ClusterSecurityConfig::load());
-    let kernel_warden_status = agent_trace_gw::os_hardening::global_warden_guard().status_report();
-
-    // 2. Load or generate persistent Ed25519 cryptographic identity
-    let identity = Arc::new(NodeIdentity::load_or_generate(&security_cfg.key_path)?);
-
-    println!("============================================================");
-    println!(" AGENT TRACE GATEWAY // CRYPTOGRAPHIC TELEMETRY LEDGER");
-    println!("============================================================");
-    println!(" Role:        {}", if is_worker { "Worker / Edge Node" } else { "Lead Node" });
-    println!(" Node ID:     {}", node_id);
-    println!(" Public Key:  {}...", &identity.public_key_hex()[..16]);
-    println!(" OS Warden:   {:?} (+{} B RAM)", kernel_warden_status.mode, kernel_warden_status.memory_overhead_bytes);
-    println!(" Database:    {}", db_path);
-    println!(" Upstream:    {}", upstream_url);
-    if let Some(ref l) = lead_url {
-        println!(" Lead Target: {}", l);
+    let security = Arc::new(ClusterSecurityConfig::load());
+    if !loopback_only && security.auth_token.is_none() {
+        eprintln!("Refusing to bind {} without AGENTTRACE_TOKEN: set a token before exposing the gateway on the network.", addr);
+        std::process::exit(2);
     }
-    println!(" Listening:   http://{}:{}", bind_host, port);
-    println!(" Remote Deploy: {}", if enable_remote_deploy { "ENABLED" } else { "DISABLED (Safe default)" });
-    if allow_insecure_lan {
-        println!("------------------------------------------------------------");
-        println!(" [!] INSECURE LAN ACTIVE: Bound to 0.0.0.0 (subnet accessible).");
-        println!("     Ensure local Wi-Fi is trusted or configure AGENTTRACE_TOKEN.");
-        println!("------------------------------------------------------------");
+
+    let identity = Arc::new(NodeIdentity::load_or_generate(&security.key_path)?);
+    let dlp_mode = DlpMode::from_env();
+
+    println!("AgentTrace Gateway");
+    println!("  Listening:  http://{}", addr);
+    println!("  Auth:       {}", if security.auth_token.is_some() { "token required" } else { "off (loopback only)" });
+    println!("  DLP mode:   {:?}", dlp_mode);
+    println!("  Upstream:   {}", upstream_url);
+    for (node, url) in &workers {
+        println!("  Worker:     {} -> {}", node, url);
     }
-    if !is_worker {
-        println!(" Dashboard:   http://localhost:{}/dashboard", port);
-    }
-    println!(" Ledger API:  http://localhost:{}/api/v1/ledger/verify", port);
-    println!("============================================================");
+    println!("  Database:   {}", db_path);
+    println!("  Public key: {}...", &identity.public_key_hex()[..16]);
+    println!("  Console:    http://localhost:{}/console", port);
 
     let db = Database::new(&db_path)?;
-
-    if !is_worker {
-        let local_lan_ip = services::discover_local_lan_ip().await;
-        // Register verified initial cluster topology in lead DB
-        let _ = db.upsert_node(&NodeHeartbeat {
-            node_id: "PC-1".to_string(),
-            hostname: hostname.clone(),
-            ip_address: local_lan_ip,
-            role: "Lead Node (Antigravity + Hermes + Gemma 4)".to_string(),
-            status: "ACTIVE".to_string(),
-            last_seen: chrono::Utc::now().to_rfc3339(),
-            public_key: Some(identity.public_key_hex().to_string()),
-            models: None,
-        });
-        let _ = db.upsert_node(&NodeHeartbeat {
-            node_id: "PC-2".to_string(),
-            hostname: "NODE-02".to_string(),
-            ip_address: "192.168.1.102".to_string(),
-            role: "Worker Node (hermes-agent :8642 + CUDA)".to_string(),
-            status: "ACTIVE".to_string(),
-            last_seen: chrono::Utc::now().to_rfc3339(),
-            public_key: None,
-            models: None,
-        });
-        let _ = db.upsert_node(&NodeHeartbeat {
-            node_id: "PC-1-Copilot".to_string(),
-            hostname: hostname.clone(),
-            ip_address: "127.0.0.1".to_string(),
-            role: "GitHub Copilot CLI (v1.0.95 · gpt-6-luna)".to_string(),
-            status: "ACTIVE".to_string(),
-            last_seen: chrono::Utc::now().to_rfc3339(),
-            public_key: Some(identity.public_key_hex().to_string()),
-            models: None,
-        });
-        let _ = db.delete_node("PC-3");
-    }
-
-    let (tx_events, _) = broadcast::channel(100);
-
-    if !is_worker {
-        // Spawn native autonomous Antigravity transcript watcher on Lead
-        antigravity_watcher::spawn_watcher(db.clone(), tx_events.clone());
-        // Spawn native autonomous GitHub Copilot CLI session watcher on Lead
-        copilot_watcher::spawn_watcher(db.clone(), tx_events.clone());
-        // Spawn autonomous preemptive Keep-Busy Idle Worker Engine on Lead
-        agent_trace_gw::idle_worker::spawn_engine(db.clone());
-        // Spawn Pre-Image CAS Invariant Watcher on Lead
-        let root_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-        services::spawn_cas_guard_service(&root_dir, db.clone(), identity.clone());
-        // Spawn UDP Discovery Beacon on Lead
-        services::spawn_discovery_beacon(port, "0.0.0.0");
-    }
+    let (tx_events, _) = broadcast::channel(256);
 
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(4))
         .timeout(Duration::from_secs(300))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new());
+        .build()?;
 
     let registry = Arc::new(RwLock::new(ClusterModelRegistry::new()));
-    {
-        let mut reg = registry.write().await;
-        reg.register_single_model("PC-1", &upstream_url, "gemma4:latest", Some(vec![agent_trace_gw::registry::ModelCapability::FastCodeGeneration, agent_trace_gw::registry::ModelCapability::GeneralExecution]));
-        reg.register_single_model("PC-1", &upstream_url, "qwen3.8:27b", Some(vec![agent_trace_gw::registry::ModelCapability::ComplexReasoning, agent_trace_gw::registry::ModelCapability::FastCodeGeneration]));
-        reg.register_single_model("PC-2", "http://192.168.1.102:8642", "hermes-agent", Some(vec![agent_trace_gw::registry::ModelCapability::SanityVerification, agent_trace_gw::registry::ModelCapability::ComplexReasoning]));
-    }
     let override_store = Arc::new(RwLock::new(RouteOverrideStore::new()));
-    let delegation_engine = Arc::new(AgentDelegationEngine::new(
-        override_store.clone(),
-        registry.clone(),
-        upstream_url.clone(),
-    ));
+    let delegation_engine = Arc::new(AgentDelegationEngine::new(override_store.clone(), registry.clone(), upstream_url.clone()));
 
     let (ledger_writer, _writer_handle) = agent_trace_gw::ledger_writer::LedgerWriter::spawn(
         db.clone(),
@@ -187,72 +75,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proxy_cfg = Arc::new(ProxyConfig {
         upstream_url: upstream_url.clone(),
         db: db.clone(),
-        security: security_cfg.clone(),
+        security: security.clone(),
         identity: identity.clone(),
         client: client.clone(),
         registry: registry.clone(),
         delegation_engine: delegation_engine.clone(),
         ledger_writer: Some(ledger_writer.clone()),
+        dlp_mode,
     });
-
-    let policy = Arc::new(RwLock::new(PolicyEngine::load_or_default()));
-    let _ = agent_trace_gw::admin_governance::global_admin_governance();
-    let _ = agent_trace_gw::skill_forge::global_skill_forge();
-
-    let health_watchdog = if !is_worker {
-        Some(agent_trace_gw::cluster_health::ClusterHealthWatchdog::spawn(
-            db.clone(),
-            registry.clone(),
-            tx_events.clone(),
-            Duration::from_secs(10),
-        ))
-    } else {
-        None
-    };
 
     let state = AppState {
         db: db.clone(),
-        proxy_cfg: proxy_cfg.clone(),
+        proxy_cfg,
         tx_events,
-        security: security_cfg.clone(),
+        security: security.clone(),
         identity: identity.clone(),
-        lead_url: lead_url.clone(),
-        node_id: node_id.clone(),
-        registry: registry.clone(),
-        policy: policy.clone(),
         ledger_writer: Some(ledger_writer),
-        health_watchdog,
-        enable_remote_deploy,
+        loopback_only,
     };
 
     let agent_state = AgentInterfaceState {
-        db: db.clone(),
+        db,
         registry: registry.clone(),
-        security: security_cfg.clone(),
-        identity: identity.clone(),
+        security: security.clone(),
+        identity,
         upstream_url: upstream_url.clone(),
-        override_store: override_store.clone(),
-        delegation_engine: delegation_engine.clone(),
-        policy: policy.clone(),
+        override_store,
+        delegation_engine,
     };
 
-    // Spawn managed background services
-    if !is_worker {
-        services::spawn_model_introspector(registry.clone(), client.clone(), upstream_url, security_cfg.clone());
-        services::spawn_discovery_beacon(port, "192.168.1.101");
-        services::spawn_host_agent_discoverer(db.clone(), registry.clone(), hostname.clone(), identity.clone());
-    } else if let Some(target_lead) = lead_url {
-        services::spawn_worker_forwarder(target_lead, node_id, hostname, identity, client, security_cfg);
-    }
+    services::spawn_model_introspector(registry, client, upstream_url, workers, security);
 
-    // Build modular HTTP app
-    let app = create_router(state, agent_state);
-
-    let addr: SocketAddr = format!("{}:{}", bind_host, port)
-        .parse()
-        .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], port)));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
-
+    axum::serve(listener, create_router(state, agent_state)).await?;
     Ok(())
 }

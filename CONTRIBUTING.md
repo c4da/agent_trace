@@ -48,8 +48,6 @@ cargo run --release
 Once running, access the high-density operator UI:
 - **Terminal Console**: `http://localhost:8080/console`
 - **Visual Dashboard**: `http://localhost:8080/dashboard`
-- **Workgroups & Rules**: `http://localhost:8080/workgroups`
-- **Contribution Graph**: `http://localhost:8080/graph`
 
 ---
 
@@ -58,7 +56,7 @@ Once running, access the high-density operator UI:
 Before submitting a PR, verify:
 
 - [ ] `cargo test` passes cleanly with **zero failures**.
-- [ ] `cargo check` compiles with **zero warnings**.
+- [ ] `cargo clippy --all-targets -- -D warnings` is clean.
 - [ ] No file exceeds **800 lines** (verified via `Get-Content` or `wc -l`).
 - [ ] **Strict Anonymity**: No personal machine paths (`C:\Users\...`, `$HOME/...`), internal private tokens, or hardcoded IP credentials.
 - [ ] All new documentation follows the **Line 0 How-To** standard and feature-per-file modularity.

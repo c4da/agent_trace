@@ -1,67 +1,24 @@
 ---
 name: agent-trace-cluster
-description: Inspect, deploy, bootstrap, and coordinate distributed AI agent clusters across LAN machines (PC-1 Lead Node, PC-2 Worker Node) with zero-walk join scripts, health diagnostics, and prompt routing.
+description: Inspect the local AI cluster (PC-1 Lead Node, PC-2 Worker Node), explain or override model routing, and delegate prompts to local models through AgentTrace.
 ---
 
-# AgentTrace Cluster Management & Multi-Node Orchestration Skill
+# AgentTrace Cluster Skill
 
-Use this skill when managing cluster nodes, bootstrapping edge machines, running connectivity diagnostics, or configuring workgroups.
+Use this skill when inspecting cluster nodes, checking which model a prompt would route to, or offloading boilerplate work to local models.
 
-## Cluster Node Endpoints
+## Endpoints
 
-- **Lead Node (PC-1)**:
-  - AgentTrace Gateway: `http://localhost:8080` (or `http://192.168.1.101:8080`)
-  - Ollama Engine: `http://127.0.0.1:11434` (`qwen3.8:27b`, `qwen3:14b`)
-- **Worker Node (PC-2)**:
-  - AgentTrace Gateway (Worker Mode): `http://192.168.1.102:8080`
-  - Hermes Agent / Ollama CUDA: `http://192.168.1.102:8642` (`deepseek-r1:1.5b`)
+- **Lead Node (PC-1)**: AgentTrace Gateway `http://localhost:8080`; Ollama `http://127.0.0.1:11434` (`qwen3.8:27b`, `qwen3:14b`).
+- **Worker Node (PC-2)**: Hermes / Ollama CUDA `http://192.168.1.102:8642` (`deepseek-r1:1.5b`), registered through `WORKER_UPSTREAMS` and `UPSTREAM_ALLOWLIST` on the gateway.
 
-## Autonomous Cluster Health & Sleep Mode Watchdog
+## MCP tools
 
-AgentTrace includes an autonomous background watchdog that probes all registered LAN nodes every 10 seconds:
-- **Port Probing**: Tests `:8080` (AgentTrace Gateway), `:8642` (Hermes / CUDA), and `:11434` (Ollama) with non-blocking sub-second TCP checks.
-- **Sleep Mode Detection**:
-  - `Online`: Gateway and LLM engine responding.
-  - `Degraded`: One service active, but another down (e.g. LLM running, gateway offline).
-  - `Sleeping`: Node was previously active, but failed 1–3 probe cycles consecutively (identifies Windows Modern Standby / Sleep mode).
-  - `Offline`: Host unreachable for $\ge 4$ consecutive probe cycles.
-- **Auto-Failover**: Sleeping and Offline nodes are automatically flagged (`is_healthy = false`) in the Prompt Hub router so requests do not deadlock or timeout.
+- `inspect_cluster`: list known nodes and models.
+- `explain_route` / `decide_route`: show which upstream and model a prompt would use, and why.
+- `set_route_override`, `list_route_overrides`, `remove_route_override`: manage routing overrides.
+- `get_delegation_config` / `set_delegation_config`: read or change delegation settings.
+- `dispatch_cluster_prompt`: send a prompt to a local or worker model (secrets are redacted before forwarding).
+- `verify_ledger`: confirm the hash chain and signatures are intact.
 
-### Tool & API Endpoints:
-- **MCP Tool**: `check_cluster_health` (returns live health report of all cluster nodes with latency and sleep status)
-- **REST Endpoints**:
-  - `GET /api/v1/cluster/health`: Live health status of all nodes
-  - `POST /api/v1/cluster/health/probe`: Triggers an immediate, synchronous cluster-wide probe cycle
-- **Web Dashboard**: Interactive `[⚡ Probe Health]` button at `http://localhost:8080/dashboard`
-
-## Zero-Walk Node Bootstrap & Join Methods
-
-1. **Instant Web UI Join**:
-   - Open `http://<lead-ip>:8080/join` on any machine in the LAN for copy-paste bootstrap commands.
-
-2. **Command-Line Bootstrap**:
-   - Windows 1-liner:
-     ```powershell
-     irm http://192.168.1.101:8080/join.cmd | iex
-     ```
-   - Direct worker daemon launcher:
-     ```cmd
-     curl -s http://192.168.1.101:8080/worker.cmd -o worker.cmd && worker.cmd
-     ```
-
-3. **Remote Management (WinRM)**:
-   - On PC-2 (Worker), run once as Administrator:
-     ```cmd
-     irm http://192.168.1.101:8080/winrm.cmd | iex
-     ```
-   - From PC-1, push commands remotely via:
-     ```powershell
-     Invoke-Command -ComputerName 192.168.1.102 -ScriptBlock { Get-Process agent_trace_gw }
-     ```
-
-4. **Cluster Control Workgroup (`wg-cluster-ops`)**:
-   - Built-in multi-agent pipeline for cluster operations:
-     - Lead Architect: `qwen3.8:27b` (PC-1)
-     - Safe Tool Executor: `hermes-agent` / Copilot CLI (PC-2)
-     - Sanity Verifier: `deepseek-r1:1.5b` CUDA (PC-2)
-   - Dispatches tasks across the LAN without opening unrestricted remote shells.
+If the gateway has `AGENTTRACE_TOKEN` set, the MCP bridge needs the same value in its environment.

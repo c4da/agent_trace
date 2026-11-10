@@ -9,7 +9,6 @@ use crate::{
     db::Database,
     delegation_engine::{AgentDelegationEngine, RouteOverrideStore},
     ledger::NodeIdentity,
-    policy::PolicyEngine,
     registry::ClusterModelRegistry,
     secrets::ClusterSecurityConfig,
 };
@@ -24,7 +23,6 @@ pub struct AgentInterfaceState {
     pub upstream_url: String,
     pub override_store: Arc<RwLock<RouteOverrideStore>>,
     pub delegation_engine: Arc<AgentDelegationEngine>,
-    pub policy: Arc<RwLock<PolicyEngine>>,
 }
 
 /// Request payload for an agent executing an action.

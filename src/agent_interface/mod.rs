@@ -29,37 +29,30 @@ mod tests {
     async fn test_agent_tools_registration() {
         let axum::Json(body) = get_agent_tools().await;
         let tools = body["tools"].as_array().expect("Expected tools array");
-        assert!(tools.len() >= 17, "Expected at least 17 registered AI agent tools");
+        assert_eq!(tools.len(), 17, "Expected exactly 17 registered tools");
 
         let tool_names: Vec<String> = tools
             .iter()
             .filter_map(|t| t["name"].as_str().map(|s| s.to_string()))
             .collect();
 
-        assert!(tool_names.contains(&"verify_ledger".to_string()));
-        assert!(tool_names.contains(&"query_telemetry".to_string()));
-        assert!(tool_names.contains(&"inspect_cluster".to_string()));
-        assert!(tool_names.contains(&"flag_incident".to_string()));
-        assert!(tool_names.contains(&"set_route_override".to_string()));
-        assert!(tool_names.contains(&"analyze_telemetry".to_string()));
-        assert!(tool_names.contains(&"get_access_policies".to_string()));
-        assert!(tool_names.contains(&"set_access_policy".to_string()));
-        assert!(tool_names.contains(&"evaluate_access_policy".to_string()));
-        assert!(tool_names.contains(&"get_delegation_config".to_string()));
-        assert!(tool_names.contains(&"set_delegation_config".to_string()));
-        assert!(tool_names.contains(&"get_telemetry_handoff".to_string()));
-        assert!(tool_names.contains(&"get_security_alerts".to_string()));
-        assert!(tool_names.contains(&"acknowledge_alert".to_string()));
-        assert!(tool_names.contains(&"list_containment_zones".to_string()));
-        assert!(tool_names.contains(&"upsert_containment_zone".to_string()));
-        assert!(tool_names.contains(&"confine_agent_to_playground".to_string()));
-        assert!(tool_names.contains(&"check_cluster_health".to_string()));
-        assert!(tool_names.contains(&"intercept_ai_guard".to_string()));
-        assert!(tool_names.contains(&"protect_or_revert_cas_file".to_string()));
-        assert!(tool_names.contains(&"encrypt_vault_secret".to_string()));
-        assert!(tool_names.contains(&"export_siem_elk".to_string()));
-        assert!(tool_names.contains(&"manage_admin_model_governance".to_string()));
-        assert!(tool_names.contains(&"manage_learned_skills".to_string()));
+        assert!(tool_names.contains(&"verify_ledger".to_string()), "missing verify_ledger");
+        assert!(tool_names.contains(&"query_telemetry".to_string()), "missing query_telemetry");
+        assert!(tool_names.contains(&"inspect_cluster".to_string()), "missing inspect_cluster");
+        assert!(tool_names.contains(&"flag_incident".to_string()), "missing flag_incident");
+        assert!(tool_names.contains(&"set_route_override".to_string()), "missing set_route_override");
+        assert!(tool_names.contains(&"analyze_telemetry".to_string()), "missing analyze_telemetry");
+        assert!(tool_names.contains(&"get_delegation_config".to_string()), "missing get_delegation_config");
+        assert!(tool_names.contains(&"set_delegation_config".to_string()), "missing set_delegation_config");
+        assert!(tool_names.contains(&"get_telemetry_handoff".to_string()), "missing get_telemetry_handoff");
+        assert!(tool_names.contains(&"get_security_alerts".to_string()), "missing get_security_alerts");
+        assert!(tool_names.contains(&"acknowledge_alert".to_string()), "missing acknowledge_alert");
+        assert!(tool_names.contains(&"record_project_decision".to_string()), "missing record_project_decision");
+        assert!(tool_names.contains(&"dispatch_cluster_prompt".to_string()), "missing dispatch_cluster_prompt");
+        assert!(tool_names.contains(&"explain_route".to_string()), "missing explain_route");
+        assert!(tool_names.contains(&"decide_route".to_string()), "missing decide_route");
+        assert!(tool_names.contains(&"list_route_overrides".to_string()), "missing list_route_overrides");
+        assert!(tool_names.contains(&"remove_route_override".to_string()), "missing remove_route_override");
 
         for t in tools {
             assert!(t["description"].is_string());

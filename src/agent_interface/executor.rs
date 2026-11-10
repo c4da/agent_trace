@@ -15,7 +15,6 @@ use super::{
 };
 use crate::{
     delegation_engine::{AgentDelegationRequest, OverrideCriteria, RouteOverrideRule},
-    policy::{AccessAction, AgentAccessPolicy},
     router::classify_and_route_dynamic,
     schema::{EventType, SecurityVerdict, TraceEvent},
 };
@@ -51,13 +50,6 @@ async fn dispatch_tool(
 ) -> (bool, Value, Option<String>) {
     match req.tool.as_str() {
         "record_project_decision" => exec_record_project_decision(state, &req.agent_id, &req.parameters).await,
-        "get_workgroup_rules" => exec_get_workgroup_rules(&req.parameters).await,
-        "upsert_workgroup" => exec_upsert_workgroup(&req.parameters).await,
-        "attach_workgroup_rule" => exec_attach_workgroup_rule(&req.parameters).await,
-        "deploy_cluster_worker" => exec_deploy_cluster_worker(state, &req.agent_id, &req.parameters).await,
-        "check_worker_connection" => exec_check_worker_connection(state, &req.parameters).await,
-        "check_cluster_health" => exec_check_cluster_health(state, &req.parameters).await,
-        "get_cluster_bootstrap_command" => exec_get_cluster_bootstrap_command(state, &req.parameters).await,
         "dispatch_cluster_prompt" => exec_dispatch_cluster_prompt(state, &req.agent_id, &req.parameters).await,
         "verify_ledger" => exec_verify_ledger(state),
         "query_telemetry" => exec_query_telemetry(state, &req.parameters),
@@ -69,23 +61,11 @@ async fn dispatch_tool(
         "list_route_overrides" => exec_list_route_overrides(state).await,
         "remove_route_override" => exec_remove_route_override(state, &req.parameters).await,
         "analyze_telemetry" => exec_analyze_telemetry(state),
-        "get_access_policies" => exec_get_access_policies(state).await,
-        "set_access_policy" => exec_set_access_policy(state, &req.parameters).await,
-        "evaluate_access_policy" => exec_evaluate_access_policy(state, &req.parameters).await,
         "get_delegation_config" => exec_get_delegation_config(state).await,
         "set_delegation_config" => exec_set_delegation_config(state, &req.parameters).await,
         "get_telemetry_handoff" => exec_get_telemetry_handoff(state, &req.parameters).await,
         "get_security_alerts" => exec_get_security_alerts(state, &req.parameters),
         "acknowledge_alert" => exec_acknowledge_alert(state, &req.parameters),
-        "list_containment_zones" => exec_list_containment_zones(state).await,
-        "upsert_containment_zone" => exec_upsert_containment_zone(state, &req.parameters).await,
-        "confine_agent_to_playground" => exec_confine_agent_to_playground(state, &req.parameters).await,
-        "intercept_ai_guard" => exec_intercept_ai_guard(state, &req.agent_id, &req.parameters).await,
-        "protect_or_revert_cas_file" => exec_protect_or_revert_cas_file(&req.parameters),
-        "encrypt_vault_secret" => exec_encrypt_vault_secret(&req.parameters),
-        "export_siem_elk" => exec_export_siem_elk(state, &req.parameters),
-        "manage_admin_model_governance" => exec_manage_admin_model_governance(&req.parameters),
-        "manage_learned_skills" => exec_manage_learned_skills(state, &req.parameters),
         unknown => (false, json!({}), Some(format!("Unknown tool: '{}'", unknown))),
     }
 }
@@ -317,70 +297,6 @@ fn exec_analyze_telemetry(state: &AgentInterfaceState) -> (bool, Value, Option<S
     }
 }
 
-/// Lists active sandbox policies.
-async fn exec_get_access_policies(state: &AgentInterfaceState) -> (bool, Value, Option<String>) {
-    let guard = state.policy.read().await;
-    let policies = guard.list_policies();
-    (true, json!({ "count": policies.len(), "policies": policies }), None)
-}
-
-/// Sets or updates a policy for an agent.
-async fn exec_set_access_policy(
-    state: &AgentInterfaceState,
-    params: &Value,
-) -> (bool, Value, Option<String>) {
-    let agent_id = params.get("agent_id").and_then(|v| v.as_str()).unwrap_or("");
-    if agent_id.is_empty() {
-        return (false, json!({}), Some("'agent_id' parameter is required".to_string()));
-    }
-
-    let extract_strings = |key: &str| {
-        params
-            .get(key)
-            .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|s| s.as_str().map(|x| x.to_string())).collect())
-            .unwrap_or_default()
-    };
-
-    let policy = AgentAccessPolicy {
-        agent_id: agent_id.to_string(),
-        read_whitelist: extract_strings("read_whitelist"),
-        write_whitelist: extract_strings("write_whitelist"),
-        network_whitelist: extract_strings("network_whitelist"),
-        blocked_patterns: extract_strings("blocked_patterns"),
-        enforcing: params.get("enforcing").and_then(|v| v.as_bool()).unwrap_or(true),
-        confine_to_playgrounds: params.get("confine_to_playgrounds").and_then(|v| v.as_bool()).unwrap_or(false),
-    };
-
-    {
-        let mut guard = state.policy.write().await;
-        guard.set_policy(policy.clone());
-    }
-
-    (true, serde_json::to_value(policy).unwrap_or(json!({})), None)
-}
-
-/// Evaluates if an action is permitted by policy without running it.
-async fn exec_evaluate_access_policy(
-    state: &AgentInterfaceState,
-    params: &Value,
-) -> (bool, Value, Option<String>) {
-    let agent_id = params.get("agent_id").and_then(|v| v.as_str()).unwrap_or("*");
-    let action_str = params.get("action").and_then(|v| v.as_str()).unwrap_or("Read");
-    let target = params.get("target").and_then(|v| v.as_str()).unwrap_or("");
-
-    let action = match action_str.to_lowercase().as_str() {
-        "write" => AccessAction::Write,
-        "execute" => AccessAction::Execute,
-        "networkpull" | "network" => AccessAction::NetworkPull,
-        _ => AccessAction::Read,
-    };
-
-    let guard = state.policy.read().await;
-    let decision = guard.evaluate(agent_id, action, target);
-    (true, serde_json::to_value(decision).unwrap_or(json!({})), None)
-}
-
 /// Returns cluster delegation options.
 async fn exec_get_delegation_config(state: &AgentInterfaceState) -> (bool, Value, Option<String>) {
     let cfg = state.delegation_engine.get_config().await;
@@ -448,10 +364,6 @@ async fn exec_get_telemetry_handoff(
         })
         .collect();
 
-    let (zones, policies) = {
-        let guard = state.policy.read().await;
-        (guard.list_zones(), guard.list_policies())
-    };
 
     let reg = state.registry.read().await;
     let active_models = reg.all_active_models();
@@ -465,8 +377,6 @@ async fn exec_get_telemetry_handoff(
         "active_security_alerts": active_alerts.into_iter().take(limit).collect::<Vec<_>>(),
         "recent_code_diffs": recent_diffs,
         "recent_events": recent_events.into_iter().take(limit).collect::<Vec<_>>(),
-        "containment_zones": zones,
-        "agent_policies": policies,
         "active_cluster_models": active_models,
         "agent_pickup_endpoints": {
             "handoff_digest_get": "GET /api/v1/agent/handoff",
@@ -474,8 +384,7 @@ async fn exec_get_telemetry_handoff(
             "tool_execute_post": "POST /api/v1/agent/action",
             "mcp_jsonrpc_post": "POST /api/v1/mcp",
             "alerts_get": "GET /api/v1/alerts",
-            "zones_get_post": "GET|POST /api/v1/zones",
-            "playground_confine_post": "POST /api/v1/zones/confine"
+            "savings_get": "GET /api/v1/savings"
         }
     });
 
@@ -539,312 +448,6 @@ fn exec_acknowledge_alert(
                 None,
             ),
             Err(e) => (false, json!({}), Some(format!("Acknowledge error: {}", e))),
-        }
-    }
-}
-
-/// Lists all configured Safe Zones and Danger Zone Playgrounds.
-async fn exec_list_containment_zones(
-    state: &AgentInterfaceState,
-) -> (bool, Value, Option<String>) {
-    let guard = state.policy.read().await;
-    let zones = guard.list_zones();
-    (true, json!({ "count": zones.len(), "zones": zones }), None)
-}
-
-/// Adds or updates a Safe Zone or Danger Zone Playground.
-async fn exec_upsert_containment_zone(
-    state: &AgentInterfaceState,
-    params: &Value,
-) -> (bool, Value, Option<String>) {
-    let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-    let path_prefix = params.get("path_prefix").and_then(|v| v.as_str()).unwrap_or("");
-    let kind_str = params.get("kind").and_then(|v| v.as_str()).unwrap_or("VaultNoAccess");
-
-    if name.is_empty() || path_prefix.is_empty() {
-        return (
-            false,
-            json!({}),
-            Some("'name' and 'path_prefix' are required".to_string()),
-        );
-    }
-
-    let kind = match kind_str {
-        "GuardedReadOnly" => crate::zones::ZoneKind::GuardedReadOnly,
-        "AgentPlayground" => crate::zones::ZoneKind::AgentPlayground,
-        _ => crate::zones::ZoneKind::VaultNoAccess,
-    };
-
-    let applies_to = params
-        .get("applies_to")
-        .and_then(|v| v.as_str())
-        .unwrap_or("*")
-        .to_string();
-    let zone_id = params
-        .get("zone_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let exempt_agents = params
-        .get("exempt_agents")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|x| x.as_str().map(|s| s.to_string()))
-                .collect()
-        })
-        .unwrap_or_default();
-
-    let zone = crate::zones::ContainmentZone {
-        zone_id,
-        name: name.to_string(),
-        path_prefix: path_prefix.to_string(),
-        kind,
-        applies_to,
-        exempt_agents,
-        description: String::new(),
-    };
-
-    let saved = {
-        let mut guard = state.policy.write().await;
-        guard.upsert_zone(zone)
-    };
-    (true, serde_json::to_value(saved).unwrap_or(json!({})), None)
-}
-
-/// Locks or unlocks an agent (or '*' all agents) to Danger Zone Playgrounds.
-async fn exec_confine_agent_to_playground(
-    state: &AgentInterfaceState,
-    params: &Value,
-) -> (bool, Value, Option<String>) {
-    let agent_id = params.get("agent_id").and_then(|v| v.as_str()).unwrap_or("*");
-    let confined = params
-        .get("confined")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
-    let updated = {
-        let mut guard = state.policy.write().await;
-        guard.set_playground_confinement(agent_id, confined)
-    };
-    (true, serde_json::to_value(updated).unwrap_or(json!({})), None)
-}
-
-
-/// Runs synchronous Pre-Execution Hard AI Guard inspection via MCP/Agent interface.
-async fn exec_intercept_ai_guard(
-    state: &AgentInterfaceState,
-    agent_id: &str,
-    params: &Value,
-) -> (bool, Value, Option<String>) {
-    let action = params.get("action").and_then(|v| v.as_str()).unwrap_or("LlmInference").to_string();
-    let target_path = params.get("target_path").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let command = params.get("command").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let prompt_text = params.get("prompt_text").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let mode_override = match params.get("mode").and_then(|v| v.as_str()).unwrap_or("HardBlock") {
-        "RedactAndForward" => Some(crate::ai_guard::GuardEnforcementMode::RedactAndForward),
-        "AuditOnly" => Some(crate::ai_guard::GuardEnforcementMode::AuditOnly),
-        _ => Some(crate::ai_guard::GuardEnforcementMode::HardBlock),
-    };
-
-    let req = crate::ai_guard::GuardInterceptRequest {
-        agent_id: agent_id.to_string(),
-        action,
-        target_path,
-        command,
-        prompt_text,
-        mode_override,
-    };
-
-    let res = {
-        let p_guard = state.policy.read().await;
-        crate::ai_guard::evaluate_hard_guard(&req, &p_guard, crate::ai_guard::GuardEnforcementMode::HardBlock)
-    };
-    (true, serde_json::to_value(res).unwrap_or(json!({})), None)
-}
-
-/// Snapshots, enforces/reverts, or lists files in the Pre-Image CAS Guard.
-fn exec_protect_or_revert_cas_file(params: &Value) -> (bool, Value, Option<String>) {
-    let op = params.get("operation").and_then(|v| v.as_str()).unwrap_or("list");
-    let guard = crate::cas_guard::global_cas_guard();
-
-    match op {
-        "protect" => {
-            let Some(path_str) = params.get("path").and_then(|v| v.as_str()) else {
-                return (false, json!({}), Some("'path' is required for operation='protect'".to_string()));
-            };
-            let strictly = params.get("strictly_guarded").and_then(|v| v.as_bool()).unwrap_or(true);
-            match guard.protect_file(std::path::Path::new(path_str), strictly) {
-                Ok(sha256) => (true, json!({ "status": "protected", "path": path_str, "sha256": sha256, "strictly_guarded": strictly }), None),
-                Err(e) => (false, json!({}), Some(format!("Failed to snapshot '{}': {}", path_str, e))),
-            }
-        }
-        "enforce" => {
-            let Some(path_str) = params.get("path").and_then(|v| v.as_str()) else {
-                return (false, json!({}), Some("'path' is required for operation='enforce'".to_string()));
-            };
-            let t0 = std::time::Instant::now();
-            let verdict = guard.inspect_and_enforce(std::path::Path::new(path_str), false);
-            let elapsed_us = t0.elapsed().as_micros() as u64;
-            (true, json!({ "verdict": verdict, "evaluation_latency_us": elapsed_us }), None)
-        }
-        _ => {
-            let files = guard.list_protected_files();
-            (true, json!({ "protected_count": files.len(), "files": files }), None)
-        }
-    }
-}
-
-/// Encrypts a plaintext secret using the ChaCha20-Poly1305 AEAD Vault.
-fn exec_encrypt_vault_secret(params: &Value) -> (bool, Value, Option<String>) {
-    let Some(plaintext) = params.get("plaintext").and_then(|v| v.as_str()) else {
-        return (false, json!({}), Some("'plaintext' parameter is required".to_string()));
-    };
-    let vault = crate::security_hardening::EncryptedSecretVault::load_default();
-    match vault.encrypt(plaintext) {
-        Ok(enc) => (true, json!({ "cipher": "ChaCha20-Poly1305 (AEAD)", "encrypted_value": enc }), None),
-        Err(e) => (false, json!({}), Some(e)),
-    }
-}
-
-/// Exports recent telemetry in Elastic Common Schema (ECS 8.11.0) NDJSON.
-fn exec_export_siem_elk(state: &AgentInterfaceState, params: &Value) -> (bool, Value, Option<String>) {
-    let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(25).clamp(1, 500) as usize;
-    let fmt = params.get("format").and_then(|v| v.as_str()).unwrap_or("bulk");
-    match state.db.get_recent_events(limit) {
-        Ok(raw_events) => {
-            let typed: Vec<TraceEvent> = raw_events.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect();
-            let ndjson = if fmt == "stream" {
-                crate::siem_exporter::to_ecs_ndjson_stream(&typed)
-            } else {
-                crate::siem_exporter::to_elasticsearch_bulk_ndjson(&typed, "agenttrace-security-events")
-            };
-            (true, json!({ "exported_events": typed.len(), "format": fmt, "ecs_version": "8.11.0", "ndjson": ndjson }), None)
-        }
-        Err(e) => (false, json!({}), Some(format!("Failed to query events for SIEM export: {}", e))),
-    }
-}
-
-/// Admin Governance Plane tool to inspect, upsert, or evaluate per-model restrictions.
-fn exec_manage_admin_model_governance(params: &Value) -> (bool, Value, Option<String>) {
-    let op = params.get("operation").and_then(|v| v.as_str()).unwrap_or("list");
-    match op {
-        "upsert_model" => {
-            let Some(prof_val) = params.get("profile") else {
-                return (false, json!({}), Some("'profile' object is required for operation='upsert_model'".to_string()));
-            };
-            let Ok(profile) = serde_json::from_value::<crate::admin_governance::ModelRestrictionProfile>(prof_val.clone()) else {
-                return (false, json!({}), Some("Invalid ModelRestrictionProfile JSON structure".to_string()));
-            };
-            let Ok(mut gov) = crate::admin_governance::global_admin_governance().write() else {
-                return (false, json!({}), Some("Governance lock poisoned".to_string()));
-            };
-            let saved = gov.upsert_model_profile(profile);
-            (true, serde_json::to_value(saved).unwrap_or(json!({})), None)
-        }
-        "evaluate" => {
-            let model = params.get("model").and_then(|v| v.as_str()).unwrap_or("claude-3-7-sonnet-latest");
-            let cmd = params.get("command").and_then(|v| v.as_str());
-            let path = params.get("target_path").and_then(|v| v.as_str());
-            let prompt = params.get("prompt_text").and_then(|v| v.as_str());
-            let Ok(gov) = crate::admin_governance::global_admin_governance().read() else {
-                return (false, json!({}), Some("Governance lock poisoned".to_string()));
-            };
-            let dec = gov.evaluate_request(model, prompt, cmd, path, None);
-            (true, serde_json::to_value(dec).unwrap_or(json!({})), None)
-        }
-        _ => {
-            let Ok(gov) = crate::admin_governance::global_admin_governance().read() else {
-                return (false, json!({}), Some("Governance lock poisoned".to_string()));
-            };
-            (
-                true,
-                json!({
-                    "global": gov.global,
-                    "model_profiles": gov.model_profiles,
-                    "default_profile": gov.default_profile
-                }),
-                None,
-            )
-        }
-    }
-}
-
-/// Auto-Skill Forge tool to list, distill, upsert, export, or benchmark learned skills.
-fn exec_manage_learned_skills(
-    state: &AgentInterfaceState,
-    params: &Value,
-) -> (bool, Value, Option<String>) {
-    let op = params.get("operation").and_then(|v| v.as_str()).unwrap_or("list");
-    match op {
-        "distill" => {
-            let events = state.db.get_recent_events(150).unwrap_or_default();
-            let Ok(mut sf) = crate::skill_forge::global_skill_forge().write() else {
-                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
-            };
-            let minted = sf.mine_trajectories_from_events(&events);
-            (
-                true,
-                json!({
-                    "minted_count": minted.len(),
-                    "minted_skills": minted,
-                    "total_skills": sf.skills.len()
-                }),
-                None,
-            )
-        }
-        "upsert" => {
-            let Some(skill_val) = params.get("skill") else {
-                return (false, json!({}), Some("'skill' object is required for operation='upsert'".to_string()));
-            };
-            let Ok(skill) = serde_json::from_value::<crate::skill_forge::LearnedSkill>(skill_val.clone()) else {
-                return (false, json!({}), Some("Invalid LearnedSkill JSON structure".to_string()));
-            };
-            let Ok(mut sf) = crate::skill_forge::global_skill_forge().write() else {
-                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
-            };
-            let saved = sf.upsert_skill(skill);
-            (true, serde_json::to_value(saved).unwrap_or(json!({})), None)
-        }
-        "export" => {
-            let Some(skill_id) = params.get("skill_id").and_then(|v| v.as_str()) else {
-                return (false, json!({}), Some("'skill_id' is required for operation='export'".to_string()));
-            };
-            let Ok(sf) = crate::skill_forge::global_skill_forge().read() else {
-                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
-            };
-            match sf.export_skill_to_disk(skill_id, std::path::Path::new(".")) {
-                Ok(exported_paths) => (
-                    true,
-                    json!({
-                        "skill_id": skill_id,
-                        "exported_paths": exported_paths
-                    }),
-                    None,
-                ),
-                Err(e) => (false, json!({}), Some(e)),
-            }
-        }
-        "roi_benchmark" => {
-            let Ok(sf) = crate::skill_forge::global_skill_forge().read() else {
-                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
-            };
-            let report = sf.compute_token_savings_benchmark();
-            (true, serde_json::to_value(report).unwrap_or(json!({})), None)
-        }
-        _ => {
-            let Ok(sf) = crate::skill_forge::global_skill_forge().read() else {
-                return (false, json!({}), Some("SkillForge lock poisoned".to_string()));
-            };
-            (
-                true,
-                json!({
-                    "total_skills": sf.skills.len(),
-                    "skills": sf.list_skills(),
-                    "token_roi": sf.compute_token_savings_benchmark()
-                }),
-                None,
-            )
         }
     }
 }
