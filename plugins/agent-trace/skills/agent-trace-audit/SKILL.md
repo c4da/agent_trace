@@ -1,6 +1,6 @@
 ---
 name: agent-trace-audit
-description: Verify the cryptographic SHA-256 ledger, search telemetry events, check containment violations, and audit multi-node agent interactions.
+description: Verify the cryptographic SHA-256 ledger, search telemetry events, triage security alerts, and audit multi-node agent interactions.
 ---
 
 # AgentTrace Telemetry & Ledger Audit Skill
@@ -16,10 +16,9 @@ Use this skill when verifying the cryptographic integrity of agent actions, quer
 
 2. **Telemetry Querying & Forensics**:
    - Call MCP tool `query_telemetry` with `target_contains` or `limit`.
-   - Filter by action kind: `file_read`, `file_write`, `command_exec`, `llm_prompt`, `mcp_call`.
+   - Filter by event type or target substring.
    - Access the high-density operator console at `http://localhost:8080/console` (<kbd>j</kbd>/<kbd>k</kbd> navigation, <kbd>P</kbd> stream pause, <kbd>F</kbd> manual flag).
 
-3. **Security Alerts & Containment**:
+3. **Security Alerts**:
    - Query alerts with `get_security_alerts` (or `http://localhost:8080/api/v1/alerts`).
    - Acknowledge alerts with `acknowledge_alert` (passing `event_id` or `reset_all: true`).
-   - Verify that untrusted agents are confined via `confine_agent_to_playground`.

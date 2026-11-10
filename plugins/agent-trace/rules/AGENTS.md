@@ -12,7 +12,7 @@ When the **AgentTrace** plugin is active, all agent operations, cluster interact
   - Compound live filtering (`type:`, `verdict:`, `target:`).
   - Stream freeze/pause (<kbd>P</kbd>) so data doesn't scroll away.
   - Keyboard navigation (<kbd>j</kbd>/<kbd>k</kbd> step-by-step).
-  - Interactive "What If?" Policy Sandbox (<kbd>M</kbd>) and Manual Flagging (<kbd>F</kbd>).
+  - Manual Flagging (<kbd>F</kbd>).
 
 ---
 
@@ -28,4 +28,4 @@ When the **AgentTrace** plugin is active, all agent operations, cluster interact
   - **PC-1 Lead Node (`192.168.1.101` / `localhost:8080`)**: `qwen3.8:27b` (Heavy Reasoning), `qwen3:14b` (Fast Code).
   - **PC-2 Worker Node (`192.168.1.102:8642`)**: `deepseek-r1:1.5b` (Ultra-Fast CUDA Reasoning & Chain-of-Thought Verification).
 - **Cryptographic Provenance**: Every major milestone, architectural decision, and rule verification must be logged to the SHA-256 ledger using `record_project_decision` or through the AgentTrace Gateway.
-- **Containment & Safe Zones**: Respect `VaultNoAccess` paths (`.secrets`, `.ssh`, `.env`) and never bypass lexical containment paths.
+- **Secrets**: Never paste credentials into prompts; the gateway redacts known patterns, but treat that as a backstop.

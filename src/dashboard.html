@@ -365,13 +365,8 @@
       <span style="font-family: var(--font-mono, monospace); font-size: 10px; font-weight: 700; color: #f59e0b; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); padding: 1px 6px; border-radius: 3px; letter-spacing: 0.5px; text-transform: uppercase;" title="UI is in Developer Beta Preview. Automation should focus directly on the Gateway REST API.">BETA · API FIRST</span>
     </div>
     <nav class="nav-links">
-      <a href="/client" class="nav-link" style="color: #bc8cff;">Studio</a>
       <a href="/console" class="nav-link">Terminal TUI</a>
       <a href="/dashboard" class="nav-link active">Dashboard</a>
-      <a href="/workgroups" class="nav-link">Workgroups Mesh</a>
-      <a href="/policies" class="nav-link">Policies &amp; Whitelists</a>
-      <a href="/graph" class="nav-link">Contribution Graph</a>
-      <a href="/mobile" class="nav-link" style="color: #f0883e;">Mobile</a>
     </nav>
   </header>
 
@@ -397,7 +392,7 @@
       <div class="metric-card">
         <div class="metric-label"><span>LLM Inferences</span></div>
         <div class="metric-value" id="m-llm">0</div>
-        <div class="metric-sub">Proxied completions</div>
+        <div class="metric-sub" id="m-llm-sub" title="Tokens served by local/cluster models (GET /api/v1/savings)">Proxied completions</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">
@@ -405,7 +400,7 @@
           <button class="btn btn-sm" onclick="acknowledgeAllAlerts()" title="Reset active alert counter">Reset</button>
         </div>
         <div class="metric-value" id="m-alerts" style="color: var(--green);">0</div>
-        <div class="metric-sub"><a href="/policies" style="color: var(--text-muted);">Manage Whitelists &rarr;</a></div>
+        <div class="metric-sub">Blocked + flagged events</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">
@@ -417,25 +412,6 @@
       </div>
     </div>
 
-    <!-- Autonomous Keep-Busy Worker Engine Status Banner -->
-    <div style="background: #0d121c; border: 1px solid var(--border); border-left: 3px solid #38bdf8; border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-family: var(--mono); font-size: 12px;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-family: var(--mono); font-size: 11px; color: var(--accent); font-weight: bold;">[DISPATCH]</span>
-        <div>
-          <span style="color: var(--text-muted); font-size: 11px;">AUTONOMOUS KEEP-BUSY AGENT ENGINE:</span>
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
-            <span id="dash-idle-status" style="padding: 1px 6px; border-radius: 2px; font-size: 11px; font-weight: bold; background: #1b4424; color: #7ee787; border: 1px solid #2ea043;">● ACTIVE WORKING</span>
-            <span style="color: var(--text-muted); font-size: 11px;" id="dash-idle-detail">Idle threshold: 30s · Local cluster models ($0.00 cost)</span>
-          </div>
-        </div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="color: var(--text-muted); font-size: 11px;" id="dash-idle-stats">Completed: 0 tasks</span>
-        <button class="btn btn-sm" onclick="triggerDashIdleTask()" style="border-color: #38bdf8; color: #38bdf8;">Run Task</button>
-        <a href="/console" class="btn btn-sm">Manage in Console (W) &rarr;</a>
-      </div>
-    </div>
-
     <!-- Top Operational Grid: Cluster Nodes (Left) + Prompt Hub (Right) -->
     <div class="top-grid">
 
@@ -443,12 +419,9 @@
       <section class="panel">
         <div class="panel-header">
           <div class="panel-title">
-            <span>Cluster Nodes &amp; Containment Status</span>
+            <span>Cluster Nodes</span>
           </div>
           <div style="display: flex; gap: 6px;">
-            <button onclick="probeClusterHealth()" class="btn btn-sm" id="btn-probe-health" style="background: #1f2937; border-color: var(--accent); color: var(--accent);">⚡ Probe Health</button>
-            <a href="/policies" class="btn btn-sm">Configure Policies</a>
-            <a href="/workgroups" class="btn btn-sm">Edit Agent Mesh</a>
           </div>
         </div>
         <div class="panel-body">
@@ -463,38 +436,22 @@
             </div>
           </div>
 
-          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 11.5px;">
-            <span style="color: var(--text-muted);" id="active-zones-summary">Active Zones: Loading...</span>
-            <a href="/policies" style="color: var(--accent); text-decoration: none;">Open Whitelist &amp; Zone Firewall &rarr;</a>
-          </div>
         </div>
       </section>
 
-      <!-- Right: Prompt Hub Dispatcher -->
+      <!-- Right: Local token savings -->
       <section class="panel">
         <div class="panel-header">
           <div class="panel-title">
-            <span>Cluster Prompt Hub Dispatcher</span>
-          </div>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <select id="hub-mode" style="padding: 3px 8px; font-size: 11px;">
-              <option value="workgroup:auto">Mode: Auto-Match Problem Workgroup</option>
-              <option value="workgroup:wg-coding">Workgroup: Coding &amp; Architecture</option>
-              <option value="workgroup:wg-image-gen">Workgroup: Image &amp; SVG Generation</option>
-              <option value="workgroup:wg-reasoning-debug">Workgroup: Reasoning &amp; Coding Issues</option>
-              <option value="workgroup:wg-security-audit">Workgroup: Security &amp; Zone Audit</option>
-              <option value="pipeline">Mode: 2-Stage Pipeline (Qwen + DeepSeek)</option>
-              <option value="single">Mode: Single Best Model</option>
-            </select>
-            <a href="/workgroups" class="btn btn-sm">Mesh Builder</a>
+            <span>Tokens Served Locally</span>
           </div>
         </div>
-        <div class="panel-body" style="display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="hub-prompt" placeholder="Enter a prompt to route across the cluster workgroups..." style="flex: 1;" onkeydown="if(event.key==='Enter') dispatchHubPrompt()">
-            <button class="btn btn-primary" id="btn-hub-send" onclick="dispatchHubPrompt()">Dispatch</button>
-          </div>
-          <div id="hub-response-box" class="code-box" style="display: none; max-height: 135px;"></div>
+        <div class="panel-body" style="font-family: var(--mono); font-size: 12px; line-height: 1.8;">
+          <div>Requests: <strong id="sv-requests">0</strong></div>
+          <div>Prompt tokens: <strong id="sv-prompt">0</strong></div>
+          <div>Completion tokens: <strong id="sv-completion">0</strong></div>
+          <div>Total tokens: <strong id="sv-total">0</strong></div>
+          <div style="color: var(--text-muted); font-size: 11px; margin-top: 6px;">Work handled by local Ollama / LAN worker models instead of a paid API.</div>
         </div>
       </section>
 
@@ -550,7 +507,7 @@
           <span style="font-family: var(--mono); font-size: 11px; color: var(--text-muted);" id="insp-event-id">Select an event row</span>
         </div>
         <div class="panel-body" id="inspector-body" style="display: flex; flex-direction: column; gap: 10px;">
-          <div style="color: var(--text-muted); font-family: var(--mono); font-size: 12px;">Click any event row in the stream to inspect its unified code diff, policy evaluation reasons, JSON payload, and Ed25519 signature.</div>
+          <div style="color: var(--text-muted); font-family: var(--mono); font-size: 12px;">Click any event row in the stream to inspect its unified code diff, security reasons, JSON payload, and Ed25519 signature.</div>
         </div>
       </section>
 
@@ -574,16 +531,17 @@
 
     async function loadSummaryAndEvents() {
       try {
-        const [sumRes, evRes, zonesRes] = await Promise.all([
+        const [sumRes, evRes, svRes] = await Promise.all([
           fetch('/api/v1/summary'),
           fetch('/api/v1/events?limit=120'),
-          fetch('/api/v1/zones')
+          fetch('/api/v1/savings')
         ]);
         const sum = await sumRes.json();
         const evs = await evRes.json();
-        const zData = await zonesRes.json();
+        const sv = svRes.ok ? await svRes.json() : {};
 
-        updateMetrics(sum, zData);
+        updateMetrics(sum);
+        updateSavings(sv);
         allEvents = Array.isArray(evs) ? evs : [];
         if (!selectedEventId && allEvents.length > 0) {
           selectedEventId = allEvents[0].event_id;
@@ -595,7 +553,16 @@
       }
     }
 
-    function updateMetrics(sum, zData) {
+    function updateSavings(sv) {
+      const n = v => (v || 0).toLocaleString();
+      document.getElementById('sv-requests').textContent = n(sv.requests);
+      document.getElementById('sv-prompt').textContent = n(sv.prompt_tokens);
+      document.getElementById('sv-completion').textContent = n(sv.completion_tokens);
+      document.getElementById('sv-total').textContent = n(sv.total_tokens);
+      document.getElementById('m-llm-sub').textContent = `${n(sv.total_tokens)} tokens served locally`;
+    }
+
+    function updateMetrics(sum) {
       document.getElementById('m-total').textContent = sum.total_events ?? 0;
       document.getElementById('m-writes').textContent = sum.total_writes ?? 0;
       document.getElementById('m-commands').textContent = sum.total_commands ?? 0;
@@ -638,9 +605,6 @@
         `}).join('');
       }
 
-      const zones = zData?.zones || [];
-      document.getElementById('active-zones-summary').textContent =
-        `${zones.length} Spatial Zones Enforced (${zones.filter(z => z.kind === 'VaultNoAccess').length} Vaults, ${zones.filter(z => z.kind === 'GuardedReadOnly').length} Guarded, ${zones.filter(z => z.kind === 'AgentPlayground').length} Playgrounds)`;
     }
 
     function setStreamFilter(flt) {
@@ -732,7 +696,7 @@
 
       const reasons = (ev.security_reasons && ev.security_reasons.length)
         ? ev.security_reasons.join(' | ')
-        : 'Passed policy & spatial zone evaluation';
+        : 'No DLP findings';
 
       body.innerHTML = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--mono); font-size: 11.5px;">
@@ -751,7 +715,7 @@
         <div style="font-family: var(--mono); font-size: 11.5px; background: var(--bg-base); border: 1px solid var(--border); padding: 8px; border-radius: 4px;">
           <div style="color: var(--text-dim); font-size: 10px;">TARGET PATH / RESOURCE</div>
           <div style="word-break: break-all; color: var(--text-main);">${escapeHtml(ev.target)}</div>
-          <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px;">Policy Note: ${escapeHtml(reasons)}</div>
+          <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px;">Note: ${escapeHtml(reasons)}</div>
         </div>
 
         <div>
@@ -780,10 +744,10 @@
     }
 
     async function acknowledgeAllAlerts() {
-      await fetch('/api/v1/alerts/acknowledge', {
+      await fetch('/api/v1/alerts/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: 'all' })
+        body: '{}'
       });
       await loadSummaryAndEvents();
     }
@@ -794,44 +758,6 @@
       const headEl = document.getElementById('m-head-hash');
       headEl.textContent = `${d.total_blocks} blocks · ${(d.latest_block_hash || '').slice(0, 12)}…`;
       await loadSummaryAndEvents();
-    }
-
-    async function dispatchHubPrompt() {
-      const promptInput = document.getElementById('hub-prompt');
-      const prompt = (promptInput.value || '').trim();
-      if (!prompt) return;
-
-      const rawMode = document.getElementById('hub-mode').value;
-      let mode = rawMode;
-      let workgroup_id = null;
-      if (rawMode.startsWith('workgroup:')) {
-        mode = 'workgroup';
-        workgroup_id = rawMode.split(':')[1];
-      }
-
-      const btn = document.getElementById('btn-hub-send');
-      const box = document.getElementById('hub-response-box');
-      btn.disabled = true;
-      btn.textContent = 'Routing...';
-      box.style.display = 'block';
-      box.textContent = 'Dispatching prompt through AgentTrace Hub...';
-
-      try {
-        const res = await fetch('/api/v1/hub/dispatch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, mode, workgroup_id })
-        });
-        const d = await res.json();
-        const header = `[${d.mode}] Intent: ${d.classified_intent} (${Math.round(d.total_duration_ms || 0)}ms)\n`;
-        box.textContent = header + (d.primary_response || JSON.stringify(d, null, 2));
-        await loadSummaryAndEvents();
-      } catch (e) {
-        box.textContent = 'Error: ' + e.message;
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Dispatch';
-      }
     }
 
     async function simulateQuickTestEvents() {
@@ -880,69 +806,9 @@
       };
     }
 
-    async function pollDashIdleWorker() {
-      try {
-        const res = await fetch('/api/v1/idle_worker/status');
-        if (!res.ok) return;
-        const data = await res.json();
-        const statusEl = document.getElementById('dash-idle-status');
-        const detailEl = document.getElementById('dash-idle-detail');
-        const statsEl = document.getElementById('dash-idle-stats');
-        if (!statusEl || !detailEl || !statsEl) return;
-
-        if (!data.enabled) {
-          statusEl.textContent = '○ DISABLED';
-          statusEl.style.background = '#21262d';
-          statusEl.style.color = 'var(--text-muted)';
-          statusEl.style.borderColor = 'var(--border)';
-        } else if (data.status === 'ActiveWorking') {
-          statusEl.textContent = `● WORKING: ${data.current_task || 'Task in progress'}`;
-          statusEl.style.background = '#1b4424';
-          statusEl.style.color = '#7ee787';
-          statusEl.style.borderColor = '#2ea043';
-        } else if (data.status === 'PausedUserPreempted') {
-          statusEl.textContent = '[PREEMPTED (USER ACTIVE)]';
-          statusEl.style.background = '#382307';
-          statusEl.style.color = '#f0883e';
-          statusEl.style.borderColor = '#9e6a03';
-        } else {
-          statusEl.textContent = `STANDBY (${data.seconds_idle}s)`;
-          statusEl.style.background = '#0c1a29';
-          statusEl.style.color = '#38bdf8';
-          statusEl.style.borderColor = '#1d4ed8';
-        }
-
-        detailEl.textContent = `Idle threshold: ${data.idle_threshold_secs}s · Model: ${data.target_model} · Preemption: sub-millisecond`;
-        statsEl.textContent = `Completed: ${data.total_tasks_run || 0} tasks (${data.completed_cycles || 0} passes)`;
-      } catch (_) {}
-    }
-
-    async function triggerDashIdleTask() {
-      try {
-        await fetch('/api/v1/idle_worker/trigger', { method: 'POST' });
-        pollDashIdleWorker();
-      } catch (err) {
-        alert('Failed to trigger idle task: ' + err.message);
-      }
-    }
-
-    async function probeClusterHealth() {
-      const btn = document.getElementById('btn-probe-health');
-      if (btn) btn.textContent = '⏳ Probing...';
-      try {
-        await fetch('/api/v1/cluster/health/probe', { method: 'POST' });
-        await loadSummaryAndEvents();
-      } catch (err) {
-        console.error('Probe health error:', err);
-      } finally {
-        if (btn) btn.textContent = '⚡ Probe Health';
-      }
-    }
-
     loadSummaryAndEvents();
     connectSse();
-    pollDashIdleWorker();
-    setInterval(pollDashIdleWorker, 3000);
+    setInterval(loadSummaryAndEvents, 10000);
   </script>
 </body>
 </html>

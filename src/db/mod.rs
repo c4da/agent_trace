@@ -35,6 +35,29 @@ impl Database {
         })
     }
 
+    /// Token usage of proxied LLM calls (served by local/cluster models), for the savings counter.
+    pub fn local_token_usage(&self) -> SqliteResult<Value> {
+        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        conn.query_row(
+            "SELECT COUNT(*),
+                    COALESCE(SUM(json_extract(action_details, '$.usage.prompt_tokens')), 0),
+                    COALESCE(SUM(json_extract(action_details, '$.usage.completion_tokens')), 0),
+                    COALESCE(SUM(json_extract(action_details, '$.usage.total_tokens')), 0)
+             FROM events
+             WHERE event_type = 'LlmInference' AND security_verdict != 'Blocked'",
+            [],
+            |r| {
+                Ok(serde_json::json!({
+                    "requests": r.get::<_, i64>(0)?,
+                    "prompt_tokens": r.get::<_, i64>(1)?,
+                    "completion_tokens": r.get::<_, i64>(2)?,
+                    "total_tokens": r.get::<_, i64>(3)?,
+                    "note": "Streaming responses do not report usage and are counted as requests only."
+                }))
+            },
+        )
+    }
+
     /// Fetches the latest event hash or genesis hash if empty.
     pub fn get_latest_event_hash(&self) -> SqliteResult<String> {
         let conn = self.conn.lock().unwrap();

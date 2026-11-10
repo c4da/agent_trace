@@ -1,41 +1,24 @@
-# ------------------------------------------------------------------------------
-# Multi-stage Dockerfile for AgentTrace Gateway
-# ------------------------------------------------------------------------------
-
-# Stage 1: Build binary
-FROM rust:1.80-slim-bookworm AS builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
+# Multi-stage build for AgentTrace Gateway (TLS via rustls; no system OpenSSL needed).
+FROM rust:1-slim-bookworm AS builder
 WORKDIR /usr/src/agent_trace_gw
-
 COPY Cargo.toml Cargo.lock ./
 COPY src/ ./src/
-COPY docs/ ./docs/
+RUN cargo build --release --bins
 
-RUN cargo build --release
-
-# Stage 2: Minimal runtime image
 FROM debian:bookworm-slim AS runtime
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
-
 COPY --from=builder /usr/src/agent_trace_gw/target/release/agent_trace_gw /usr/local/bin/agent_trace_gw
+COPY --from=builder /usr/src/agent_trace_gw/target/release/agent_trace_mcp /usr/local/bin/agent_trace_mcp
 
-# Volume for persisted workgroups, ledger, and SQLite database
-VOLUME ["/app/.agent_trace"]
-
+# Ledger database and node signing key live here.
+VOLUME ["/data"]
+ENV DB_PATH=/data/cluster_telemetry.db
+ENV NODE_KEY_PATH=/data/node_key.pk8
+ENV RUST_LOG=info
 EXPOSE 8080
 
-ENV RUST_LOG=info
-ENV AGENT_TRACE_BIND=0.0.0.0:8080
-
-ENTRYPOINT ["agent_trace_gw"]
+# Binds 0.0.0.0 inside the container; the process refuses to start unless
+# AGENTTRACE_TOKEN is set (pass it with `docker run -e AGENTTRACE_TOKEN=...`).
+ENTRYPOINT ["agent_trace_gw", "--insecure-lan"]

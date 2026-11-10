@@ -169,26 +169,9 @@ impl Default for ClusterModelRegistry {
 
 impl ClusterModelRegistry {
     pub fn new() -> Self {
-        let mut reg = Self {
+        
+        Self {
             models: HashMap::new(),
-        };
-        reg.register_builtin_tools();
-        reg
-    }
-
-    /// Auto-detects and registers host CLI tools and agents (e.g. GitHub Copilot CLI).
-    pub fn register_builtin_tools(&mut self) {
-        if crate::copilot::is_copilot_installed() {
-            self.register_single_model(
-                "PC-1",
-                "cli://copilot",
-                "copilot-cli",
-                Some(vec![
-                    ModelCapability::FastCodeGeneration,
-                    ModelCapability::ComplexReasoning,
-                    ModelCapability::GeneralExecution,
-                ]),
-            );
         }
     }
 
@@ -314,7 +297,7 @@ impl ClusterModelRegistry {
         let mut candidates: Vec<&ModelManifest> = self
             .models
             .values()
-            .filter(|m| m.is_healthy && is_http(&m) && m.capabilities.contains(&target_cap))
+            .filter(|m| m.is_healthy && is_http(m) && m.capabilities.contains(&target_cap))
             .collect();
 
         if candidates.is_empty() {
@@ -322,13 +305,13 @@ impl ClusterModelRegistry {
             candidates = self
                 .models
                 .values()
-                .filter(|m| m.is_healthy && is_http(&m) && m.capabilities.contains(&ModelCapability::GeneralExecution))
+                .filter(|m| m.is_healthy && is_http(m) && m.capabilities.contains(&ModelCapability::GeneralExecution))
                 .collect();
         }
 
         if candidates.is_empty() {
             // Absolute fallback: pick any healthy HTTP model
-            candidates = self.models.values().filter(|m| m.is_healthy && is_http(&m)).collect();
+            candidates = self.models.values().filter(|m| m.is_healthy && is_http(m)).collect();
         }
 
         // Rank candidates by intent-specific tier fitness
@@ -365,7 +348,7 @@ impl ClusterModelRegistry {
             }
         };
 
-        candidates.sort_by(|a, b| fitness(b).cmp(&fitness(a)));
+        candidates.sort_by_key(|b| std::cmp::Reverse(fitness(b)));
 
         candidates.first().cloned().cloned()
     }

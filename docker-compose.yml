@@ -1,25 +1,25 @@
-version: '3.8'
-
 services:
   agent_trace_gw:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: agent_trace_gw
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # Published on loopback only; widen deliberately and keep the token secret.
+      - "127.0.0.1:8080:8080"
     volumes:
-      - agent_trace_data:/app/.agent_trace
+      - agent_trace_data:/data
     environment:
-      - RUST_LOG=info
-      - AGENT_TRACE_BIND=0.0.0.0:8080
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
+      RUST_LOG: info
+      # Required: the gateway refuses to bind 0.0.0.0 without it.
+      AGENTTRACE_TOKEN: ${AGENTTRACE_TOKEN:?set AGENTTRACE_TOKEN}
+      # Ollama on the Docker host; must also be in the allowlist.
+      UPSTREAM_URL: ${UPSTREAM_URL:-http://host.docker.internal:11434}
+      UPSTREAM_ALLOWLIST: ${UPSTREAM_ALLOWLIST:-http://host.docker.internal:11434}
+      WORKER_UPSTREAMS: ${WORKER_UPSTREAMS:-}
+      WORKER_HERMES_KEY: ${WORKER_HERMES_KEY:-}
+      AGENTTRACE_DLP_MODE: ${AGENTTRACE_DLP_MODE:-redact}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   agent_trace_data:
-    driver: local

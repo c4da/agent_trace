@@ -1,11 +1,11 @@
 {
   "name": "agent-trace",
-  "displayName": "AgentTrace Telemetry & Cluster Governance",
-  "version": "1.0.0",
-  "description": "Local-first cryptographic telemetry, multi-node cluster orchestration, and governance for AI coding agents.",
+  "displayName": "AgentTrace",
+  "version": "2.0.0",
+  "description": "Scrubbing OpenAI-compatible proxy, signed hash-chained ledger and MCP tools for local AI agent clusters.",
   "suggestedPrompts": [
-    "Verify the cryptographic ledger and audit cluster health",
-    "Inspect active Problem Workgroups and governance rules",
-    "Record this architectural milestone to the Studio Project Book"
+    "Verify the cryptographic ledger and inspect the cluster",
+    "Show which model a prompt would route to",
+    "Record this architectural decision in the ledger"
   ]
 }
